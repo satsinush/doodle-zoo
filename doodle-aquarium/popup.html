@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Doodle Aquarium</title>
+  <link rel="stylesheet" type="text/css" href="popup.css">
+</head>
+<body>
+  <h1>Doodle Aquarium</h1>
+  <div class="canvas-container">
+    <canvas id="drawing-canvas" width="200" height="150"></canvas>
+  </div>
+
+  <div class="controls">
+    <input type="color" id="color-picker" value="#000000">
+    <input type="range" id="brush-size" min="1" max="20" value="5">
+    <button id="clear-btn">Clear</button>
+    <button id="save-btn">Save Fish</button>
+  </div>
+
+  <h2>My Fish</h2>
+  <div id="fish-list">
+    <!-- Fish items will be added here -->
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
