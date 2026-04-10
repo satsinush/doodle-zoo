@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Doodle Aquarium</title>
+  <link rel="stylesheet" type="text/css" href="popup.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="header">
+      <h1>Doodle Aquarium</h1>
+      <div class="header-actions">
+        <button id="open-window-btn" class="secondary-btn" type="button">Open Full Window</button>
+        <button id="settings-btn" class="secondary-btn" type="button">Settings</button>
+      </div>
+    </header>
+
+    <div class="canvas-container">
+      <canvas id="drawing-canvas" width="420" height="260"></canvas>
+      <div id="direction-indicator" class="direction-indicator" aria-live="polite">Head points -&gt;</div>
+    </div>
+
+    <div class="controls">
+      <div class="field">
+        <label for="color-picker">Color</label>
+        <div class="color-row">
+          <input type="color" id="color-picker" value="#000000" aria-label="Pick color">
+          <input type="text" id="color-text" value="#000000" placeholder="Any CSS color" aria-label="Custom color">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="brush-size">Brush Size</label>
+        <input type="range" id="brush-size" min="1" max="20" value="5">
+      </div>
+
+      <div class="field direction-row">
+        <label for="fish-direction">Fish Direction</label>
+        <select id="fish-direction">
+          <option value="right">Right -&gt;</option>
+          <option value="left">&lt;- Left</option>
+        </select>
+      </div>
+
+      <div class="buttons-row">
+        <button id="clear-btn" type="button">Clear</button>
+        <button id="save-btn" type="button">Save Fish</button>
+      </div>
+    </div>
+
+    <h2>My Fish</h2>
+    <div id="fish-list">
+      <!-- Fish items will be added here -->
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

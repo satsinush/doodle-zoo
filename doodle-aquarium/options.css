@@ -1,0 +1,93 @@
+:root {
+  --bg: #eef6ff;
+  --ink: #1f2f42;
+  --panel: #ffffff;
+  --border: #c8d9eb;
+  --primary: #1d8f6a;
+  --primary-hover: #147353;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  background: linear-gradient(180deg, #dbeeff 0%, var(--bg) 45%);
+  color: var(--ink);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.settings-shell {
+  width: min(620px, 100%);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px;
+}
+
+h1 {
+  margin-top: 0;
+  margin-bottom: 14px;
+}
+
+.panel {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 12px;
+  background: #f9fcff;
+}
+
+label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+input[type="range"] {
+  width: 100%;
+}
+
+.value {
+  margin-top: 6px;
+  color: #32597d;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+button {
+  border: 0;
+  border-radius: 8px;
+  height: 34px;
+  cursor: pointer;
+  color: #fff;
+  background: var(--primary);
+  padding: 0 12px;
+}
+
+button:hover {
+  background: var(--primary-hover);
+}
+
+button.secondary {
+  background: #31547a;
+}
+
+button.secondary:hover {
+  background: #274565;
+}
+
+.status {
+  min-height: 20px;
+  margin-top: 10px;
+  color: #31547a;
+}

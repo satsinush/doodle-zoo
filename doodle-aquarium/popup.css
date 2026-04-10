@@ -1,0 +1,227 @@
+:root {
+  --bg: #eef6ff;
+  --panel: #ffffff;
+  --ink: #1e2d3d;
+  --border: #cad9ea;
+  --accent: #1d8f6a;
+  --accent-hover: #157556;
+  --danger: #d14646;
+  --danger-hover: #a93838;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: radial-gradient(circle at top right, #cfe8ff, var(--bg) 42%);
+  color: var(--ink);
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+  width: 520px;
+  min-height: 640px;
+  padding: 12px;
+}
+
+body.standalone {
+  width: 100vw;
+  min-height: 100vh;
+}
+
+.app-shell {
+  width: 100%;
+  max-width: 920px;
+  margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+h1,
+h2 {
+  margin: 0;
+}
+
+h1 {
+  font-size: 22px;
+}
+
+h2 {
+  margin-top: 12px;
+  margin-bottom: 8px;
+  font-size: 18px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.canvas-container {
+  position: relative;
+  margin-bottom: 10px;
+}
+
+canvas {
+  width: 100%;
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background-color: #fff;
+  cursor: crosshair;
+}
+
+.direction-indicator {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.controls {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.field label {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.color-row {
+  display: flex;
+  gap: 8px;
+}
+
+#color-picker {
+  width: 44px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0;
+}
+
+#color-text,
+#fish-direction {
+  flex: 1;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0 8px;
+}
+
+#brush-size {
+  width: 100%;
+}
+
+.buttons-row {
+  display: flex;
+  gap: 8px;
+}
+
+button {
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  height: 34px;
+  padding: 0 12px;
+  color: #fff;
+  background-color: var(--accent);
+}
+
+button:hover {
+  background-color: var(--accent-hover);
+}
+
+.secondary-btn {
+  background: #245384;
+}
+
+.secondary-btn:hover {
+  background: #1d446b;
+}
+
+#clear-btn,
+.delete-btn {
+  background-color: var(--danger);
+}
+
+#clear-btn:hover,
+.delete-btn:hover {
+  background-color: var(--danger-hover);
+}
+
+#fish-list {
+  max-height: 260px;
+  overflow-y: auto;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.fish-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  background-color: #fff;
+  padding: 6px;
+  border-radius: 8px;
+  border: 1px solid #dfebf6;
+}
+
+.fish-img-container {
+  width: 60px;
+  height: 44px;
+  border: 1px solid #e6eef6;
+  border-radius: 6px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #f8fbff;
+}
+
+.fish-img-container img {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.fish-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fish-direction {
+  font-size: 12px;
+  color: #375c80;
+}
+
+.delete-btn {
+  font-size: 12px;
+  height: 28px;
+  padding: 0 8px;
+}
+
+.invalid {
+  border-color: #de5050 !important;
+  box-shadow: 0 0 0 2px rgba(222, 80, 80, 0.12);
+}
