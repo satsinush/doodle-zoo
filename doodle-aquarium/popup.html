@@ -1,155 +1,159 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="utf-8"/>
-    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
     <title>Doodle Aquarium | Tidal Studio</title>
-    
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+
+    <link
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800&family=Inter:wght@400;500;600&display=swap"
+        rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+        rel="stylesheet" />
     <link rel="stylesheet" type="text/css" href="popup.css">
 </head>
+
 <body>
 
-<header>
-    <span class="headline" style="font-weight: 800; color: var(--primary); font-size: 1.1rem;">Doodle Aquarium</span>
-    <div class="header-actions">
-        <button id="open-window-btn" class="icon-btn" title="Open Full Window">
-            <span class="material-symbols-outlined">open_in_new</span>
-        </button>
-    </div>
-</header>
-
-<main>
-    <!-- Toolbar -->
-    <div class="toolbar">
-        <div class="btn-group" id="tool-group">
-            <button class="icon-btn active" data-tool="brush" title="Brush">
-                <span class="material-symbols-outlined">brush</span>
-            </button>
-            <button class="icon-btn" data-tool="fill" title="Fill Bucket">
-                <span class="material-symbols-outlined">format_color_fill</span>
-            </button>
-            <button class="icon-btn" data-tool="eraser" title="Eraser">
-                <span class="material-symbols-outlined">ink_eraser</span>
+    <header>
+        <span class="headline" style="font-weight: 800; color: var(--primary); font-size: 1.1rem;">Doodle
+            Aquarium</span>
+        <div class="header-actions">
+            <button id="open-window-btn" class="icon-btn" title="Open Full Window">
+                <span class="material-symbols-outlined">open_in_new</span>
             </button>
         </div>
-        <div class="divider"></div>
-        <div class="btn-group">
-            <button id="undo-btn" class="icon-btn" title="Undo" disabled>
-                <span class="material-symbols-outlined">undo</span>
-            </button>
-            <button id="redo-btn" class="icon-btn" title="Redo" disabled>
-                <span class="material-symbols-outlined">redo</span>
-            </button>
-            <button id="clear-btn" class="icon-btn" title="Clear Canvas">
-                <span class="material-symbols-outlined">delete_sweep</span>
-            </button>
-        </div>
-    </div>
+    </header>
 
-    <!-- Canvas -->
-    <div class="canvas-container">
-        <div class="badge">Drawing</div>
-        <canvas id="direction-guide" aria-hidden="true"></canvas>
-        <canvas id="drawing-canvas"></canvas>
-        <canvas id="brush-preview" width="40" height="40"></canvas>
-    </div>
-
-    <!-- Settings Grid -->
-    <div class="settings-grid">
-        <div class="settings-card">
-            <label class="label-tiny">Color</label>
-            <div class="color-row">
-                <input type="color" id="color-picker" value="#004268">
-                <input type="text" id="color-text" value="#004268" placeholder="#HEX or color name">
-            </div>
-        </div>
-        <div class="settings-card">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <label class="label-tiny">Brush Size</label>
-                <span id="brush-size-display" style="font-size: 10px; font-weight: 800; color: var(--primary);">5px</span>
-            </div>
-            <input type="range" id="brush-size" min="1" max="100" value="5">
-        </div>
-    </div>
-
-    <!-- Primary Action -->
-    <button id="save-btn" class="btn-primary">
-        <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">save</span>
-        Save Fish to Tank
-    </button>
-    
-    <label class="secondary-btn" style="cursor: pointer; text-align: center; display: block; margin-top: -0.5rem;">
-        <span class="material-symbols-outlined" style="vertical-align: middle; font-size: 18px; margin-right: 4px;">upload_file</span>
-        Import Existing Fish
-        <input type="file" id="import-file" accept="image/*" multiple style="display: none;">
-    </label>
-
-    <!-- Accordion / Settings -->
-    <details id="settings-panel">
-        <summary>
-            <div style="display:flex; align-items:center; gap: 12px;">
-                <span class="material-symbols-outlined">settings</span>
-                Settings
-            </div>
-            <span class="material-symbols-outlined">expand_more</span>
-        </summary>
-        <div class="details-content">
-            <div class="field">
-                <div class="field-header">
-                    <span>Fish Speed</span>
-                    <span id="speed-display">0.5</span>
+    <main>
+        <div class="editor-layout">
+            <!-- Canvas Area -->
+            <div class="canvas-area">
+                <div class="canvas-container">
+                    <div class="badge">Drawing</div>
+                    <canvas id="direction-guide" aria-hidden="true"></canvas>
+                    <canvas id="drawing-canvas"></canvas>
+                    <canvas id="brush-preview" width="40" height="40"></canvas>
                 </div>
-                <input id="speed-multiplier" type="range" min="0.1" max="3.0" step="0.1" value="0.5">
             </div>
-            <div class="field">
-                <div class="field-header">
-                    <span>Fish Size</span>
-                    <span id="size-display">0.5</span>
+
+            <!-- Sidebar / Controls -->
+            <div class="sidebar">
+                <div class="toolbar">
+                    <div class="btn-group" id="tool-group">
+                        <button class="icon-btn active" data-tool="brush" title="Brush">
+                            <span class="material-symbols-outlined">brush</span>
+                        </button>
+                        <button class="icon-btn" data-tool="fill" title="Fill Bucket">
+                            <span class="material-symbols-outlined">format_color_fill</span>
+                        </button>
+                        <button class="icon-btn" data-tool="eraser" title="Eraser">
+                            <span class="material-symbols-outlined">ink_eraser</span>
+                        </button>
+                    </div>
+                    <div class="divider"></div>
+                    <div class="btn-group">
+                        <button id="undo-btn" class="icon-btn" title="Undo" disabled>
+                            <span class="material-symbols-outlined">undo</span>
+                        </button>
+                        <button id="redo-btn" class="icon-btn" title="Redo" disabled>
+                            <span class="material-symbols-outlined">redo</span>
+                        </button>
+                        <button id="clear-btn" class="icon-btn" title="Clear Canvas">
+                            <span class="material-symbols-outlined">delete_sweep</span>
+                        </button>
+                    </div>
                 </div>
-                <input id="size-multiplier" type="range" min="0.1" max="3.0" step="0.1" value="0.5">
-            </div>
-            <div class="field">
-                <div class="field-header">
-                    <span>Interaction Type</span>
+
+                <!-- Core Settings -->
+                <div class="settings-grid">
+                    <div class="settings-card">
+                        <label class="label-tiny">Color</label>
+                        <div class="color-row">
+                            <input type="color" id="color-picker" value="#004268">
+                            <input type="text" id="color-text" value="#004268">
+                        </div>
+                    </div>
+                    <div class="settings-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <label class="label-tiny">Size</label>
+                            <span id="brush-size-display"
+                                style="font-size: 10px; font-weight: 800; color: var(--primary);">5px</span>
+                        </div>
+                        <input type="range" id="brush-size" min="1" max="100" value="5">
+                    </div>
                 </div>
-                <select id="interaction-type">
-                    <option value="repel">Repel</option>
-                    <option value="attract">Attract</option>
-                </select>
-            </div>
-            <div class="field">
-                <div class="field-header">
-                    <span>Interaction Strength</span>
-                    <span id="strength-display">1.0</span>
+
+                <div class="action-buttons">
+                    <button id="save-btn" class="btn-primary">
+                        <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">save</span>
+                        Save Fish
+                    </button>
+
+                    <label class="secondary-btn" style="cursor: pointer; text-align: center; display: block;">
+                        <span class="material-symbols-outlined"
+                            style="vertical-align: middle; font-size: 18px; margin-right: 4px;">upload_file</span>
+                        Import Fish
+                        <input type="file" id="import-file" accept="image/*" multiple style="display: none;">
+                    </label>
                 </div>
-                <input id="interaction-strength" type="range" min="0.0" max="5.0" step="0.1" value="1">
-            </div>
-            
-            <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
-                <button id="reset-settings" class="secondary-btn" style="flex: 1;">Reset Settings</button>
+
+                <details id="settings-panel">
+                    <summary>
+                        <div style="display:flex; align-items:center; gap: 12px;">
+                            <span class="material-symbols-outlined">settings</span>
+                            Settings
+                        </div>
+                        <span class="material-symbols-outlined">expand_more</span>
+                    </summary>
+                    <div class="details-content">
+                        <div class="field">
+                            <div class="field-header"><span>Fish Speed</span><span id="speed-display">0.5</span></div>
+                            <input id="speed-multiplier" type="range" min="0.1" max="3.0" step="0.1" value="0.5">
+                        </div>
+                        <div class="field">
+                            <div class="field-header"><span>Fish Size</span><span id="size-display">0.5</span></div>
+                            <input id="size-multiplier" type="range" min="0.1" max="3.0" step="0.1" value="0.5">
+                        </div>
+                        <div class="field">
+                            <div class="field-header"><span>Interaction Type</span></div>
+                            <select id="interaction-type">
+                                <option value="repel">Repel</option>
+                                <option value="attract">Attract</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <div class="field-header"><span>Interaction Strength</span><span
+                                    id="strength-display">1.0</span></div>
+                            <input id="interaction-strength" type="range" min="0.0" max="5.0" step="0.1" value="1">
+                        </div>
+                        <button id="reset-settings" class="secondary-btn" style="width: 100%;">Reset Settings</button>
+                    </div>
+                </details>
+
+                <div class="settings-card">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <h3 style="margin:0; font-size: 14px;">Tank Gallery</h3>
+                        <div style="display: flex; gap: 8px;">
+                            <span id="select-all-btn"
+                                style="font-size: 10px; font-weight: 800; color: var(--primary); text-transform: uppercase; cursor: pointer;">Show
+                                All</span>
+                            <span id="deselect-all-btn"
+                                style="font-size: 10px; font-weight: 800; color: var(--on-surface-variant); text-transform: uppercase; cursor: pointer;">Hide
+                                All</span>
+                        </div>
+                    </div>
+                    <div id="fish-list" class="gallery-grid"></div>
+                </div>
             </div>
         </div>
-    </details>
+    </main>
 
-    <!-- Gallery -->
-    <div class="settings-card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-            <h3 style="margin:0; font-size: 14px;">My Fish</h3>
-            <div style="display: flex; gap: 8px;">
-                <span id="select-all-btn" style="font-size: 10px; font-weight: 800; color: var(--primary); text-transform: uppercase; cursor: pointer;">Show All</span>
-                <span id="deselect-all-btn" style="font-size: 10px; font-weight: 800; color: var(--on-surface-variant); text-transform: uppercase; cursor: pointer;">Hide All</span>
-            </div>
-        </div>
-        <div id="fish-list" class="gallery-grid">
-            <!-- Fish items rendered by JS -->
-        </div>
-    </div>
-</main>
+    <p id="status" role="alert"></p>
 
-<p id="status" role="alert"></p>
-
-<script src="popup.js"></script>
+    <script src="popup.js"></script>
 </body>
+
 </html>
