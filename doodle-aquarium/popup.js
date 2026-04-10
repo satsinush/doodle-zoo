@@ -433,6 +433,12 @@ document.addEventListener('DOMContentLoaded', () => {
     return `#${toHex(match[1])}${toHex(match[2])}${toHex(match[3])}`;
   }
 
+  function rgbaToHex8(r, g, b, a) {
+    const hex = (n) => Math.round(n).toString(16).padStart(2, '0').toUpperCase();
+    const alpha = Math.round(a * 255);
+    return `#${hex(r)}${hex(g)}${hex(b)}${hex(alpha)}`;
+  }
+
   function applyColorInput(value, silent = false) {
     const normalized = normalizeCssColor(value);
     if (!normalized) {
@@ -472,11 +478,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const g = parseInt(hex6.slice(3, 5), 16);
       const b = parseInt(hex6.slice(5, 7), 16);
       currentDrawColor = `rgba(${r}, ${g}, ${b}, ${currentOpacity})`;
+      colorText.value = rgbaToHex8(r, g, b, currentOpacity);
     } else {
       currentDrawColor = value; // Fallback
+      colorText.value = value.toUpperCase();
     }
-
-    colorText.value = value;
 
     // Auto-switch to brush tool
     currentTool = 'brush';
@@ -523,7 +529,6 @@ document.addEventListener('DOMContentLoaded', () => {
         brushPreviewCtx.strokeStyle = '#000000';
         brushPreviewCtx.lineWidth = 1;
         brushPreviewCtx.stroke();
-        brushPreview.style.display = 'block';
       }
     }
   }
@@ -631,6 +636,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const g = parseInt(hex.slice(3, 5), 16);
       const b = parseInt(hex.slice(5, 7), 16);
       currentDrawColor = `rgba(${r}, ${g}, ${b}, ${currentOpacity})`;
+      colorText.value = rgbaToHex8(r, g, b, currentOpacity);
       updateBrushPreview();
     });
 
@@ -683,11 +689,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (currentTool === 'eyedropper') {
       const dpr = window.devicePixelRatio || 1;
       const imgData = ctx.getImageData(point.x * dpr, point.y * dpr, 1, 1).data;
-      if (imgData[3] > 0) { // If not fully transparent
-        const hex = rgbToHex(imgData[0], imgData[1], imgData[2]);
-        applyColorInput(hex);
+      if (imgData[3] > 0) {
+        const rgba = `rgba(${imgData[0]}, ${imgData[1]}, ${imgData[2]}, ${imgData[3] / 255})`;
+        applyColorInput(rgbaToHex8(imgData[0], imgData[1], imgData[2], imgData[3] / 255));
       }
-      return; // Switch to brush is handled by applyColorInput
+      return;
     }
 
     if (currentTool === 'fill') {
@@ -701,6 +707,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (currentTool === 'brush') {
         currentStrokePoints = [{ x: point.x, y: point.y }];
+        // Draw initial point on active canvas
+        activeCtx.clearRect(0, 0, activeCanvas.width / dpr, activeCanvas.height / dpr);
+        const size = Number(brushSize.value);
+        activeCtx.beginPath();
+        activeCtx.arc(point.x, point.y, size / 2, 0, Math.PI * 2);
+        activeCtx.fillStyle = currentDrawColor;
+        activeCtx.fill();
       } else if (currentTool === 'eraser') {
         ctx.globalCompositeOperation = 'destination-out';
         ctx.fillStyle = '#000';
@@ -719,32 +732,43 @@ document.addEventListener('DOMContentLoaded', () => {
   canvas.addEventListener('mousemove', (e) => {
     draw(e);
 
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const size = Number(brushSize.value);
+
+    // Only show preview if actually inside canvas bounds
+    if (x < 0 || x > rect.width || y < 0 || y > rect.height) {
+      brushPreview.style.display = 'none';
+      return;
+    }
+
     if (currentTool === 'eyedropper') {
       const point = getCanvasPoint(e);
       const dpr = window.devicePixelRatio || 1;
       const imgData = ctx.getImageData(point.x * dpr, point.y * dpr, 1, 1).data;
       if (imgData[3] > 0) {
-        const hex = rgbToHex(imgData[0], imgData[1], imgData[2]);
-        updateBrushPreview(hex);
+        const rgba = `rgba(${imgData[0]}, ${imgData[1]}, ${imgData[2]}, ${imgData[3] / 255})`;
+        updateBrushPreview(rgba);
       } else {
-        updateBrushPreview('#ffffff'); // Default to white over transparent
+        updateBrushPreview('rgba(255, 255, 255, 0.5)');
       }
+      brushPreview.style.display = 'block';
     } else if (currentTool !== 'fill') {
       brushPreview.style.display = 'block';
-      const rect = canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      const size = Number(brushSize.value);
-      brushPreview.style.left = `${x - size / 2}px`;
-      brushPreview.style.top = `${y - size / 2}px`;
+      updateBrushPreview();
+    } else {
+      brushPreview.style.display = 'none';
     }
+
+    brushPreview.style.left = `${x - size / 2}px`;
+    brushPreview.style.top = `${y - size / 2}px`;
   });
 
   canvas.addEventListener('mouseenter', (e) => {
     if (isDrawing) {
       isReentering = true;
     }
-    if (currentTool !== 'fill') brushPreview.style.display = 'block';
   });
 
   canvas.addEventListener('mouseout', () => {

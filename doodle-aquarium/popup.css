@@ -165,6 +165,7 @@ main {
     z-index: 10;
     pointer-events: none;
     border-radius: 50%;
+    display: none;
 }
 
 .badge {
