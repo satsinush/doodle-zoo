@@ -16,7 +16,10 @@
     <div class="canvas-container">
       <canvas id="drawing-canvas"></canvas>
       <canvas id="brush-preview" width="40" height="40" style="position: absolute; pointer-events: none; display: none; z-index: 10;"></canvas>
-      <div id="direction-indicator" class="direction-indicator" aria-live="polite">Head points -&gt;</div>
+      <svg id="direction-indicator" class="direction-indicator" aria-hidden="true" viewBox="0 0 120 120" preserveAspectRatio="xMidYMid meet">
+        <path d="M20 60 H78" />
+        <path d="M58 36 L88 60 L58 84" />
+      </svg>
     </div>
 
     <div class="controls">
@@ -44,21 +47,13 @@
         </div>
       </div>
 
-      <div class="field direction-row">
-        <label for="fish-direction">Fish Direction</label>
-        <select id="fish-direction">
-          <option value="right">Right -&gt;</option>
-          <option value="left">&lt;- Left</option>
-        </select>
-      </div>
-
       <div class="buttons-row">
         <button id="undo-btn" class="secondary-btn" type="button" disabled>Undo</button>
         <button id="redo-btn" class="secondary-btn" type="button" disabled>Redo</button>
         <button id="clear-btn" class="secondary-btn" type="button">Clear</button>
         <label class="secondary-btn" style="cursor: pointer;">
           Import
-          <input type="file" id="import-file" accept="image/*" style="display: none;">
+          <input type="file" id="import-file" accept="image/*" multiple style="display: none;">
         </label>
         <button id="save-btn" type="button">Save Fish</button>
       </div>

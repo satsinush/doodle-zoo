@@ -4,8 +4,8 @@ let animationFrameId = null;
 let mouseX = -1000;
 let mouseY = -1000;
 const DEFAULT_SETTINGS = {
-  speedMultiplier: 1,
-  sizeMultiplier: 1,
+  speedMultiplier: 0.5,
+  sizeMultiplier: 0.5,
   interactionType: 'repel',
   interactionStrength: 1
 };
@@ -170,7 +170,8 @@ function spawnFish(fishData) {
 
     // Random initial velocity
     const baseSpeed = 1.5 + Math.random() * 2;
-    const seededDirection = fishData.direction === 'left' ? -1 : 1;
+    const isMirrored = Boolean(fishData.mirrored || fishData.direction === 'left');
+    const seededDirection = isMirrored ? -1 : 1;
     const angle = seededDirection < 0
       ? (Math.PI * 0.85 + Math.random() * Math.PI * 0.3)
       : (-Math.PI * 0.15 + Math.random() * Math.PI * 0.3);
@@ -190,7 +191,8 @@ function spawnFish(fishData) {
       vx: vx,
       vy: vy,
       baseSpeedRaw: baseSpeed,
-      seed: seed
+      seed: seed,
+      mirrored: isMirrored
     });
 
     updateFishTransform(activeFish[activeFish.length - 1]);
@@ -204,8 +206,7 @@ function spawnFish(fishData) {
 
 function updateFishTransform(fish) {
   const metrics = getRenderMetrics(fish);
-  // Flip image if moving left
-  const direction = fish.vx < 0 ? -1 : 1;
+  const direction = fish.mirrored ? -1 : 1;
   // Use translate(-50%, -50%) to ensure scaling happens relative to the precise dynamic center without offsetting logic bugs
   fish.element.style.transform = `translate(${fish.x}px, ${fish.y}px) translate(-50%, -50%) scale(${direction * metrics.renderScale}, ${metrics.renderScale})`;
 }

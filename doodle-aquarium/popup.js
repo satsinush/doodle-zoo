@@ -15,7 +15,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const brushPreview = document.getElementById('brush-preview');
   const brushPreviewCtx = brushPreview.getContext('2d');
   const toolRadios = document.querySelectorAll('input[name="tool"]');
-  const fishDirection = document.getElementById('fish-direction');
   const directionIndicator = document.getElementById('direction-indicator');
   const undoBtn = document.getElementById('undo-btn');
   const redoBtn = document.getElementById('redo-btn');
@@ -419,10 +418,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function updateDirectionIndicator() {
-    directionIndicator.textContent = fishDirection.value === 'left' ? 'Head points <-' : 'Head points ->';
-  }
-
   function setupWindowButtons() {
     if (isStandalone) {
       openWindowBtn.style.display = 'none';
@@ -585,8 +580,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  fishDirection.addEventListener('change', updateDirectionIndicator);
-
   // Check if canvas is empty
   function isCanvasBlank() {
     const pixelBuffer = new Uint32Array(
@@ -595,20 +588,23 @@ document.addEventListener('DOMContentLoaded', () => {
     return !pixelBuffer.some(color => color !== 0);
   }
 
-  importFile.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  function fileToDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
+      reader.readAsDataURL(file);
+    });
+  }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
+  function normalizeFishImage(dataUrl) {
+    return new Promise((resolve, reject) => {
       const img = new Image();
       img.onload = () => {
-        // Scale to cover 400x300, cropping any overflow
-        const scale = Math.max(400 / img.width, 300 / img.height);
+        const scale = Math.min(400 / img.width, 300 / img.height);
         const finalW = img.width * scale;
         const finalH = img.height * scale;
 
-        // Draw to a temporary canvas to save at exactly 400x300
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = 400;
         tempCanvas.height = 300;
@@ -617,24 +613,49 @@ document.addEventListener('DOMContentLoaded', () => {
         const y = (300 - finalH) / 2;
         tempCtx.drawImage(img, x, y, finalW, finalH);
 
-        const dataUrl = tempCanvas.toDataURL('image/png');
-        chrome.storage.local.get(['doodleFishList'], (result) => {
-          const fishArray = result.doodleFishList || [];
+        resolve(tempCanvas.toDataURL('image/png'));
+      };
+      img.onerror = () => reject(new Error('Invalid image file'));
+      img.src = dataUrl;
+    });
+  }
+
+  importFile.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    const importedDataUrls = [];
+
+    for (const file of files) {
+      try {
+        const sourceDataUrl = await fileToDataUrl(file);
+        const normalizedDataUrl = await normalizeFishImage(sourceDataUrl);
+        importedDataUrls.push(normalizedDataUrl);
+      } catch (_error) {
+        // Skip invalid files and continue importing remaining images.
+      }
+    }
+
+    if (importedDataUrls.length > 0) {
+      chrome.storage.local.get(['doodleFishList'], (result) => {
+        const fishArray = result.doodleFishList || [];
+
+        importedDataUrls.forEach((dataUrl, index) => {
           fishArray.push({
-            id: Date.now().toString(),
-            dataUrl: dataUrl,
-            direction: fishDirection.value,
+            id: `${Date.now()}-${index}`,
+            dataUrl,
+            mirrored: false,
             active: true
           });
-          chrome.storage.local.set({ doodleFishList: fishArray }, () => {
-            renderFishList();
-          });
         });
-      };
-      img.src = event.target.result;
-    };
-    reader.readAsDataURL(file);
-    e.target.value = ''; // Reset so the same file can be imported again
+
+        chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+          renderFishList();
+        });
+      });
+    }
+
+    e.target.value = ''; // Reset so the same file(s) can be imported again
   });
 
   saveBtn.addEventListener('click', () => {
@@ -649,8 +670,8 @@ document.addEventListener('DOMContentLoaded', () => {
     tempCanvas.height = 300;
     const tempCtx = tempCanvas.getContext('2d');
 
-    // Scale canvas to cover 400x300 preserving aspect ratio, cropping any overflow
-    const scale = Math.max(400 / canvas.style.width.replace('px', ''), 300 / canvas.style.height.replace('px', ''));
+    // Scale canvas to fit 400x300 preserving aspect ratio, no cropping
+    const scale = Math.min(400 / canvas.style.width.replace('px', ''), 300 / canvas.style.height.replace('px', ''));
     const sw = canvas.style.width.replace('px', '') * scale;
     const sh = canvas.style.height.replace('px', '') * scale;
     const sx = (400 - sw) / 2;
@@ -665,7 +686,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const newFish = {
         id: Date.now().toString(),
         dataUrl: dataUrl,
-        direction: fishDirection.value,
+        mirrored: false,
         active: true
       };
 
@@ -701,9 +722,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const actions = document.createElement('div');
         actions.className = 'fish-actions';
 
-        const directionLabel = document.createElement('span');
-        directionLabel.className = 'fish-direction';
-        directionLabel.textContent = (fish.direction || 'right') === 'left' ? '<-' : '->';
+        const mirrorLabel = document.createElement('label');
+        mirrorLabel.className = 'fish-mirror-toggle';
+
+        const mirrorCheckbox = document.createElement('input');
+        mirrorCheckbox.type = 'checkbox';
+        mirrorCheckbox.checked = Boolean(fish.mirrored);
+        mirrorCheckbox.title = 'Mirror fish';
+        mirrorCheckbox.addEventListener('change', () => {
+          toggleFishMirror(fish.id, mirrorCheckbox.checked);
+        });
+
+        const mirrorText = document.createElement('span');
+        mirrorText.textContent = 'Mirror';
+
+        mirrorLabel.appendChild(mirrorCheckbox);
+        mirrorLabel.appendChild(mirrorText);
 
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
@@ -758,7 +792,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         actions.appendChild(checkbox);
-        actions.appendChild(directionLabel);
+        actions.appendChild(mirrorLabel);
         actions.appendChild(editBtn);
         actions.appendChild(dlBtn);
         actions.appendChild(deleteBtn);
@@ -778,6 +812,19 @@ document.addEventListener('DOMContentLoaded', () => {
       if (fishIndex !== -1) {
         fishArray[fishIndex].active = isActive;
         chrome.storage.local.set({ doodleFishList: fishArray });
+      }
+    });
+  }
+
+  function toggleFishMirror(id, isMirrored) {
+    chrome.storage.local.get(['doodleFishList'], (result) => {
+      const fishArray = result.doodleFishList || [];
+      const fishIndex = fishArray.findIndex(f => f.id === id);
+      if (fishIndex !== -1) {
+        fishArray[fishIndex].mirrored = isMirrored;
+        chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+          renderFishList();
+        });
       }
     });
   }
@@ -814,7 +861,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   setupWindowButtons();
   applyColorInput(colorText.value, true);
-  updateDirectionIndicator();
   configureContext();
   resizeCanvasForViewport();
   window.addEventListener('resize', resizeCanvasForViewport);
