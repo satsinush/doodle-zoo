@@ -146,15 +146,23 @@ canvas {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background: transparent;
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(45deg, #f0f0f0 25%, transparent 25%),
+    linear-gradient(-45deg, #f0f0f0 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #f0f0f0 75%),
+    linear-gradient(-45deg, transparent 75%, #f0f0f0 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
   border: 0;
-  border-radius: 0;
-  background-image: none;
+  border-radius: 10px;
 }
 
 #drawing-canvas {
   position: relative;
   z-index: 1;
+  background: transparent;
+  background-image: none;
 }
 
 #brush-preview {

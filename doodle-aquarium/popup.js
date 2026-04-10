@@ -251,25 +251,26 @@ document.addEventListener('DOMContentLoaded', () => {
     guideCtx.imageSmoothingEnabled = true;
   }
 
-  function drawDirectionGuide(width, height) {
-    guideCtx.setTransform(1, 0, 0, 1, 0, 0);
+  function drawDirectionGuide(width, height, dpr) {
+    guideCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
     guideCtx.clearRect(0, 0, width, height);
     guideCtx.save();
     guideCtx.translate(width / 2, height / 2);
     guideCtx.strokeStyle = 'rgba(123, 133, 145, 0.14)';
-    guideCtx.lineWidth = Math.max(6, Math.min(width, height) * 0.03);
+    guideCtx.lineWidth = Math.max(8, Math.min(width, height) * 0.1);
     guideCtx.lineCap = 'round';
     guideCtx.lineJoin = 'round';
 
-    const arrowLength = Math.min(width, height) * 0.22;
-    const headSize = arrowLength * 0.42;
+    const arrowLength = Math.min(width, height) * 0.75;
+    const halfLength = arrowLength / 2;
+    const headSize = arrowLength * 0.30;
 
     guideCtx.beginPath();
-    guideCtx.moveTo(-arrowLength, 0);
-    guideCtx.lineTo(arrowLength, 0);
-    guideCtx.moveTo(arrowLength - headSize, -headSize * 0.75);
-    guideCtx.lineTo(arrowLength, 0);
-    guideCtx.lineTo(arrowLength - headSize, headSize * 0.75);
+    guideCtx.moveTo(-halfLength, 0);
+    guideCtx.lineTo(halfLength, 0);
+    guideCtx.moveTo(halfLength - headSize, -headSize * 0.75);
+    guideCtx.lineTo(halfLength, 0);
+    guideCtx.lineTo(halfLength - headSize, headSize * 0.75);
     guideCtx.stroke();
     guideCtx.restore();
   }
@@ -302,7 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
     guideCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
     configureContext();
 
-    drawDirectionGuide(width, height);
+    drawDirectionGuide(width, height, dpr);
 
     if (snapshot) {
       const redraw = new Image();
