@@ -84,21 +84,41 @@ document.addEventListener('DOMContentLoaded', () => {
     img.src = dataUrl;
   }
 
-  undoBtn.addEventListener('click', () => {
+  function performUndo() {
     if (undoStack.length > 0) {
       redoStack.push(canvas.toDataURL('image/png'));
       const state = undoStack.pop();
       restoreState(state);
       updateUndoRedoButtons();
     }
-  });
+  }
 
-  redoBtn.addEventListener('click', () => {
+  function performRedo() {
     if (redoStack.length > 0) {
       undoStack.push(canvas.toDataURL('image/png'));
       const state = redoStack.pop();
       restoreState(state);
       updateUndoRedoButtons();
+    }
+  }
+
+  undoBtn.addEventListener('click', performUndo);
+  redoBtn.addEventListener('click', performRedo);
+
+  window.addEventListener('keydown', (e) => {
+    const isCtrl = e.ctrlKey || e.metaKey;
+    if (isCtrl) {
+      if (e.key === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          performRedo();
+        } else {
+          performUndo();
+        }
+      } else if (e.key === 'y') {
+        e.preventDefault();
+        performRedo();
+      }
     }
   });
 
@@ -453,9 +473,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (currentTool === 'eraser') {
       brushPreviewCtx.beginPath();
       brushPreviewCtx.arc(center, center, radius, 0, Math.PI * 2);
-      brushPreviewCtx.fillStyle = '#ffffff';
-      brushPreviewCtx.fill();
-      brushPreviewCtx.strokeStyle = '#000000';
+      brushPreviewCtx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
       brushPreviewCtx.lineWidth = 1;
       brushPreviewCtx.stroke();
     } else {
