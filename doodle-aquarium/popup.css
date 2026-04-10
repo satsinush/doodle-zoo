@@ -32,13 +32,46 @@ body {
 }
 
 button, .secondary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
   border-radius: 6px;
   transition: background-color 0.15s ease, transform 0.1s ease;
   font-weight: 500;
   cursor: pointer;
+  border: 1px solid transparent;
+  font-size: 13px;
+  text-decoration: none;
+  font-family: inherit;
 }
 
-button:active, .secondary-btn:active {
+button {
+  background: var(--accent);
+  color: white;
+}
+
+button:hover {
+  background: var(--accent-hover);
+}
+
+button:disabled, button:disabled:hover {
+  background: #a0c2b5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.secondary-btn {
+  background: #f0f4f8;
+  color: var(--ink);
+  border-color: var(--border);
+}
+
+.secondary-btn:hover {
+  background: #e2e8f0;
+}
+
+button:active:not(:disabled), .secondary-btn:active {
   transform: scale(0.98);
 }
 
@@ -115,10 +148,18 @@ canvas {
 .controls {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 10px;
+  border-radius: 8px;
+  padding: 16px;
   display: grid;
-  gap: 10px;
+  gap: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+}
+
+.buttons-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
 }
 
 .field label {

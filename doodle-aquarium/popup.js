@@ -19,7 +19,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const redoBtn = document.getElementById('redo-btn');
   const clearBtn = document.getElementById('clear-btn');
   const saveBtn = document.getElementById('save-btn');
-  const exportBtn = document.getElementById('export-btn');
   const importFile = document.getElementById('import-file');
   const openWindowBtn = document.getElementById('open-window-btn');
   const fishList = document.getElementById('fish-list');
@@ -497,11 +496,11 @@ document.addEventListener('DOMContentLoaded', () => {
     return !pixelBuffer.some(color => color !== 0);
   }
 
-  function getCroppedDataUrl() {
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  function getCroppedDataUrl(sourceCanvas, sourceCtx) {
+    const imageData = sourceCtx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
     const data = imageData.data;
-    const w = canvas.width;
-    const h = canvas.height;
+    const w = sourceCanvas.width;
+    const h = sourceCanvas.height;
 
     let minX = w, minY = h, maxX = 0, maxY = 0;
     let found = false;
@@ -536,33 +535,9 @@ document.addEventListener('DOMContentLoaded', () => {
     cropCanvas.height = cropH;
     const cropCtx = cropCanvas.getContext('2d');
 
-    cropCtx.putImageData(ctx.getImageData(minX, minY, cropW, cropH), 0, 0);
+    cropCtx.putImageData(sourceCtx.getImageData(minX, minY, cropW, cropH), 0, 0);
     return cropCanvas.toDataURL('image/png');
   }
-
-  function getExportDataUrl() {
-    if (isCanvasBlank()) return null;
-
-    // Scale down to fixed 400x300 regardless of DPR
-    const exportCanvas = document.createElement('canvas');
-    exportCanvas.width = 400;
-    exportCanvas.height = 300;
-    const exportCtx = exportCanvas.getContext('2d');
-    exportCtx.drawImage(canvas, 0, 0, 400, 300);
-    return exportCanvas.toDataURL('image/png');
-  }
-
-  exportBtn.addEventListener('click', () => {
-    const dataUrl = getExportDataUrl();
-    if (!dataUrl) {
-      alert("Please draw a fish first!");
-      return;
-    }
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = `fish-${Date.now()}.png`;
-    a.click();
-  });
 
   importFile.addEventListener('change', (e) => {
     const file = e.target.files[0];
@@ -570,12 +545,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      saveState();
       const img = new Image();
       img.onload = () => {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        // Draw the image scaled to CSS coords
-        ctx.drawImage(img, 0, 0, 400, 300);
+        // Draw to a temporary canvas to crop and auto-save without stretching
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = 400;
+        tempCanvas.height = 300;
+        const tempCtx = tempCanvas.getContext('2d');
+        const x = (400 - img.width) / 2;
+        const y = (300 - img.height) / 2;
+        tempCtx.drawImage(img, x, y);
+
+        const dataUrl = getCroppedDataUrl(tempCanvas, tempCtx);
+        if (dataUrl) {
+          chrome.storage.local.get(['doodleFishList'], (result) => {
+            const fishArray = result.doodleFishList || [];
+            fishArray.push({
+              id: Date.now().toString(),
+              dataUrl: dataUrl,
+              direction: fishDirection.value,
+              active: true
+            });
+            chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+              renderFishList();
+            });
+          });
+        }
       };
       img.src = event.target.result;
     };
@@ -584,7 +579,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   saveBtn.addEventListener('click', () => {
-    const dataUrl = getCroppedDataUrl();
+    const dataUrl = getCroppedDataUrl(canvas, ctx);
     if (!dataUrl) {
       alert("Please draw a fish first!");
       return;
