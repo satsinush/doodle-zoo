@@ -129,7 +129,7 @@ function spawnFish(fishData) {
   img.style.zIndex = '999999';
   img.style.pointerEvents = 'none'; // Don't block clicks on the page
   img.style.maxWidth = 'none';
-  img.style.transformOrigin = 'top left';
+  img.style.transformOrigin = 'center center';
 
   const appendToBody = () => {
     if (document.body) {
@@ -145,11 +145,9 @@ function spawnFish(fishData) {
 
   // Wait for image to load to get dimensions
   img.onload = () => {
-    let natWidth = img.naturalWidth || img.width;
-    let natHeight = img.naturalHeight || img.height;
-    let scale = Math.min(200 / natWidth, 200 / natHeight, 1);
-    const baseWidth = natWidth * scale;
-    const baseHeight = natHeight * scale;
+    // Assuming 400x300 canvas size, scaled down slightly
+    const baseWidth = 200;
+    const baseHeight = 150;
     const bounds = getViewportBounds();
 
     img.style.width = `${baseWidth}px`;
@@ -196,8 +194,7 @@ function updateFishTransform(fish) {
   const metrics = getRenderMetrics(fish);
   // Flip image if moving left
   const direction = fish.vx < 0 ? -1 : 1;
-  const xOffset = direction < 0 ? fish.x + metrics.width : fish.x;
-  fish.element.style.transform = `translate(${xOffset}px, ${fish.y}px) scale(${direction * metrics.renderScale}, ${metrics.renderScale})`;
+  fish.element.style.transform = `translate(${fish.x}px, ${fish.y}px) scale(${direction * metrics.renderScale}, ${metrics.renderScale})`;
 }
 
 function applySettingsToFish() {

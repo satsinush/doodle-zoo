@@ -22,7 +22,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const exportBtn = document.getElementById('export-btn');
   const importFile = document.getElementById('import-file');
   const openWindowBtn = document.getElementById('open-window-btn');
-  const settingsBtn = document.getElementById('settings-btn');
   const fishList = document.getElementById('fish-list');
 
   const settingsPanel = document.getElementById('settings-panel');
@@ -140,11 +139,10 @@ document.addEventListener('DOMContentLoaded', () => {
              data[index + 3] === startA;
     };
 
-    const colorPixel = (index) => {
-      data[index] = fillRgba[0];
-      data[index + 1] = fillRgba[1];
-      data[index + 2] = fillRgba[2];
-      data[index + 3] = fillRgba[3];
+    const fillMask = new Uint8Array(width * height);
+
+    const setMask = (index) => {
+      fillMask[index / 4] = 1;
     };
 
     const pixelStack = [[sx, sy]];
@@ -155,7 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
       let y = newPos[1];
 
       let pixelPos = (y * width + x) * 4;
-      while (y-- >= 0 && matchStartColor(pixelPos)) {
+      while (y-- >= 0 && matchStartColor(pixelPos) && !fillMask[pixelPos / 4]) {
         pixelPos -= width * 4;
       }
       pixelPos += width * 4;
@@ -164,11 +162,11 @@ document.addEventListener('DOMContentLoaded', () => {
       let reachLeft = false;
       let reachRight = false;
 
-      while (y++ < height - 1 && matchStartColor(pixelPos)) {
-        colorPixel(pixelPos);
+      while (y++ < height - 1 && matchStartColor(pixelPos) && !fillMask[pixelPos / 4]) {
+        setMask(pixelPos);
 
         if (x > 0) {
-          if (matchStartColor(pixelPos - 4)) {
+          if (matchStartColor(pixelPos - 4) && !fillMask[(pixelPos - 4) / 4]) {
             if (!reachLeft) {
               pixelStack.push([x - 1, y]);
               reachLeft = true;
@@ -179,7 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (x < width - 1) {
-          if (matchStartColor(pixelPos + 4)) {
+          if (matchStartColor(pixelPos + 4) && !fillMask[(pixelPos + 4) / 4]) {
             if (!reachRight) {
               pixelStack.push([x + 1, y]);
               reachRight = true;
@@ -190,6 +188,43 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         pixelPos += width * 4;
+      }
+    }
+
+    // Dilate the mask by 1 pixel to overlap with antialiased borders
+    const dilatedMask = new Uint8Array(width * height);
+    for (let dy = 0; dy < height; dy++) {
+      for (let dx = 0; dx < width; dx++) {
+        let i = dy * width + dx;
+        if (fillMask[i]) {
+          dilatedMask[i] = 1;
+          if (dx > 0) dilatedMask[i - 1] = 1;
+          if (dx < width - 1) dilatedMask[i + 1] = 1;
+          if (dy > 0) dilatedMask[i - width] = 1;
+          if (dy < height - 1) dilatedMask[i + width] = 1;
+        }
+      }
+    }
+
+    for (let i = 0; i < dilatedMask.length; i++) {
+      if (dilatedMask[i]) {
+        const ptr = i * 4;
+        // Don't overwrite completely opaque black lines (or whatever the main draw color is)
+        // A simple alpha blend so we don't destroy borders. We just force fill.
+        // Doing destination-over manually basically.
+        if (data[ptr+3] < 200) {
+          data[ptr] = fillRgba[0];
+          data[ptr + 1] = fillRgba[1];
+          data[ptr + 2] = fillRgba[2];
+          data[ptr + 3] = 255;
+        } else {
+          // If we hit an existing solid pixel, blend the fill color behind it
+          const invAlpha = 1 - (data[ptr+3]/255);
+          data[ptr] = data[ptr] + fillRgba[0]*invAlpha;
+          data[ptr + 1] = data[ptr + 1] + fillRgba[1]*invAlpha;
+          data[ptr + 2] = data[ptr + 2] + fillRgba[2]*invAlpha;
+          data[ptr + 3] = 255;
+        }
       }
     }
 
@@ -212,8 +247,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function setCanvasSize(cssWidth, cssHeight, preserveDrawing) {
-    const width = Math.max(1, Math.floor(cssWidth));
-    const height = Math.max(1, Math.floor(cssHeight));
+    const width = 400;
+    const height = 300;
     const dpr = window.devicePixelRatio || 1;
     const snapshot = preserveDrawing ? canvas.toDataURL('image/png') : null;
 
@@ -341,16 +376,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    settingsBtn.addEventListener('click', () => {
-      if (settingsPanel.style.display === 'none') {
-        settingsPanel.style.display = 'block';
-        settingsBtn.textContent = 'Hide Settings';
-      } else {
-        settingsPanel.style.display = 'none';
-        settingsBtn.textContent = 'Settings';
-      }
-    });
-
     function updateLabels() {
       speedValue.textContent = `${Number(speedInput.value).toFixed(1)}x`;
       sizeValue.textContent = `${Number(sizeInput.value).toFixed(1)}x`;
@@ -461,52 +486,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
   fishDirection.addEventListener('change', updateDirectionIndicator);
 
-  // Get cropped image data URL
-  function getCroppedDataUrl() {
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const data = imageData.data;
-    const w = canvas.width;
-    const h = canvas.height;
+  // Check if canvas is empty
+  function isCanvasBlank() {
+    const pixelBuffer = new Uint32Array(
+      ctx.getImageData(0, 0, canvas.width, canvas.height).data.buffer
+    );
+    return !pixelBuffer.some(color => color !== 0);
+  }
 
-    let minX = w, minY = h, maxX = 0, maxY = 0;
-    let found = false;
+  function getExportDataUrl() {
+    if (isCanvasBlank()) return null;
 
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        const alpha = data[(y * w + x) * 4 + 3];
-        if (alpha > 0) {
-          if (x < minX) minX = x;
-          if (x > maxX) maxX = x;
-          if (y < minY) minY = y;
-          if (y > maxY) maxY = y;
-          found = true;
-        }
-      }
-    }
-
-    if (!found) return null;
-
-    // Add a small padding
-    const padding = 2;
-    minX = Math.max(0, minX - padding);
-    minY = Math.max(0, minY - padding);
-    maxX = Math.min(w - 1, maxX + padding);
-    maxY = Math.min(h - 1, maxY + padding);
-
-    const cropW = maxX - minX + 1;
-    const cropH = maxY - minY + 1;
-
-    const cropCanvas = document.createElement('canvas');
-    cropCanvas.width = cropW;
-    cropCanvas.height = cropH;
-    const cropCtx = cropCanvas.getContext('2d');
-
-    cropCtx.putImageData(ctx.getImageData(minX, minY, cropW, cropH), 0, 0);
-    return cropCanvas.toDataURL('image/png');
+    // Scale down to fixed 400x300 regardless of DPR
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = 400;
+    exportCanvas.height = 300;
+    const exportCtx = exportCanvas.getContext('2d');
+    exportCtx.drawImage(canvas, 0, 0, 400, 300);
+    return exportCanvas.toDataURL('image/png');
   }
 
   exportBtn.addEventListener('click', () => {
-    const dataUrl = getCroppedDataUrl();
+    const dataUrl = getExportDataUrl();
     if (!dataUrl) {
       alert("Please draw a fish first!");
       return;
@@ -526,10 +527,9 @@ document.addEventListener('DOMContentLoaded', () => {
       saveState();
       const img = new Image();
       img.onload = () => {
-        // Draw the image onto the center of the canvas
-        const x = (canvas.width - img.width) / 2;
-        const y = (canvas.height - img.height) / 2;
-        ctx.drawImage(img, x, y);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // Draw the image scaled to CSS coords
+        ctx.drawImage(img, 0, 0, 400, 300);
       };
       img.src = event.target.result;
     };
@@ -538,7 +538,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   saveBtn.addEventListener('click', () => {
-    const dataUrl = getCroppedDataUrl();
+    const dataUrl = getExportDataUrl();
     if (!dataUrl) {
       alert("Please draw a fish first!");
       return;
@@ -604,8 +604,35 @@ document.addEventListener('DOMContentLoaded', () => {
           deleteFish(fish.id);
         });
 
+        const editBtn = document.createElement('button');
+        editBtn.className = 'secondary-btn';
+        editBtn.textContent = 'Edit';
+        editBtn.style.marginLeft = '4px';
+        editBtn.addEventListener('click', () => {
+          saveState();
+          const imgObj = new Image();
+          imgObj.onload = () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(imgObj, 0, 0, 400, 300);
+          };
+          imgObj.src = fish.dataUrl;
+        });
+
+        const dlBtn = document.createElement('button');
+        dlBtn.className = 'secondary-btn';
+        dlBtn.textContent = 'Export';
+        dlBtn.style.marginLeft = '4px';
+        dlBtn.addEventListener('click', () => {
+          const a = document.createElement('a');
+          a.href = fish.dataUrl;
+          a.download = `fish-${fish.id}.png`;
+          a.click();
+        });
+
         actions.appendChild(checkbox);
         actions.appendChild(directionLabel);
+        actions.appendChild(editBtn);
+        actions.appendChild(dlBtn);
         actions.appendChild(deleteBtn);
 
         item.appendChild(imgContainer);

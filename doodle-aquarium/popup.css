@@ -19,7 +19,27 @@ body {
   padding: 0;
   background: radial-gradient(circle at top right, #cfe8ff, var(--bg) 42%);
   color: var(--ink);
-  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  font-family: "Inter", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+#settings-panel {
+  background: var(--panel);
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  margin-top: 24px !important;
+}
+
+button, .secondary-btn {
+  border-radius: 6px;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+button:active, .secondary-btn:active {
+  transform: scale(0.98);
 }
 
 body {
