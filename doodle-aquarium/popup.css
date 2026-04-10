@@ -141,6 +141,22 @@ canvas {
   cursor: crosshair;
 }
 
+#direction-guide {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  background-image: none;
+}
+
+#drawing-canvas {
+  position: relative;
+  z-index: 1;
+}
+
 #brush-preview {
   width: auto;
   border: 0;
@@ -148,35 +164,6 @@ canvas {
   background: transparent;
   background-image: none;
   pointer-events: none;
-}
-
-.direction-indicator {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 58%;
-  height: 58%;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-  opacity: 0.14;
-  overflow: visible;
-}
-
-.direction-indicator path {
-  fill: none;
-  stroke: #7b8591;
-  stroke-width: 10;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.direction-indicator #direction-arrow {
-  transform-box: fill-box;
-  transform-origin: center;
-}
-
-.direction-indicator[data-direction='left'] #direction-arrow {
-  transform: scaleX(-1);
 }
 
 .controls {
@@ -255,10 +242,12 @@ button:hover {
 
 .secondary-btn {
   background: #245384;
+  color: #ffffff;
 }
 
 .secondary-btn:hover {
   background: #1d446b;
+  color: #ffffff;
 }
 
 #clear-btn,
@@ -276,6 +265,50 @@ button:hover {
   overflow-y: auto;
   border-top: 1px solid var(--border);
   padding-top: 8px;
+}
+
+.fish-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border: 1px solid #dfebf6;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.fish-table th,
+.fish-table td {
+  border-bottom: 1px solid #edf3fa;
+  padding: 8px;
+  font-size: 12px;
+  vertical-align: middle;
+}
+
+.fish-table th {
+  text-align: left;
+  background: #f6fbff;
+  color: #335779;
+}
+
+.fish-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.center-cell {
+  text-align: center;
+}
+
+.fish-row-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.fish-row-actions .secondary-btn,
+.fish-row-actions .delete-btn {
+  height: 28px;
+  font-size: 12px;
+  padding: 0 8px;
 }
 
 .fish-item {
@@ -326,4 +359,14 @@ button:hover {
 .invalid {
   border-color: #de5050 !important;
   box-shadow: 0 0 0 2px rgba(222, 80, 80, 0.12);
+}
+
+.toggle-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.toggle-field label {
+  margin: 0;
 }

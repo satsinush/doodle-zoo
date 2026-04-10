@@ -14,12 +14,9 @@
     </header>
 
     <div class="canvas-container">
+      <canvas id="direction-guide" aria-hidden="true"></canvas>
       <canvas id="drawing-canvas"></canvas>
       <canvas id="brush-preview" width="40" height="40" style="position: absolute; pointer-events: none; display: none; z-index: 10;"></canvas>
-      <svg id="direction-indicator" class="direction-indicator" aria-hidden="true" viewBox="0 0 120 120" preserveAspectRatio="xMidYMid meet">
-        <path d="M20 60 H78" />
-        <path d="M58 36 L88 60 L58 84" />
-      </svg>
     </div>
 
     <div class="controls">
@@ -62,8 +59,8 @@
     <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 24px; margin-bottom: 8px;">
       <h2>My Fish</h2>
       <div style="display: flex; gap: 8px;">
-        <button id="select-all-btn" class="secondary-btn" style="padding: 4px 8px; font-size: 11px;">Select All</button>
-        <button id="deselect-all-btn" class="secondary-btn" style="padding: 4px 8px; font-size: 11px;">Deselect All</button>
+        <button id="select-all-btn" class="secondary-btn" style="padding: 4px 8px; font-size: 11px;">Show All</button>
+        <button id="deselect-all-btn" class="secondary-btn" style="padding: 4px 8px; font-size: 11px;">Hide All</button>
       </div>
     </div>
     <div id="fish-list">
@@ -75,15 +72,15 @@
       <div class="field">
         <label for="speed-multiplier">Fish Speed</label>
         <div style="display: flex; align-items: center; gap: 8px;">
-          <input id="speed-multiplier" type="range" min="0.1" max="3.0" step="0.1" value="1">
-          <input id="speed-value" type="number" min="0.1" max="3.0" step="0.1" value="1.0" style="width: 60px;">
+          <input id="speed-multiplier" type="range" min="0.1" max="3.0" step="0.1" value="0.5">
+          <input id="speed-value" type="number" min="0.1" max="3.0" step="0.1" value="0.5" style="width: 60px;">
         </div>
       </div>
       <div class="field">
         <label for="size-multiplier">Fish Size</label>
         <div style="display: flex; align-items: center; gap: 8px;">
-          <input id="size-multiplier" type="range" min="0.1" max="3.0" step="0.1" value="1">
-          <input id="size-value" type="number" min="0.1" max="3.0" step="0.1" value="1.0" style="width: 60px;">
+          <input id="size-multiplier" type="range" min="0.1" max="3.0" step="0.1" value="0.5">
+          <input id="size-value" type="number" min="0.1" max="3.0" step="0.1" value="0.5" style="width: 60px;">
         </div>
       </div>
       <div class="field">
@@ -101,7 +98,6 @@
         </div>
       </div>
       <div class="buttons-row">
-        <button id="save-settings" type="button">Save Settings</button>
         <button id="reset-settings" class="secondary-btn" type="button">Reset</button>
       </div>
       <p id="status" class="status" aria-live="polite" style="color: green; font-size: 13px; margin-top: 8px;"></p>

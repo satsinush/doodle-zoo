@@ -95,6 +95,8 @@ document.addEventListener('mouseleave', () => {
 });
 
 function updateAquarium(fishList) {
+  const fishDataById = new Map(fishList.map(fish => [fish.id, fish]));
+
   // Get active fish from storage
   const newActiveFishData = fishList.filter(f => f.active);
 
@@ -115,6 +117,26 @@ function updateAquarium(fishList) {
       spawnFish(fishData);
     }
   });
+
+  for (let i = 0; i < activeFish.length; i++) {
+    const fish = activeFish[i];
+    const fishData = fishDataById.get(fish.id);
+    if (!fishData) {
+      continue;
+    }
+
+    const nextMirrored = Boolean(fishData.mirrored || fishData.direction === 'left');
+    const nextFlipByVelocity = fishData.flipByVelocity !== false;
+    if (fish.mirrored !== nextMirrored) {
+      fish.mirrored = nextMirrored;
+      updateFishTransform(fish);
+    }
+
+    if (fish.flipByVelocity !== nextFlipByVelocity) {
+      fish.flipByVelocity = nextFlipByVelocity;
+      updateFishTransform(fish);
+    }
+  }
 
   // Start animation loop if not running and we have fish
   // (We check length > 0 in case there are no fish, but the actual starting of animation
@@ -192,7 +214,8 @@ function spawnFish(fishData) {
       vy: vy,
       baseSpeedRaw: baseSpeed,
       seed: seed,
-      mirrored: isMirrored
+      mirrored: isMirrored,
+      flipByVelocity: fishData.flipByVelocity !== false
     });
 
     updateFishTransform(activeFish[activeFish.length - 1]);
@@ -206,7 +229,8 @@ function spawnFish(fishData) {
 
 function updateFishTransform(fish) {
   const metrics = getRenderMetrics(fish);
-  const direction = fish.mirrored ? -1 : 1;
+  const velocityDirection = fish.vx < 0 ? -1 : 1;
+  const direction = ((fish.flipByVelocity !== false) ? velocityDirection : 1) * (fish.mirrored ? -1 : 1);
   // Use translate(-50%, -50%) to ensure scaling happens relative to the precise dynamic center without offsetting logic bugs
   fish.element.style.transform = `translate(${fish.x}px, ${fish.y}px) translate(-50%, -50%) scale(${direction * metrics.renderScale}, ${metrics.renderScale})`;
 }
