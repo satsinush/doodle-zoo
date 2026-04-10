@@ -1,223 +1,234 @@
 document.addEventListener('DOMContentLoaded', () => {
-  const urlParams = new URLSearchParams(window.location.search);
-  const isStandalone = urlParams.get('mode') === 'window';
-
-  if (isStandalone) {
-    document.body.classList.add('standalone');
-  }
-
   const canvas = document.getElementById('drawing-canvas');
   const ctx = canvas.getContext('2d');
 
   const colorPicker = document.getElementById('color-picker');
-  const colorText = document.getElementById('color-text');
   const brushSize = document.getElementById('brush-size');
-  const fishDirection = document.getElementById('fish-direction');
-  const directionIndicator = document.getElementById('direction-indicator');
   const clearBtn = document.getElementById('clear-btn');
   const saveBtn = document.getElementById('save-btn');
-  const openWindowBtn = document.getElementById('open-window-btn');
-  const settingsBtn = document.getElementById('settings-btn');
   const fishList = document.getElementById('fish-list');
+
+  const toolBrushBtn = document.getElementById('tool-brush');
+  const toolFillBtn = document.getElementById('tool-fill');
+  const undoBtn = document.getElementById('undo-btn');
+  const redoBtn = document.getElementById('redo-btn');
+  const settingsBtn = document.getElementById('settings-btn');
 
   let isDrawing = false;
   let lastX = 0;
   let lastY = 0;
-  let currentDrawColor = '#000000';
+  let currentTool = 'brush'; // 'brush' or 'fill'
 
-  // Keep drawing coordinates in CSS pixels while rendering crisply on high DPI screens.
-  function configureContext() {
-    ctx.lineJoin = 'round';
-    ctx.lineCap = 'round';
-    ctx.imageSmoothingEnabled = true;
-  }
+  // History state for undo/redo
+  let history = [];
+  let historyStep = -1;
 
-  function clearCanvas() {
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.restore();
-  }
+  // Setup canvas
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
 
-  function setCanvasSize(cssWidth, cssHeight, preserveDrawing) {
-    const width = Math.max(1, Math.floor(cssWidth));
-    const height = Math.max(1, Math.floor(cssHeight));
-    const dpr = window.devicePixelRatio || 1;
-    const snapshot = preserveDrawing ? canvas.toDataURL('image/png') : null;
+  // Initialize history
+  saveState();
 
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
-    canvas.width = Math.floor(width * dpr);
-    canvas.height = Math.floor(height * dpr);
-
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    configureContext();
-
-    if (snapshot) {
-      const redraw = new Image();
-      redraw.onload = () => {
-        ctx.drawImage(redraw, 0, 0, width, height);
-      };
-      redraw.src = snapshot;
+  function saveState() {
+    // Remove future states if we drew something new after undoing
+    if (historyStep < history.length - 1) {
+      history = history.slice(0, historyStep + 1);
     }
+    history.push(canvas.toDataURL());
+    historyStep++;
+    updateUndoRedoButtons();
   }
 
-  function getCanvasPoint(event) {
-    const rect = canvas.getBoundingClientRect();
-    const x = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
-    const y = Math.max(0, Math.min(rect.height, event.clientY - rect.top));
-    return { x, y };
+  function updateUndoRedoButtons() {
+    undoBtn.disabled = historyStep <= 0;
+    redoBtn.disabled = historyStep >= history.length - 1;
   }
 
-  function drawStamp(x, y, diameter) {
-    const radius = Math.max(0.5, diameter / 2);
-    ctx.beginPath();
-    ctx.arc(x, y, radius, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  function drawInterpolatedStroke(fromX, fromY, toX, toY) {
-    const diameter = Number(brushSize.value);
-    const dx = toX - fromX;
-    const dy = toY - fromY;
-    const distance = Math.hypot(dx, dy);
-    const spacing = Math.max(1, diameter * 0.2);
-    const steps = Math.max(1, Math.ceil(distance / spacing));
-
-    ctx.fillStyle = currentDrawColor;
-    for (let i = 1; i <= steps; i++) {
-      const t = i / steps;
-      const x = fromX + dx * t;
-      const y = fromY + dy * t;
-      drawStamp(x, y, diameter);
+  undoBtn.addEventListener('click', () => {
+    if (historyStep > 0) {
+      historyStep--;
+      restoreState();
     }
+  });
+
+  redoBtn.addEventListener('click', () => {
+    if (historyStep < history.length - 1) {
+      historyStep++;
+      restoreState();
+    }
+  });
+
+  function restoreState() {
+    const img = new Image();
+    img.src = history[historyStep];
+    img.onload = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+    };
+    updateUndoRedoButtons();
   }
 
-  function resizeCanvasForViewport() {
-    if (isStandalone) {
-      const width = Math.max(500, Math.min(1000, window.innerWidth - 32));
-      const height = Math.max(300, Math.min(700, Math.floor(window.innerHeight * 0.45)));
-      const rect = canvas.getBoundingClientRect();
-      if (Math.round(rect.width) !== width || Math.round(rect.height) !== height) {
-        setCanvasSize(width, height, true);
-      }
-      return;
-    }
+  // Tool switching
+  toolBrushBtn.addEventListener('click', () => {
+    currentTool = 'brush';
+    toolBrushBtn.classList.add('active');
+    toolFillBtn.classList.remove('active');
+  });
 
-    const rect = canvas.getBoundingClientRect();
-    setCanvasSize(rect.width, rect.height, false);
-  }
+  toolFillBtn.addEventListener('click', () => {
+    currentTool = 'fill';
+    toolFillBtn.classList.add('active');
+    toolBrushBtn.classList.remove('active');
+  });
 
-  function normalizeCssColor(value) {
-    const probe = document.createElement('span');
-    probe.style.color = '';
-    probe.style.color = value;
-    return probe.style.color || null;
-  }
-
-  function cssColorToHex(value) {
-    const offscreen = document.createElement('canvas').getContext('2d');
-    offscreen.fillStyle = '#000000';
-    offscreen.fillStyle = value;
-    const parsed = offscreen.fillStyle;
-
-    if (/^#[0-9a-f]{6}$/i.test(parsed)) {
-      return parsed;
-    }
-
-    const match = parsed.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
-    if (!match) {
-      return null;
-    }
-
-    const toHex = (n) => Number(n).toString(16).padStart(2, '0');
-    return `#${toHex(match[1])}${toHex(match[2])}${toHex(match[3])}`;
-  }
-
-  function applyColorInput(value, silent = false) {
-    const normalized = normalizeCssColor(value);
-    if (!normalized) {
-      colorText.classList.add('invalid');
-      if (!silent) {
-        alert('Invalid color. Use any valid CSS color (hex, rgb, hsl, or named color).');
-      }
-      return false;
-    }
-
-    colorText.classList.remove('invalid');
-    currentDrawColor = value.trim();
-
-    const hex = cssColorToHex(currentDrawColor);
-    if (hex) {
-      colorPicker.value = hex;
-    }
-
-    colorText.value = currentDrawColor;
-    return true;
-  }
-
-  function updateDirectionIndicator() {
-    directionIndicator.textContent = fishDirection.value === 'left' ? 'Head points <-' : 'Head points ->';
-  }
-
-  function setupWindowButtons() {
-    if (isStandalone) {
-      openWindowBtn.style.display = 'none';
-    } else {
-      openWindowBtn.addEventListener('click', () => {
-        window.open(chrome.runtime.getURL('popup.html?mode=window'), '_blank');
-      });
-    }
-
-    settingsBtn.addEventListener('click', () => {
+  // Settings
+  settingsBtn.addEventListener('click', () => {
+    if (chrome.runtime.openOptionsPage) {
       chrome.runtime.openOptionsPage();
-    });
+    } else {
+      window.open(chrome.runtime.getURL('options.html'));
+    }
+  });
+
+  function hexToRgba(hex) {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16),
+      a: 255
+    } : { r: 0, g: 0, b: 0, a: 255 };
+  }
+
+  function floodFill(startX, startY, fillColorHex) {
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imgData.data;
+
+    const startPos = (startY * canvas.width + startX) * 4;
+    const startR = data[startPos];
+    const startG = data[startPos + 1];
+    const startB = data[startPos + 2];
+    const startA = data[startPos + 3];
+
+    const fillRgba = hexToRgba(fillColorHex);
+
+    if (startR === fillRgba.r && startG === fillRgba.g && startB === fillRgba.b && startA === fillRgba.a) {
+      return; // Same color, do nothing
+    }
+
+    const matchStartColor = (pos) => {
+      return data[pos] === startR && data[pos + 1] === startG && data[pos + 2] === startB && data[pos + 3] === startA;
+    };
+
+    const colorPixel = (pos) => {
+      data[pos] = fillRgba.r;
+      data[pos + 1] = fillRgba.g;
+      data[pos + 2] = fillRgba.b;
+      data[pos + 3] = fillRgba.a;
+    };
+
+    const pixelStack = [[startX, startY]];
+
+    while (pixelStack.length) {
+      const newPos = pixelStack.pop();
+      const x = newPos[0];
+      let y = newPos[1];
+
+      let pixelPos = (y * canvas.width + x) * 4;
+      while (y-- >= 0 && matchStartColor(pixelPos)) {
+        pixelPos -= canvas.width * 4;
+      }
+      pixelPos += canvas.width * 4;
+      ++y;
+
+      let reachLeft = false;
+      let reachRight = false;
+
+      while (y++ < canvas.height - 1 && matchStartColor(pixelPos)) {
+        colorPixel(pixelPos);
+
+        if (x > 0) {
+          if (matchStartColor(pixelPos - 4)) {
+            if (!reachLeft) {
+              pixelStack.push([x - 1, y]);
+              reachLeft = true;
+            }
+          } else if (reachLeft) {
+            reachLeft = false;
+          }
+        }
+
+        if (x < canvas.width - 1) {
+          if (matchStartColor(pixelPos + 4)) {
+            if (!reachRight) {
+              pixelStack.push([x + 1, y]);
+              reachRight = true;
+            }
+          } else if (reachRight) {
+            reachRight = false;
+          }
+        }
+
+        pixelPos += canvas.width * 4;
+      }
+    }
+
+    ctx.putImageData(imgData, 0, 0);
   }
 
   function draw(e) {
     if (!isDrawing) return;
+    if (currentTool !== 'brush') return;
 
-    const { x, y } = getCanvasPoint(e);
-    drawInterpolatedStroke(lastX, lastY, x, y);
+    // Get mouse coordinates relative to canvas
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    ctx.strokeStyle = colorPicker.value;
+    ctx.lineWidth = brushSize.value;
+
+    ctx.beginPath();
+    ctx.moveTo(lastX, lastY);
+    ctx.lineTo(x, y);
+    ctx.stroke();
 
     lastX = x;
     lastY = y;
   }
 
   canvas.addEventListener('mousedown', (e) => {
-    isDrawing = true;
-    const point = getCanvasPoint(e);
-    lastX = point.x;
-    lastY = point.y;
+    const rect = canvas.getBoundingClientRect();
+    lastX = Math.floor(e.clientX - rect.left);
+    lastY = Math.floor(e.clientY - rect.top);
 
-    ctx.fillStyle = currentDrawColor;
-    drawStamp(lastX, lastY, Number(brushSize.value));
-  });
-
-  canvas.addEventListener('mousemove', draw);
-  canvas.addEventListener('mouseup', () => isDrawing = false);
-  canvas.addEventListener('mouseout', () => isDrawing = false);
-
-  clearBtn.addEventListener('click', () => {
-    clearCanvas();
-  });
-
-  colorPicker.addEventListener('input', () => {
-    applyColorInput(colorPicker.value, true);
-  });
-
-  colorText.addEventListener('change', () => {
-    applyColorInput(colorText.value);
-  });
-
-  colorText.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      applyColorInput(colorText.value);
+    if (currentTool === 'fill') {
+      floodFill(lastX, lastY, colorPicker.value);
+      saveState();
+    } else {
+      isDrawing = true;
     }
   });
 
-  fishDirection.addEventListener('change', updateDirectionIndicator);
+  canvas.addEventListener('mousemove', draw);
+  canvas.addEventListener('mouseup', () => {
+    if (isDrawing) {
+      isDrawing = false;
+      saveState();
+    }
+  });
+  canvas.addEventListener('mouseout', () => {
+    if (isDrawing) {
+      isDrawing = false;
+      saveState();
+    }
+  });
+
+  clearBtn.addEventListener('click', () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    saveState();
+  });
 
   // Check if canvas is empty
   function isCanvasBlank() {
@@ -240,7 +251,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const newFish = {
         id: Date.now().toString(),
         dataUrl: dataUrl,
-        direction: fishDirection.value,
         active: true
       };
 
@@ -248,7 +258,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
       chrome.storage.local.set({ doodleFishList: fishArray }, () => {
         renderFishList();
-        clearCanvas();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+          saveState();
       });
     });
   });
@@ -276,10 +287,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const actions = document.createElement('div');
         actions.className = 'fish-actions';
 
-        const directionLabel = document.createElement('span');
-        directionLabel.className = 'fish-direction';
-        directionLabel.textContent = (fish.direction || 'right') === 'left' ? '<-' : '->';
-
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.checked = fish.active;
@@ -296,7 +303,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         actions.appendChild(checkbox);
-        actions.appendChild(directionLabel);
         actions.appendChild(deleteBtn);
 
         item.appendChild(imgContainer);
@@ -327,13 +333,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
   }
-
-  setupWindowButtons();
-  applyColorInput(colorText.value, true);
-  updateDirectionIndicator();
-  configureContext();
-  resizeCanvasForViewport();
-  window.addEventListener('resize', resizeCanvasForViewport);
 
   // Initial render
   renderFishList();
