@@ -14,7 +14,7 @@
     </header>
 
     <div class="canvas-container">
-      <canvas id="drawing-canvas" width="400" height="300"></canvas>
+      <canvas id="drawing-canvas"></canvas>
       <div id="direction-indicator" class="direction-indicator" aria-live="polite">Head points -&gt;</div>
     </div>
 
@@ -24,6 +24,7 @@
         <div class="tool-options">
           <label><input type="radio" name="tool" value="brush" checked> Brush</label>
           <label><input type="radio" name="tool" value="fill"> Fill Bucket</label>
+          <label><input type="radio" name="tool" value="eraser"> Eraser</label>
         </div>
       </div>
 
@@ -60,7 +61,13 @@
       </div>
     </div>
 
-    <h2>My Fish</h2>
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 24px; margin-bottom: 8px;">
+      <h2>My Fish</h2>
+      <div style="display: flex; gap: 8px;">
+        <button id="select-all-btn" class="secondary-btn" style="padding: 4px 8px; font-size: 11px;">Select All</button>
+        <button id="deselect-all-btn" class="secondary-btn" style="padding: 4px 8px; font-size: 11px;">Deselect All</button>
+      </div>
+    </div>
     <div id="fish-list">
       <!-- Fish items will be added here -->
     </div>
@@ -70,15 +77,15 @@
       <div class="field">
         <label for="speed-multiplier">Fish Speed</label>
         <div style="display: flex; align-items: center; gap: 8px;">
-          <input id="speed-multiplier" type="range" min="0.4" max="2.5" step="0.1" value="1">
-          <span id="speed-value" style="font-size: 13px;">1.0x</span>
+          <input id="speed-multiplier" type="range" min="0.1" max="3.0" step="0.1" value="1">
+          <input id="speed-value" type="number" min="0.1" max="3.0" step="0.1" value="1.0" style="width: 60px;">
         </div>
       </div>
       <div class="field">
         <label for="size-multiplier">Fish Size</label>
         <div style="display: flex; align-items: center; gap: 8px;">
-          <input id="size-multiplier" type="range" min="0.4" max="2.5" step="0.1" value="1">
-          <span id="size-value" style="font-size: 13px;">1.0x</span>
+          <input id="size-multiplier" type="range" min="0.1" max="3.0" step="0.1" value="1">
+          <input id="size-value" type="number" min="0.1" max="3.0" step="0.1" value="1.0" style="width: 60px;">
         </div>
       </div>
       <div class="buttons-row">

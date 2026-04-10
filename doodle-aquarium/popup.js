@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   const canvas = document.getElementById('drawing-canvas');
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
   const colorPicker = document.getElementById('color-picker');
   const colorText = document.getElementById('color-text');
@@ -22,6 +22,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const importFile = document.getElementById('import-file');
   const openWindowBtn = document.getElementById('open-window-btn');
   const fishList = document.getElementById('fish-list');
+  const selectAllBtn = document.getElementById('select-all-btn');
+  const deselectAllBtn = document.getElementById('deselect-all-btn');
 
   const settingsPanel = document.getElementById('settings-panel');
   const speedInput = document.getElementById('speed-multiplier');
@@ -131,11 +133,24 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    // Add color tolerance to fill into anti-aliased gaps
+    const tolerance = 20;
+
     const matchStartColor = (index) => {
-      return data[index] === startR &&
-             data[index + 1] === startG &&
-             data[index + 2] === startB &&
-             data[index + 3] === startA;
+      const r = data[index];
+      const g = data[index + 1];
+      const b = data[index + 2];
+      const a = data[index + 3];
+
+      // If we clicked on fully transparent, only fill mostly transparent stuff
+      if (startA === 0) {
+        return a < tolerance;
+      }
+
+      return Math.abs(r - startR) <= tolerance &&
+             Math.abs(g - startG) <= tolerance &&
+             Math.abs(b - startB) <= tolerance &&
+             Math.abs(a - startA) <= tolerance;
     };
 
     const fillMask = new Uint8Array(width * height);
@@ -190,9 +205,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // Dilate the mask by 2 pixels to overlap with thicker antialiased borders
+    // Dilate the mask by 3 pixels to overlap with thicker antialiased borders
     let dilatedMask = new Uint8Array(fillMask);
-    for (let passes = 0; passes < 2; passes++) {
+    for (let passes = 0; passes < 3; passes++) {
       const nextMask = new Uint8Array(dilatedMask);
       for (let dy = 0; dy < height; dy++) {
         for (let dx = 0; dx < width; dx++) {
@@ -249,8 +264,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function setCanvasSize(cssWidth, cssHeight, preserveDrawing) {
-    const width = 400;
-    const height = 300;
+    const width = Math.max(1, Math.floor(cssWidth));
+    const height = Math.max(1, Math.floor(cssHeight));
     const dpr = window.devicePixelRatio || 1;
     const snapshot = preserveDrawing ? canvas.toDataURL('image/png') : null;
 
@@ -293,28 +308,35 @@ document.addEventListener('DOMContentLoaded', () => {
     const spacing = Math.max(1, diameter * 0.2);
     const steps = Math.max(1, Math.ceil(distance / spacing));
 
-    ctx.fillStyle = currentDrawColor;
+    if (currentTool === 'eraser') {
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.fillStyle = '#000'; // Color doesn't matter for destination-out, it just removes alpha
+    } else {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = currentDrawColor;
+    }
+
     for (let i = 1; i <= steps; i++) {
       const t = i / steps;
       const x = fromX + dx * t;
       const y = fromY + dy * t;
       drawStamp(x, y, diameter);
     }
+
+    ctx.globalCompositeOperation = 'source-over'; // restore
   }
 
   function resizeCanvasForViewport() {
-    if (isStandalone) {
-      const width = Math.max(500, Math.min(1000, window.innerWidth - 32));
-      const height = Math.max(300, Math.min(700, Math.floor(window.innerHeight * 0.45)));
-      const rect = canvas.getBoundingClientRect();
-      if (Math.round(rect.width) !== width || Math.round(rect.height) !== height) {
-        setCanvasSize(width, height, true);
-      }
-      return;
-    }
+    // Dynamic canvas based on window innerWidth. Max width matches extension max popup width.
+    const w = window.innerWidth - 32;
+    const maxW = Math.min(w, 800);
+    // Use an approx 4:3 ratio based on width
+    const maxH = maxW * 0.75;
 
     const rect = canvas.getBoundingClientRect();
-    setCanvasSize(rect.width, rect.height, false);
+    if (Math.round(rect.width) !== maxW || Math.round(rect.height) !== maxH) {
+      setCanvasSize(maxW, maxH, true);
+    }
   }
 
   function normalizeCssColor(value) {
@@ -379,8 +401,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateLabels() {
-      speedValue.textContent = `${Number(speedInput.value).toFixed(1)}x`;
-      sizeValue.textContent = `${Number(sizeInput.value).toFixed(1)}x`;
+      speedValue.value = Number(speedInput.value).toFixed(1);
+      sizeValue.value = Number(sizeInput.value).toFixed(1);
+    }
+
+    function updateSliders() {
+      speedInput.value = Number(speedValue.value).toFixed(1);
+      sizeInput.value = Number(sizeValue.value).toFixed(1);
     }
 
     function normalizeSettings(raw) {
@@ -429,6 +456,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     speedInput.addEventListener('input', updateLabels);
     sizeInput.addEventListener('input', updateLabels);
+    speedValue.addEventListener('input', updateSliders);
+    sizeValue.addEventListener('input', updateSliders);
 
     chrome.storage.local.get(['doodleSettings'], (result) => {
       applyToForm(normalizeSettings(result.doodleSettings));
@@ -458,8 +487,15 @@ document.addEventListener('DOMContentLoaded', () => {
       lastX = point.x;
       lastY = point.y;
 
-      ctx.fillStyle = currentDrawColor;
+      if (currentTool === 'eraser') {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.fillStyle = '#000';
+      } else {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.fillStyle = currentDrawColor;
+      }
       drawStamp(lastX, lastY, Number(brushSize.value));
+      ctx.globalCompositeOperation = 'source-over';
     }
   });
 
@@ -579,7 +615,27 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   saveBtn.addEventListener('click', () => {
-    const dataUrl = getCroppedDataUrl(canvas, ctx);
+    if (isCanvasBlank()) {
+      alert("Please draw a fish first!");
+      return;
+    }
+
+    // Draw the dynamic canvas scaled into a fixed 400x300 bounding box
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = 400;
+    tempCanvas.height = 300;
+    const tempCtx = tempCanvas.getContext('2d');
+
+    // Scale canvas into 400x300 preserving aspect ratio
+    const scale = Math.min(400 / canvas.style.width.replace('px', ''), 300 / canvas.style.height.replace('px', ''));
+    const sw = canvas.style.width.replace('px', '') * scale;
+    const sh = canvas.style.height.replace('px', '') * scale;
+    const sx = (400 - sw) / 2;
+    const sy = (300 - sh) / 2;
+
+    tempCtx.drawImage(canvas, sx, sy, sw, sh);
+
+    const dataUrl = getCroppedDataUrl(tempCanvas, tempCtx);
     if (!dataUrl) {
       alert("Please draw a fish first!");
       return;
@@ -654,10 +710,19 @@ document.addEventListener('DOMContentLoaded', () => {
           const imgObj = new Image();
           imgObj.onload = () => {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            // Draw the cropped image centered
-            const x = (400 - imgObj.width) / 2;
-            const y = (300 - imgObj.height) / 2;
-            ctx.drawImage(imgObj, x, y);
+
+            // Need to match CSS width/height from the dynamic scaling
+            const cw = Number(canvas.style.width.replace('px', ''));
+            const ch = Number(canvas.style.height.replace('px', ''));
+            const scaleX = cw / 400;
+            const scaleY = ch / 300;
+            const scale = Math.min(scaleX, scaleY);
+
+            const w = imgObj.width * scale;
+            const h = imgObj.height * scale;
+            const x = (cw - w) / 2;
+            const y = (ch - h) / 2;
+            ctx.drawImage(imgObj, x, y, w, h);
           };
           imgObj.src = fish.dataUrl;
         });
@@ -707,6 +772,26 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
   }
+
+  selectAllBtn.addEventListener('click', () => {
+    chrome.storage.local.get(['doodleFishList'], (result) => {
+      const fishArray = result.doodleFishList || [];
+      fishArray.forEach(f => f.active = true);
+      chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+        renderFishList();
+      });
+    });
+  });
+
+  deselectAllBtn.addEventListener('click', () => {
+    chrome.storage.local.get(['doodleFishList'], (result) => {
+      const fishArray = result.doodleFishList || [];
+      fishArray.forEach(f => f.active = false);
+      chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+        renderFishList();
+      });
+    });
+  });
 
   setupWindowButtons();
   applyColorInput(colorText.value, true);
