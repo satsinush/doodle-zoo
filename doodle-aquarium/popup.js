@@ -19,9 +19,25 @@ document.addEventListener('DOMContentLoaded', () => {
   const redoBtn = document.getElementById('redo-btn');
   const clearBtn = document.getElementById('clear-btn');
   const saveBtn = document.getElementById('save-btn');
+  const exportBtn = document.getElementById('export-btn');
+  const importFile = document.getElementById('import-file');
   const openWindowBtn = document.getElementById('open-window-btn');
   const settingsBtn = document.getElementById('settings-btn');
   const fishList = document.getElementById('fish-list');
+
+  const settingsPanel = document.getElementById('settings-panel');
+  const speedInput = document.getElementById('speed-multiplier');
+  const sizeInput = document.getElementById('size-multiplier');
+  const speedValue = document.getElementById('speed-value');
+  const sizeValue = document.getElementById('size-value');
+  const saveSettingsBtn = document.getElementById('save-settings');
+  const resetSettingsBtn = document.getElementById('reset-settings');
+  const statusEl = document.getElementById('status');
+
+  const DEFAULT_SETTINGS = {
+    speedMultiplier: 1,
+    sizeMultiplier: 1
+  };
 
   let isDrawing = false;
   let lastX = 0;
@@ -326,11 +342,69 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     settingsBtn.addEventListener('click', () => {
-      if (chrome.runtime.openOptionsPage) {
-        chrome.runtime.openOptionsPage();
+      if (settingsPanel.style.display === 'none') {
+        settingsPanel.style.display = 'block';
+        settingsBtn.textContent = 'Hide Settings';
       } else {
-        window.open(chrome.runtime.getURL('options.html'));
+        settingsPanel.style.display = 'none';
+        settingsBtn.textContent = 'Settings';
       }
+    });
+
+    function updateLabels() {
+      speedValue.textContent = `${Number(speedInput.value).toFixed(1)}x`;
+      sizeValue.textContent = `${Number(sizeInput.value).toFixed(1)}x`;
+    }
+
+    function normalizeSettings(raw) {
+      if (!raw || typeof raw !== 'object') {
+        return { ...DEFAULT_SETTINGS };
+      }
+      const speed = Number(raw.speedMultiplier);
+      const size = Number(raw.sizeMultiplier);
+      return {
+        speedMultiplier: Number.isFinite(speed) && speed > 0 ? speed : DEFAULT_SETTINGS.speedMultiplier,
+        sizeMultiplier: Number.isFinite(size) && size > 0 ? size : DEFAULT_SETTINGS.sizeMultiplier
+      };
+    }
+
+    function setStatus(message) {
+      statusEl.textContent = message;
+      if (message) {
+        setTimeout(() => {
+          statusEl.textContent = '';
+        }, 1600);
+      }
+    }
+
+    function applyToForm(settings) {
+      speedInput.value = settings.speedMultiplier;
+      sizeInput.value = settings.sizeMultiplier;
+      updateLabels();
+    }
+
+    saveSettingsBtn.addEventListener('click', () => {
+      const settings = {
+        speedMultiplier: Number(speedInput.value),
+        sizeMultiplier: Number(sizeInput.value)
+      };
+      chrome.storage.local.set({ doodleSettings: settings }, () => {
+        setStatus('Settings saved.');
+      });
+    });
+
+    resetSettingsBtn.addEventListener('click', () => {
+      applyToForm(DEFAULT_SETTINGS);
+      chrome.storage.local.set({ doodleSettings: { ...DEFAULT_SETTINGS } }, () => {
+        setStatus('Settings reset.');
+      });
+    });
+
+    speedInput.addEventListener('input', updateLabels);
+    sizeInput.addEventListener('input', updateLabels);
+
+    chrome.storage.local.get(['doodleSettings'], (result) => {
+      applyToForm(normalizeSettings(result.doodleSettings));
     });
   }
 
@@ -387,21 +461,88 @@ document.addEventListener('DOMContentLoaded', () => {
 
   fishDirection.addEventListener('change', updateDirectionIndicator);
 
-  // Check if canvas is empty
-  function isCanvasBlank() {
-    const pixelBuffer = new Uint32Array(
-      ctx.getImageData(0, 0, canvas.width, canvas.height).data.buffer
-    );
-    return !pixelBuffer.some(color => color !== 0);
+  // Get cropped image data URL
+  function getCroppedDataUrl() {
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+    const w = canvas.width;
+    const h = canvas.height;
+
+    let minX = w, minY = h, maxX = 0, maxY = 0;
+    let found = false;
+
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const alpha = data[(y * w + x) * 4 + 3];
+        if (alpha > 0) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+          found = true;
+        }
+      }
+    }
+
+    if (!found) return null;
+
+    // Add a small padding
+    const padding = 2;
+    minX = Math.max(0, minX - padding);
+    minY = Math.max(0, minY - padding);
+    maxX = Math.min(w - 1, maxX + padding);
+    maxY = Math.min(h - 1, maxY + padding);
+
+    const cropW = maxX - minX + 1;
+    const cropH = maxY - minY + 1;
+
+    const cropCanvas = document.createElement('canvas');
+    cropCanvas.width = cropW;
+    cropCanvas.height = cropH;
+    const cropCtx = cropCanvas.getContext('2d');
+
+    cropCtx.putImageData(ctx.getImageData(minX, minY, cropW, cropH), 0, 0);
+    return cropCanvas.toDataURL('image/png');
   }
 
-  saveBtn.addEventListener('click', () => {
-    if (isCanvasBlank()) {
+  exportBtn.addEventListener('click', () => {
+    const dataUrl = getCroppedDataUrl();
+    if (!dataUrl) {
       alert("Please draw a fish first!");
       return;
     }
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = `fish-${Date.now()}.png`;
+    a.click();
+  });
 
-    const dataUrl = canvas.toDataURL('image/png');
+  importFile.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      saveState();
+      const img = new Image();
+      img.onload = () => {
+        // Draw the image onto the center of the canvas
+        const x = (canvas.width - img.width) / 2;
+        const y = (canvas.height - img.height) / 2;
+        ctx.drawImage(img, x, y);
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = ''; // Reset so the same file can be imported again
+  });
+
+  saveBtn.addEventListener('click', () => {
+    const dataUrl = getCroppedDataUrl();
+    if (!dataUrl) {
+      alert("Please draw a fish first!");
+      return;
+    }
 
     chrome.storage.local.get(['doodleFishList'], (result) => {
       const fishArray = result.doodleFishList || [];

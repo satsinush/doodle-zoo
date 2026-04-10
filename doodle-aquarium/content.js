@@ -145,8 +145,11 @@ function spawnFish(fishData) {
 
   // Wait for image to load to get dimensions
   img.onload = () => {
-    const baseWidth = Math.min(img.naturalWidth || img.width, 200);
-    const baseHeight = Math.min(img.naturalHeight || img.height, 200);
+    let natWidth = img.naturalWidth || img.width;
+    let natHeight = img.naturalHeight || img.height;
+    let scale = Math.min(200 / natWidth, 200 / natHeight, 1);
+    const baseWidth = natWidth * scale;
+    const baseHeight = natHeight * scale;
     const bounds = getViewportBounds();
 
     img.style.width = `${baseWidth}px`;
@@ -193,7 +196,8 @@ function updateFishTransform(fish) {
   const metrics = getRenderMetrics(fish);
   // Flip image if moving left
   const direction = fish.vx < 0 ? -1 : 1;
-  fish.element.style.transform = `translate(${fish.x}px, ${fish.y}px) scale(${direction * metrics.renderScale}, ${metrics.renderScale})`;
+  const xOffset = direction < 0 ? fish.x + metrics.width : fish.x;
+  fish.element.style.transform = `translate(${xOffset}px, ${fish.y}px) scale(${direction * metrics.renderScale}, ${metrics.renderScale})`;
 }
 
 function applySettingsToFish() {
