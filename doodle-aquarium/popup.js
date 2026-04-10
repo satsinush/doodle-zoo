@@ -45,6 +45,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const strengthDisplay = document.getElementById('strength-display');
   const resetSettingsBtn = document.getElementById('reset-settings');
   const statusEl = document.getElementById('status');
+  
+  // Modal Elements
+  const fishModal = document.getElementById('fish-modal');
+  const modalFishPreview = document.getElementById('modal-fish-preview');
+  const modalCloseBtn = document.getElementById('close-modal');
+  const modalMirrorToggle = document.getElementById('modal-mirror-toggle');
+  const modalLockToggle = document.getElementById('modal-lock-toggle');
+  const modalActiveToggle = document.getElementById('modal-active-toggle');
+  const modalEditBtn = document.getElementById('modal-edit-btn');
+  const modalDeleteBtn = document.getElementById('modal-delete-btn');
 
   const DEFAULT_SETTINGS = {
     speedMultiplier: 0.5,
@@ -965,6 +975,63 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  function openFishModal(fish) {
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    modalFishPreview.src = fish.dataUrl;
+    modalActiveToggle.checked = fish.active !== false;
+    modalMirrorToggle.checked = !!fish.mirrored;
+    modalLockToggle.checked = fish.flipByVelocity !== false;
+    
+    modalActiveToggle.onclick = () => toggleFishActive(fish.id, modalActiveToggle.checked, () => renderFishList());
+    modalMirrorToggle.onclick = () => toggleFishMirror(fish.id, modalMirrorToggle.checked);
+    modalLockToggle.onclick = () => toggleFishFlipByVelocity(fish.id, modalLockToggle.checked);
+    
+    modalEditBtn.onclick = () => {
+      closeFishModal();
+      loadFishFromDataUrl(fish.id, fish.dataUrl);
+    };
+    
+    modalDeleteBtn.onclick = () => {
+      if (confirm('Delete this fish?')) {
+        closeFishModal();
+        deleteFish(fish.id);
+      }
+    };
+    
+    fishModal.classList.add('active');
+  }
+
+  function closeFishModal() {
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+    fishModal.classList.remove('active');
+  }
+
+  modalCloseBtn.onclick = closeFishModal;
+  fishModal.onclick = (e) => {
+    if (e.target === fishModal) closeFishModal();
+  };
+
+  function loadFishFromDataUrl(id, dataUrl) {
+    saveState();
+    const imgObj = new Image();
+    imgObj.onload = () => {
+      const dpr = window.devicePixelRatio || 1;
+      const cw = canvas.width / dpr;
+      const ch = canvas.height / dpr;
+      ctx.clearRect(0, 0, cw, ch);
+      const boxScale = Math.min(cw / 400, ch / 300);
+      const dw = 400 * boxScale;
+      const dh = 300 * boxScale;
+      const dx = (cw - dw) / 2;
+      const dy = (ch - dh) / 2;
+      ctx.drawImage(imgObj, dx, dy, dw, dh);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+    imgObj.src = dataUrl;
+  }
+
   function renderFishList() {
     chrome.storage.local.get(['doodleFishList'], (result) => {
       const fishArray = result.doodleFishList || [];
@@ -978,10 +1045,10 @@ document.addEventListener('DOMContentLoaded', () => {
       fishArray.forEach(fish => {
         const item = document.createElement('div');
         item.className = `gallery-item ${fish.active ? '' : 'inactive'}`;
-        item.title = `${fish.active ? 'Active' : 'Hidden'} - Click to toggle`;
-
+        
         const img = document.createElement('img');
         img.src = fish.dataUrl;
+        img.alt = 'Fish';
         item.appendChild(img);
 
         const actions = document.createElement('div');
@@ -998,56 +1065,20 @@ document.addEventListener('DOMContentLoaded', () => {
           });
         };
 
-        const editBtn = document.createElement('button');
-        editBtn.className = 'action-btn material-symbols-outlined';
-        editBtn.textContent = 'edit';
-        editBtn.title = 'Edit Fish';
-        editBtn.onclick = (e) => {
+        const settingsBtn = document.createElement('button');
+        settingsBtn.className = 'action-btn material-symbols-outlined';
+        settingsBtn.textContent = 'settings';
+        settingsBtn.title = 'Fish Settings';
+        settingsBtn.onclick = (e) => {
           e.stopPropagation();
-          saveState();
-          const imgObj = new Image();
-          imgObj.onload = () => {
-            // Determine current DPR-mapped CSS size
-            const dpr = window.devicePixelRatio || 1;
-            const cw = canvas.width / dpr;
-            const ch = canvas.height / dpr;
-
-            ctx.clearRect(0, 0, cw, ch);
-
-            // The saved fish is already centered in a 400x300 box.
-            // We scale that box to fit the current canvas.
-            const boxScale = Math.min(cw / 400, ch / 300);
-            const dw = 400 * boxScale;
-            const dh = 300 * boxScale;
-            const dx = (cw - dw) / 2;
-            const dy = (ch - dh) / 2;
-
-            ctx.drawImage(imgObj, dx, dy, dw, dh);
-          };
-          imgObj.src = fish.dataUrl;
-        };
-
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'action-btn material-symbols-outlined delete';
-        deleteBtn.textContent = 'delete';
-        deleteBtn.title = 'Delete Fish';
-        deleteBtn.onclick = (e) => {
-          e.stopPropagation();
-          if (confirm('Delete this fish?')) {
-            deleteFish(fish.id);
-          }
+          openFishModal(fish);
         };
 
         actions.appendChild(toggleBtn);
-        actions.appendChild(editBtn);
-        actions.appendChild(deleteBtn);
+        actions.appendChild(settingsBtn);
         item.appendChild(actions);
 
-        item.onclick = () => {
-          toggleFishActive(fish.id, !fish.active, () => {
-            renderFishList();
-          });
-        };
+        item.onclick = () => openFishModal(fish);
 
         fishList.appendChild(item);
       });
