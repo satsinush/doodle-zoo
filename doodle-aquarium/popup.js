@@ -191,19 +191,22 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // Dilate the mask by 1 pixel to overlap with antialiased borders
-    const dilatedMask = new Uint8Array(width * height);
-    for (let dy = 0; dy < height; dy++) {
-      for (let dx = 0; dx < width; dx++) {
-        let i = dy * width + dx;
-        if (fillMask[i]) {
-          dilatedMask[i] = 1;
-          if (dx > 0) dilatedMask[i - 1] = 1;
-          if (dx < width - 1) dilatedMask[i + 1] = 1;
-          if (dy > 0) dilatedMask[i - width] = 1;
-          if (dy < height - 1) dilatedMask[i + width] = 1;
+    // Dilate the mask by 2 pixels to overlap with thicker antialiased borders
+    let dilatedMask = new Uint8Array(fillMask);
+    for (let passes = 0; passes < 2; passes++) {
+      const nextMask = new Uint8Array(dilatedMask);
+      for (let dy = 0; dy < height; dy++) {
+        for (let dx = 0; dx < width; dx++) {
+          let i = dy * width + dx;
+          if (dilatedMask[i]) {
+            if (dx > 0) nextMask[i - 1] = 1;
+            if (dx < width - 1) nextMask[i + 1] = 1;
+            if (dy > 0) nextMask[i - width] = 1;
+            if (dy < height - 1) nextMask[i + width] = 1;
+          }
         }
       }
+      dilatedMask = nextMask;
     }
 
     for (let i = 0; i < dilatedMask.length; i++) {
@@ -494,6 +497,49 @@ document.addEventListener('DOMContentLoaded', () => {
     return !pixelBuffer.some(color => color !== 0);
   }
 
+  function getCroppedDataUrl() {
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+    const w = canvas.width;
+    const h = canvas.height;
+
+    let minX = w, minY = h, maxX = 0, maxY = 0;
+    let found = false;
+
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const alpha = data[(y * w + x) * 4 + 3];
+        if (alpha > 0) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+          found = true;
+        }
+      }
+    }
+
+    if (!found) return null;
+
+    // Add a small padding
+    const padding = 2;
+    minX = Math.max(0, minX - padding);
+    minY = Math.max(0, minY - padding);
+    maxX = Math.min(w - 1, maxX + padding);
+    maxY = Math.min(h - 1, maxY + padding);
+
+    const cropW = maxX - minX + 1;
+    const cropH = maxY - minY + 1;
+
+    const cropCanvas = document.createElement('canvas');
+    cropCanvas.width = cropW;
+    cropCanvas.height = cropH;
+    const cropCtx = cropCanvas.getContext('2d');
+
+    cropCtx.putImageData(ctx.getImageData(minX, minY, cropW, cropH), 0, 0);
+    return cropCanvas.toDataURL('image/png');
+  }
+
   function getExportDataUrl() {
     if (isCanvasBlank()) return null;
 
@@ -538,7 +584,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   saveBtn.addEventListener('click', () => {
-    const dataUrl = getExportDataUrl();
+    const dataUrl = getCroppedDataUrl();
     if (!dataUrl) {
       alert("Please draw a fish first!");
       return;
@@ -613,7 +659,10 @@ document.addEventListener('DOMContentLoaded', () => {
           const imgObj = new Image();
           imgObj.onload = () => {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(imgObj, 0, 0, 400, 300);
+            // Draw the cropped image centered
+            const x = (400 - imgObj.width) / 2;
+            const y = (300 - imgObj.height) / 2;
+            ctx.drawImage(imgObj, x, y);
           };
           imgObj.src = fish.dataUrl;
         });

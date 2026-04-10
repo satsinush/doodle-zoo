@@ -145,9 +145,11 @@ function spawnFish(fishData) {
 
   // Wait for image to load to get dimensions
   img.onload = () => {
-    // Assuming 400x300 canvas size, scaled down slightly
-    const baseWidth = 200;
-    const baseHeight = 150;
+    let natWidth = img.naturalWidth || img.width || 400;
+    let natHeight = img.naturalHeight || img.height || 300;
+    let scale = Math.min(200 / natWidth, 200 / natHeight, 1);
+    const baseWidth = natWidth * scale;
+    const baseHeight = natHeight * scale;
     const bounds = getViewportBounds();
 
     img.style.width = `${baseWidth}px`;
@@ -156,9 +158,9 @@ function spawnFish(fishData) {
     const tempFish = { baseWidth, baseHeight };
     const metrics = getRenderMetrics(tempFish);
 
-    // Start at random position
-    const x = bounds.left + Math.random() * Math.max(1, (bounds.width - metrics.width));
-    const y = bounds.top + Math.random() * Math.max(1, (bounds.height - metrics.height));
+    // Start at random position, x and y represent the center point of the fish
+    const x = bounds.left + metrics.width/2 + Math.random() * Math.max(1, (bounds.width - metrics.width));
+    const y = bounds.top + metrics.height/2 + Math.random() * Math.max(1, (bounds.height - metrics.height));
 
     // Random velocity
     const baseSpeed = 1.5 + Math.random() * 2;
@@ -194,7 +196,10 @@ function updateFishTransform(fish) {
   const metrics = getRenderMetrics(fish);
   // Flip image if moving left
   const direction = fish.vx < 0 ? -1 : 1;
-  fish.element.style.transform = `translate(${fish.x}px, ${fish.y}px) scale(${direction * metrics.renderScale}, ${metrics.renderScale})`;
+  // Translate based on center point minus half width/height
+  const renderX = fish.x - metrics.width / 2;
+  const renderY = fish.y - metrics.height / 2;
+  fish.element.style.transform = `translate(${renderX}px, ${renderY}px) scale(${direction * metrics.renderScale}, ${metrics.renderScale})`;
 }
 
 function applySettingsToFish() {
@@ -222,9 +227,9 @@ function animate() {
     const metrics = getRenderMetrics(fish);
     const targetSpeed = fish.baseSpeedRaw * aquariumSettings.speedMultiplier;
 
-    // Center of fish
-    const fishCenterX = fish.x + metrics.width / 2;
-    const fishCenterY = fish.y + metrics.height / 2;
+    // Center of fish is now exactly x, y
+    const fishCenterX = fish.x;
+    const fishCenterY = fish.y;
 
     // Mouse avoidance
     const dx = fishCenterX - mouseX;
@@ -264,20 +269,23 @@ function animate() {
     fish.x += fish.vx;
     fish.y += fish.vy;
 
-    // Bounce off edges
-    if (fish.x <= bounds.left) {
-      fish.x = bounds.left;
+    // Bounce off edges (using center coordinate and half-width/height)
+    const halfWidth = metrics.width / 2;
+    const halfHeight = metrics.height / 2;
+
+    if (fish.x - halfWidth <= bounds.left) {
+      fish.x = bounds.left + halfWidth;
       fish.vx *= -1;
-    } else if (fish.x + metrics.width >= bounds.left + bounds.width) {
-      fish.x = bounds.left + bounds.width - metrics.width;
+    } else if (fish.x + halfWidth >= bounds.left + bounds.width) {
+      fish.x = bounds.left + bounds.width - halfWidth;
       fish.vx *= -1;
     }
 
-    if (fish.y <= bounds.top) {
-      fish.y = bounds.top;
+    if (fish.y - halfHeight <= bounds.top) {
+      fish.y = bounds.top + halfHeight;
       fish.vy *= -1;
-    } else if (fish.y + metrics.height >= bounds.top + bounds.height) {
-      fish.y = bounds.top + bounds.height - metrics.height;
+    } else if (fish.y + halfHeight >= bounds.top + bounds.height) {
+      fish.y = bounds.top + bounds.height - halfHeight;
       fish.vy *= -1;
     }
 
