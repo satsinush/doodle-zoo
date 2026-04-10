@@ -3,54 +3,78 @@ let activeFish = []; // Array of fish objects with element, x, y, vx, vy
 let animationFrameId = null;
 let mouseX = -1000;
 let mouseY = -1000;
+const DEFAULT_SETTINGS = {
+  speedMultiplier: 1,
+  sizeMultiplier: 1
+};
+let aquariumSettings = { ...DEFAULT_SETTINGS };
 
-let globalSpeedMultiplier = 1.0;
-let globalSizeMultiplier = 1.0;
+function normalizeSettings(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return { ...DEFAULT_SETTINGS };
+  }
+
+  const speed = Number(raw.speedMultiplier);
+  const size = Number(raw.sizeMultiplier);
+
+  return {
+    speedMultiplier: Number.isFinite(speed) && speed > 0 ? speed : DEFAULT_SETTINGS.speedMultiplier,
+    sizeMultiplier: Number.isFinite(size) && size > 0 ? size : DEFAULT_SETTINGS.sizeMultiplier
+  };
+}
+
+function getViewportScale() {
+  return window.visualViewport && window.visualViewport.scale ? window.visualViewport.scale : 1;
+}
+
+function getViewportBounds() {
+  if (window.visualViewport) {
+    return {
+      left: window.visualViewport.offsetLeft,
+      top: window.visualViewport.offsetTop,
+      width: window.visualViewport.width,
+      height: window.visualViewport.height
+    };
+  }
+
+  return {
+    left: 0,
+    top: 0,
+    width: window.innerWidth,
+    height: window.innerHeight
+  };
+}
+
+function getRenderMetrics(fish) {
+  const inverseZoom = 1 / getViewportScale();
+  const renderScale = inverseZoom * aquariumSettings.sizeMultiplier;
+  return {
+    renderScale,
+    width: fish.baseWidth * renderScale,
+    height: fish.baseHeight * renderScale
+  };
+}
 
 // Listen for storage changes to update the fish list
 chrome.storage.onChanged.addListener((changes, namespace) => {
-  if (namespace === 'local') {
-    if (changes.doodleFishList) {
-      updateAquarium(changes.doodleFishList.newValue || []);
-    }
-    if (changes.fishSpeedMultiplier) {
-      globalSpeedMultiplier = changes.fishSpeedMultiplier.newValue || 1.0;
-    }
-    if (changes.fishSizeMultiplier) {
-      globalSizeMultiplier = changes.fishSizeMultiplier.newValue || 1.0;
-      updateAllFishSizes();
-    }
+  if (namespace !== 'local') {
+    return;
+  }
+
+  if (changes.doodleFishList) {
+    updateAquarium(changes.doodleFishList.newValue || []);
+  }
+
+  if (changes.doodleSettings) {
+    aquariumSettings = normalizeSettings(changes.doodleSettings.newValue);
+    applySettingsToFish();
   }
 });
 
-function updateAllFishSizes() {
-  activeFish.forEach(fish => {
-    fish.width = fish.baseWidth * globalSizeMultiplier;
-    fish.height = fish.baseHeight * globalSizeMultiplier;
-    fish.element.style.width = fish.width + 'px';
-    fish.element.style.height = fish.height + 'px';
-  });
-}
-
-// Save state on unload
-window.addEventListener('beforeunload', () => {
-  const savedState = activeFish.map(fish => ({
-    id: fish.id,
-    x: fish.x,
-    y: fish.y,
-    vx: fish.vx,
-    vy: fish.vy
-  }));
-  chrome.storage.local.set({ doodleFishState: savedState });
-});
-
 // Initial load
-chrome.storage.local.get(['doodleFishList', 'doodleFishState', 'fishSpeedMultiplier', 'fishSizeMultiplier'], (result) => {
-  globalSpeedMultiplier = result.fishSpeedMultiplier || 1.0;
-  globalSizeMultiplier = result.fishSizeMultiplier || 1.0;
-
-  const savedState = result.doodleFishState || [];
-  updateAquarium(result.doodleFishList || [], savedState);
+chrome.storage.local.get(['doodleFishList', 'doodleSettings'], (result) => {
+  aquariumSettings = normalizeSettings(result.doodleSettings);
+  updateAquarium(result.doodleFishList || []);
 });
 
 // Track mouse position for avoidance
@@ -65,7 +89,7 @@ document.addEventListener('mouseleave', () => {
   mouseY = -1000;
 });
 
-function updateAquarium(fishList, savedState = []) {
+function updateAquarium(fishList) {
   // Get active fish from storage
   const newActiveFishData = fishList.filter(f => f.active);
 
@@ -83,8 +107,7 @@ function updateAquarium(fishList, savedState = []) {
   const currentIds = activeFish.map(f => f.id);
   newActiveFishData.forEach(fishData => {
     if (!currentIds.includes(fishData.id)) {
-      const stateForFish = savedState.find(s => s.id === fishData.id);
-      spawnFish(fishData, stateForFish);
+      spawnFish(fishData);
     }
   });
 
@@ -97,7 +120,7 @@ function updateAquarium(fishList, savedState = []) {
   }
 }
 
-function spawnFish(fishData, savedState) {
+function spawnFish(fishData) {
   const img = document.createElement('img');
   img.src = fishData.dataUrl;
   img.style.position = 'fixed';
@@ -105,50 +128,47 @@ function spawnFish(fishData, savedState) {
   img.style.left = '0px';
   img.style.zIndex = '999999';
   img.style.pointerEvents = 'none'; // Don't block clicks on the page
-  // Ensure we don't scale it ridiculously, but use natural size
-  img.style.maxWidth = '200px';
+  img.style.maxWidth = 'none';
+  img.style.transformOrigin = 'top left';
 
   document.body.appendChild(img);
 
   // Wait for image to load to get dimensions
   img.onload = () => {
-    let x, y, vx, vy, speed;
+    const baseWidth = Math.min(img.naturalWidth || img.width, 200);
+    const baseHeight = Math.min(img.naturalHeight || img.height, 200);
+    const bounds = getViewportBounds();
 
-    if (savedState) {
-      x = savedState.x;
-      y = savedState.y;
-      vx = savedState.vx;
-      vy = savedState.vy;
-      speed = Math.sqrt(vx*vx + vy*vy);
-    } else {
-      // Start at random position
-      x = Math.random() * (window.innerWidth - img.width);
-      y = Math.random() * (window.innerHeight - img.height);
+    img.style.width = `${baseWidth}px`;
+    img.style.height = `${baseHeight}px`;
 
-      // Random velocity
-      speed = 1.5 + Math.random() * 2;
-      const angle = Math.random() * Math.PI * 2;
-      vx = Math.cos(angle) * speed;
-      vy = Math.sin(angle) * speed;
-    }
+    const tempFish = { baseWidth, baseHeight };
+    const metrics = getRenderMetrics(tempFish);
 
-    const scaledWidth = img.width * globalSizeMultiplier;
-    const scaledHeight = img.height * globalSizeMultiplier;
-    img.style.width = scaledWidth + 'px';
-    img.style.height = scaledHeight + 'px';
+    // Start at random position
+    const x = bounds.left + Math.random() * Math.max(1, (bounds.width - metrics.width));
+    const y = bounds.top + Math.random() * Math.max(1, (bounds.height - metrics.height));
+
+    // Random velocity
+    const baseSpeed = 1.5 + Math.random() * 2;
+    const seededDirection = fishData.direction === 'left' ? -1 : 1;
+    const angle = seededDirection < 0
+      ? (Math.PI * 0.85 + Math.random() * Math.PI * 0.3)
+      : (-Math.PI * 0.15 + Math.random() * Math.PI * 0.3);
+    const speed = baseSpeed * aquariumSettings.speedMultiplier;
+    const vx = Math.cos(angle) * speed;
+    const vy = Math.sin(angle) * speed;
 
     activeFish.push({
       id: fishData.id,
       element: img,
-      baseWidth: img.width,
-      baseHeight: img.height,
-      width: scaledWidth,
-      height: scaledHeight,
+      baseWidth,
+      baseHeight,
       x: x,
       y: y,
       vx: vx,
       vy: vy,
-      baseSpeed: speed
+      baseSpeedRaw: baseSpeed
     });
 
     updateFishTransform(activeFish[activeFish.length - 1]);
@@ -160,23 +180,40 @@ function spawnFish(fishData, savedState) {
 }
 
 function updateFishTransform(fish) {
+  const metrics = getRenderMetrics(fish);
   // Flip image if moving left
-  const scaleX = fish.vx < 0 ? -1 : 1;
-  fish.element.style.transform = `translate(${fish.x}px, ${fish.y}px) scaleX(${scaleX})`;
+  const direction = fish.vx < 0 ? -1 : 1;
+  fish.element.style.transform = `translate(${fish.x}px, ${fish.y}px) scale(${direction * metrics.renderScale}, ${metrics.renderScale})`;
+}
+
+function applySettingsToFish() {
+  for (let i = 0; i < activeFish.length; i++) {
+    const fish = activeFish[i];
+    const speed = Math.sqrt(fish.vx * fish.vx + fish.vy * fish.vy);
+    const targetSpeed = fish.baseSpeedRaw * aquariumSettings.speedMultiplier;
+    const scaleRatio = speed > 0 ? targetSpeed / speed : 1;
+
+    fish.vx *= scaleRatio;
+    fish.vy *= scaleRatio;
+    updateFishTransform(fish);
+  }
 }
 
 function animate() {
   const AVOID_RADIUS = 150;
   const AVOID_FORCE = 0.5;
-  const MAX_SPEED = 8;
-  const MIN_SPEED = 1;
+  const MAX_SPEED = 8 * aquariumSettings.speedMultiplier;
+  const MIN_SPEED = 1 * aquariumSettings.speedMultiplier;
+  const bounds = getViewportBounds();
 
   for (let i = 0; i < activeFish.length; i++) {
     const fish = activeFish[i];
+    const metrics = getRenderMetrics(fish);
+    const targetSpeed = fish.baseSpeedRaw * aquariumSettings.speedMultiplier;
 
     // Center of fish
-    const fishCenterX = fish.x + fish.width / 2;
-    const fishCenterY = fish.y + fish.height / 2;
+    const fishCenterX = fish.x + metrics.width / 2;
+    const fishCenterY = fish.y + metrics.height / 2;
 
     // Mouse avoidance
     const dx = fishCenterX - mouseX;
@@ -195,7 +232,7 @@ function animate() {
 
     // Apply friction to return to normal speed
     const currentSpeed = Math.sqrt(fish.vx * fish.vx + fish.vy * fish.vy);
-    if (currentSpeed > fish.baseSpeed && dist >= AVOID_RADIUS) {
+    if (currentSpeed > targetSpeed && dist >= AVOID_RADIUS) {
       fish.vx *= 0.95;
       fish.vy *= 0.95;
     } else if (currentSpeed < MIN_SPEED) {
@@ -213,23 +250,23 @@ function animate() {
     }
 
     // Move
-    fish.x += fish.vx * globalSpeedMultiplier;
-    fish.y += fish.vy * globalSpeedMultiplier;
+    fish.x += fish.vx;
+    fish.y += fish.vy;
 
     // Bounce off edges
-    if (fish.x <= 0) {
-      fish.x = 0;
+    if (fish.x <= bounds.left) {
+      fish.x = bounds.left;
       fish.vx *= -1;
-    } else if (fish.x + fish.width >= window.innerWidth) {
-      fish.x = window.innerWidth - fish.width;
+    } else if (fish.x + metrics.width >= bounds.left + bounds.width) {
+      fish.x = bounds.left + bounds.width - metrics.width;
       fish.vx *= -1;
     }
 
-    if (fish.y <= 0) {
-      fish.y = 0;
+    if (fish.y <= bounds.top) {
+      fish.y = bounds.top;
       fish.vy *= -1;
-    } else if (fish.y + fish.height >= window.innerHeight) {
-      fish.y = window.innerHeight - fish.height;
+    } else if (fish.y + metrics.height >= bounds.top + bounds.height) {
+      fish.y = bounds.top + bounds.height - metrics.height;
       fish.vy *= -1;
     }
 
@@ -237,4 +274,9 @@ function animate() {
   }
 
   animationFrameId = requestAnimationFrame(animate);
+}
+
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', applySettingsToFish);
+  window.visualViewport.addEventListener('scroll', applySettingsToFish);
 }
