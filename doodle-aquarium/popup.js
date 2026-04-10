@@ -56,6 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentTool = 'brush';
   let autoSaveTimer = null;
   let applyingSettings = false;
+  let isReentering = false;
 
   let undoStack = [];
   let redoStack = [];
@@ -568,6 +569,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!isDrawing) return;
 
     const { x, y } = getCanvasPoint(e);
+
+    if (isReentering) {
+      lastX = x;
+      lastY = y;
+      isReentering = false;
+      return;
+    }
+
     drawInterpolatedStroke(lastX, lastY, x, y);
 
     lastX = x;
@@ -614,13 +623,20 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   canvas.addEventListener('mouseenter', (e) => {
+    if (isDrawing) {
+      isReentering = true;
+    }
     if (currentTool !== 'fill') brushPreview.style.display = 'block';
   });
 
   canvas.addEventListener('mouseup', () => isDrawing = false);
   canvas.addEventListener('mouseout', () => {
-    isDrawing = false;
     brushPreview.style.display = 'none';
+  });
+
+  window.addEventListener('mouseup', () => {
+    isDrawing = false;
+    isReentering = false;
   });
 
   clearBtn.addEventListener('click', () => {

@@ -31,7 +31,7 @@
             <!-- Canvas Area -->
             <div class="canvas-area">
                 <div class="canvas-container">
-                    <div class="badge">Drawing</div>
+                    <!-- <div class="badge">Drawing</div> -->
                     <canvas id="direction-guide" aria-hidden="true"></canvas>
                     <canvas id="drawing-canvas"></canvas>
                     <canvas id="brush-preview" width="40" height="40"></canvas>
@@ -71,17 +71,17 @@
                     <div class="settings-card">
                         <label class="label-tiny">Color</label>
                         <div class="color-row">
-                            <input type="color" id="color-picker" value="#004268">
-                            <input type="text" id="color-text" value="#004268">
+                            <input type="color" id="color-picker" value="#000000">
+                            <input type="text" id="color-text" value="#000000">
                         </div>
                     </div>
                     <div class="settings-card">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <label class="label-tiny">Size</label>
                             <span id="brush-size-display"
-                                style="font-size: 10px; font-weight: 800; color: var(--primary);">5px</span>
+                                style="font-size: 10px; font-weight: 800; color: var(--primary);">10px</span>
                         </div>
-                        <input type="range" id="brush-size" min="1" max="100" value="5">
+                        <input type="range" id="brush-size" min="1" max="100" value="10">
                     </div>
                 </div>
 
