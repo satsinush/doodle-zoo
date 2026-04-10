@@ -12,8 +12,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const colorPicker = document.getElementById('color-picker');
   const colorText = document.getElementById('color-text');
   const brushSize = document.getElementById('brush-size');
+  const toolRadios = document.querySelectorAll('input[name="tool"]');
   const fishDirection = document.getElementById('fish-direction');
   const directionIndicator = document.getElementById('direction-indicator');
+  const undoBtn = document.getElementById('undo-btn');
+  const redoBtn = document.getElementById('redo-btn');
   const clearBtn = document.getElementById('clear-btn');
   const saveBtn = document.getElementById('save-btn');
   const openWindowBtn = document.getElementById('open-window-btn');
@@ -24,6 +27,158 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastX = 0;
   let lastY = 0;
   let currentDrawColor = '#000000';
+  let currentTool = 'brush';
+
+  let undoStack = [];
+  let redoStack = [];
+
+  function saveState() {
+    undoStack.push(canvas.toDataURL('image/png'));
+    redoStack = []; // Clear redo stack on new action
+    updateUndoRedoButtons();
+  }
+
+  function updateUndoRedoButtons() {
+    undoBtn.disabled = undoStack.length === 0;
+    redoBtn.disabled = redoStack.length === 0;
+  }
+
+  function restoreState(dataUrl) {
+    const img = new Image();
+    img.onload = () => {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      ctx.restore();
+    };
+    img.src = dataUrl;
+  }
+
+  undoBtn.addEventListener('click', () => {
+    if (undoStack.length > 0) {
+      redoStack.push(canvas.toDataURL('image/png'));
+      const state = undoStack.pop();
+      restoreState(state);
+      updateUndoRedoButtons();
+    }
+  });
+
+  redoBtn.addEventListener('click', () => {
+    if (redoStack.length > 0) {
+      undoStack.push(canvas.toDataURL('image/png'));
+      const state = redoStack.pop();
+      restoreState(state);
+      updateUndoRedoButtons();
+    }
+  });
+
+  toolRadios.forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      currentTool = e.target.value;
+    });
+  });
+
+  function hexToRgba(hex) {
+    let c;
+    if(/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)){
+        c= hex.substring(1).split('');
+        if(c.length== 3){
+            c= [c[0], c[0], c[1], c[1], c[2], c[2]];
+        }
+        c= '0x'+c.join('');
+        return [(c>>16)&255, (c>>8)&255, c&255, 255];
+    }
+    return [0, 0, 0, 255];
+  }
+
+  function floodFill(startX, startY, fillColorHex) {
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+    const width = canvas.width;
+    const height = canvas.height;
+
+    // Pixel coordinates in actual canvas space
+    const sx = Math.floor(startX);
+    const sy = Math.floor(startY);
+
+    if (sx < 0 || sx >= width || sy < 0 || sy >= height) return;
+
+    const startIndex = (sy * width + sx) * 4;
+    const startR = data[startIndex];
+    const startG = data[startIndex + 1];
+    const startB = data[startIndex + 2];
+    const startA = data[startIndex + 3];
+
+    const fillRgba = hexToRgba(fillColorHex);
+
+    // If colors are the same, don't fill
+    if (startR === fillRgba[0] && startG === fillRgba[1] && startB === fillRgba[2] && startA === fillRgba[3]) {
+      return;
+    }
+
+    const matchStartColor = (index) => {
+      return data[index] === startR &&
+             data[index + 1] === startG &&
+             data[index + 2] === startB &&
+             data[index + 3] === startA;
+    };
+
+    const colorPixel = (index) => {
+      data[index] = fillRgba[0];
+      data[index + 1] = fillRgba[1];
+      data[index + 2] = fillRgba[2];
+      data[index + 3] = fillRgba[3];
+    };
+
+    const pixelStack = [[sx, sy]];
+
+    while (pixelStack.length > 0) {
+      const newPos = pixelStack.pop();
+      const x = newPos[0];
+      let y = newPos[1];
+
+      let pixelPos = (y * width + x) * 4;
+      while (y-- >= 0 && matchStartColor(pixelPos)) {
+        pixelPos -= width * 4;
+      }
+      pixelPos += width * 4;
+      ++y;
+
+      let reachLeft = false;
+      let reachRight = false;
+
+      while (y++ < height - 1 && matchStartColor(pixelPos)) {
+        colorPixel(pixelPos);
+
+        if (x > 0) {
+          if (matchStartColor(pixelPos - 4)) {
+            if (!reachLeft) {
+              pixelStack.push([x - 1, y]);
+              reachLeft = true;
+            }
+          } else if (reachLeft) {
+            reachLeft = false;
+          }
+        }
+
+        if (x < width - 1) {
+          if (matchStartColor(pixelPos + 4)) {
+            if (!reachRight) {
+              pixelStack.push([x + 1, y]);
+              reachRight = true;
+            }
+          } else if (reachRight) {
+            reachRight = false;
+          }
+        }
+
+        pixelPos += width * 4;
+      }
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+  }
 
   // Keep drawing coordinates in CSS pixels while rendering crisply on high DPI screens.
   function configureContext() {
@@ -33,6 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function clearCanvas() {
+    saveState();
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -170,7 +326,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     settingsBtn.addEventListener('click', () => {
-      chrome.runtime.openOptionsPage();
+      if (chrome.runtime.openOptionsPage) {
+        chrome.runtime.openOptionsPage();
+      } else {
+        window.open(chrome.runtime.getURL('options.html'));
+      }
     });
   }
 
@@ -185,13 +345,21 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   canvas.addEventListener('mousedown', (e) => {
-    isDrawing = true;
+    saveState();
     const point = getCanvasPoint(e);
-    lastX = point.x;
-    lastY = point.y;
 
-    ctx.fillStyle = currentDrawColor;
-    drawStamp(lastX, lastY, Number(brushSize.value));
+    if (currentTool === 'fill') {
+      // Need to map point to actual canvas coordinates based on DPR
+      const dpr = window.devicePixelRatio || 1;
+      floodFill(point.x * dpr, point.y * dpr, cssColorToHex(currentDrawColor) || currentDrawColor);
+    } else {
+      isDrawing = true;
+      lastX = point.x;
+      lastY = point.y;
+
+      ctx.fillStyle = currentDrawColor;
+      drawStamp(lastX, lastY, Number(brushSize.value));
+    }
   });
 
   canvas.addEventListener('mousemove', draw);

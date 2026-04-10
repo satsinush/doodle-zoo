@@ -131,7 +131,17 @@ function spawnFish(fishData) {
   img.style.maxWidth = 'none';
   img.style.transformOrigin = 'top left';
 
-  document.body.appendChild(img);
+  const appendToBody = () => {
+    if (document.body) {
+      document.body.appendChild(img);
+    } else {
+      // document.body might not be ready yet if run_at is document_start
+      document.addEventListener('DOMContentLoaded', () => {
+        document.body.appendChild(img);
+      });
+    }
+  };
+  appendToBody();
 
   // Wait for image to load to get dimensions
   img.onload = () => {

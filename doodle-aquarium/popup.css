@@ -107,6 +107,12 @@ canvas {
   margin-bottom: 4px;
 }
 
+.tools-row .tool-options {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
 .color-row {
   display: flex;
   gap: 8px;

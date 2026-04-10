@@ -20,6 +20,14 @@
     </div>
 
     <div class="controls">
+      <div class="field tools-row">
+        <label>Tool</label>
+        <div class="tool-options">
+          <label><input type="radio" name="tool" value="brush" checked> Brush</label>
+          <label><input type="radio" name="tool" value="fill"> Fill Bucket</label>
+        </div>
+      </div>
+
       <div class="field">
         <label for="color-picker">Color</label>
         <div class="color-row">
@@ -42,6 +50,8 @@
       </div>
 
       <div class="buttons-row">
+        <button id="undo-btn" type="button" disabled>Undo</button>
+        <button id="redo-btn" type="button" disabled>Redo</button>
         <button id="clear-btn" type="button">Clear</button>
         <button id="save-btn" type="button">Save Fish</button>
       </div>
