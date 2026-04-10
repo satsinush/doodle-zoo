@@ -8,6 +8,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const canvas = document.getElementById('drawing-canvas');
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const guideCanvas = document.getElementById('direction-guide');
+  const guideCtx = guideCanvas.getContext('2d');
 
   const colorPicker = document.getElementById('color-picker');
   const colorText = document.getElementById('color-text');
@@ -15,8 +17,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const brushPreview = document.getElementById('brush-preview');
   const brushPreviewCtx = brushPreview.getContext('2d');
   const toolRadios = document.querySelectorAll('input[name="tool"]');
-  const fishDirection = document.getElementById('fish-direction');
-  const directionIndicator = document.getElementById('direction-indicator');
   const undoBtn = document.getElementById('undo-btn');
   const redoBtn = document.getElementById('redo-btn');
   const clearBtn = document.getElementById('clear-btn');
@@ -35,13 +35,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const interactionType = document.getElementById('interaction-type');
   const strengthInput = document.getElementById('interaction-strength');
   const strengthValue = document.getElementById('strength-value');
-  const saveSettingsBtn = document.getElementById('save-settings');
   const resetSettingsBtn = document.getElementById('reset-settings');
   const statusEl = document.getElementById('status');
 
   const DEFAULT_SETTINGS = {
-    speedMultiplier: 1,
-    sizeMultiplier: 1,
+    speedMultiplier: 0.5,
+    sizeMultiplier: 0.5,
     interactionType: 'repel',
     interactionStrength: 1
   };
@@ -51,6 +50,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastY = 0;
   let currentDrawColor = '#000000';
   let currentTool = 'brush';
+  let autoSaveTimer = null;
+  let applyingSettings = false;
 
   let undoStack = [];
   let redoStack = [];
@@ -247,6 +248,31 @@ document.addEventListener('DOMContentLoaded', () => {
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
     ctx.imageSmoothingEnabled = true;
+    guideCtx.imageSmoothingEnabled = true;
+  }
+
+  function drawDirectionGuide(width, height, dpr) {
+    guideCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    guideCtx.clearRect(0, 0, width, height);
+    guideCtx.save();
+    guideCtx.translate(width / 2, height / 2);
+    guideCtx.strokeStyle = 'rgba(123, 133, 145, 0.14)';
+    guideCtx.lineWidth = Math.max(8, Math.min(width, height) * 0.1);
+    guideCtx.lineCap = 'round';
+    guideCtx.lineJoin = 'round';
+
+    const arrowLength = Math.min(width, height) * 0.75;
+    const halfLength = arrowLength / 2;
+    const headSize = arrowLength * 0.30;
+
+    guideCtx.beginPath();
+    guideCtx.moveTo(-halfLength, 0);
+    guideCtx.lineTo(halfLength, 0);
+    guideCtx.moveTo(halfLength - headSize, -headSize * 0.75);
+    guideCtx.lineTo(halfLength, 0);
+    guideCtx.lineTo(halfLength - headSize, headSize * 0.75);
+    guideCtx.stroke();
+    guideCtx.restore();
   }
 
   function clearCanvas() {
@@ -268,8 +294,16 @@ document.addEventListener('DOMContentLoaded', () => {
     canvas.width = Math.floor(width * dpr);
     canvas.height = Math.floor(height * dpr);
 
+    guideCanvas.style.width = `${width}px`;
+    guideCanvas.style.height = `${height}px`;
+    guideCanvas.width = Math.floor(width * dpr);
+    guideCanvas.height = Math.floor(height * dpr);
+
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    guideCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
     configureContext();
+
+    drawDirectionGuide(width, height, dpr);
 
     if (snapshot) {
       const redraw = new Image();
@@ -386,8 +420,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const size = Number(brushSize.value);
     const radius = Math.max(0.5, size / 2);
 
-    // Ensure the preview canvas bounds cover the full brush size
-    const boxSize = Math.max(4, Math.ceil(size));
+    // Ensure the preview canvas bounds cover the full brush size plus padding for the stroke
+    const boxSize = Math.max(4, Math.ceil(size)) + 2;
     brushPreview.width = boxSize;
     brushPreview.height = boxSize;
     brushPreview.style.width = `${boxSize}px`;
@@ -406,6 +440,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (currentTool === 'eraser') {
       brushPreviewCtx.beginPath();
       brushPreviewCtx.arc(center, center, radius, 0, Math.PI * 2);
+      brushPreviewCtx.fillStyle = '#ffffff';
+      brushPreviewCtx.fill();
       brushPreviewCtx.strokeStyle = '#000000';
       brushPreviewCtx.lineWidth = 1;
       brushPreviewCtx.stroke();
@@ -415,10 +451,6 @@ document.addEventListener('DOMContentLoaded', () => {
       brushPreviewCtx.fillStyle = currentDrawColor;
       brushPreviewCtx.fill();
     }
-  }
-
-  function updateDirectionIndicator() {
-    directionIndicator.textContent = fishDirection.value === 'left' ? 'Head points <-' : 'Head points ->';
   }
 
   function setupWindowButtons() {
@@ -467,14 +499,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function applyToForm(settings) {
+      applyingSettings = true;
       speedInput.value = settings.speedMultiplier;
       sizeInput.value = settings.sizeMultiplier;
       interactionType.value = settings.interactionType;
       strengthInput.value = settings.interactionStrength;
       updateLabels();
+      applyingSettings = false;
     }
 
-    saveSettingsBtn.addEventListener('click', () => {
+    function persistSettings(statusMessage = 'Settings saved.') {
       const settings = {
         speedMultiplier: Number(speedInput.value),
         sizeMultiplier: Number(sizeInput.value),
@@ -482,23 +516,54 @@ document.addEventListener('DOMContentLoaded', () => {
         interactionStrength: Number(strengthInput.value)
       };
       chrome.storage.local.set({ doodleSettings: settings }, () => {
-        setStatus('Settings saved.');
+        setStatus(statusMessage);
       });
-    });
+    }
+
+    function scheduleAutoSave() {
+      if (applyingSettings) {
+        return;
+      }
+
+      if (autoSaveTimer) {
+        clearTimeout(autoSaveTimer);
+      }
+
+      autoSaveTimer = setTimeout(() => {
+        persistSettings('Settings auto-saved.');
+      }, 200);
+    }
 
     resetSettingsBtn.addEventListener('click', () => {
       applyToForm(DEFAULT_SETTINGS);
-      chrome.storage.local.set({ doodleSettings: { ...DEFAULT_SETTINGS } }, () => {
-        setStatus('Settings reset.');
-      });
+      persistSettings('Settings reset.');
     });
 
-    speedInput.addEventListener('input', updateLabels);
-    sizeInput.addEventListener('input', updateLabels);
-    strengthInput.addEventListener('input', updateLabels);
-    speedValue.addEventListener('input', updateSliders);
-    sizeValue.addEventListener('input', updateSliders);
-    strengthValue.addEventListener('input', updateSliders);
+    speedInput.addEventListener('input', () => {
+      updateLabels();
+      scheduleAutoSave();
+    });
+    sizeInput.addEventListener('input', () => {
+      updateLabels();
+      scheduleAutoSave();
+    });
+    strengthInput.addEventListener('input', () => {
+      updateLabels();
+      scheduleAutoSave();
+    });
+    speedValue.addEventListener('input', () => {
+      updateSliders();
+      scheduleAutoSave();
+    });
+    sizeValue.addEventListener('input', () => {
+      updateSliders();
+      scheduleAutoSave();
+    });
+    strengthValue.addEventListener('input', () => {
+      updateSliders();
+      scheduleAutoSave();
+    });
+    interactionType.addEventListener('change', scheduleAutoSave);
 
     chrome.storage.local.get(['doodleSettings'], (result) => {
       applyToForm(normalizeSettings(result.doodleSettings));
@@ -583,8 +648,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  fishDirection.addEventListener('change', updateDirectionIndicator);
-
   // Check if canvas is empty
   function isCanvasBlank() {
     const pixelBuffer = new Uint32Array(
@@ -593,20 +656,23 @@ document.addEventListener('DOMContentLoaded', () => {
     return !pixelBuffer.some(color => color !== 0);
   }
 
-  importFile.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  function fileToDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
+      reader.readAsDataURL(file);
+    });
+  }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
+  function normalizeFishImage(dataUrl) {
+    return new Promise((resolve, reject) => {
       const img = new Image();
       img.onload = () => {
-        // Scale to fit within 400x300 if larger
-        const scale = Math.min(1, Math.min(400 / img.width, 300 / img.height));
+        const scale = Math.min(400 / img.width, 300 / img.height);
         const finalW = img.width * scale;
         const finalH = img.height * scale;
 
-        // Draw to a temporary canvas to save at exactly 400x300
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = 400;
         tempCanvas.height = 300;
@@ -615,24 +681,50 @@ document.addEventListener('DOMContentLoaded', () => {
         const y = (300 - finalH) / 2;
         tempCtx.drawImage(img, x, y, finalW, finalH);
 
-        const dataUrl = tempCanvas.toDataURL('image/png');
-        chrome.storage.local.get(['doodleFishList'], (result) => {
-          const fishArray = result.doodleFishList || [];
+        resolve(tempCanvas.toDataURL('image/png'));
+      };
+      img.onerror = () => reject(new Error('Invalid image file'));
+      img.src = dataUrl;
+    });
+  }
+
+  importFile.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    const importedDataUrls = [];
+
+    for (const file of files) {
+      try {
+        const sourceDataUrl = await fileToDataUrl(file);
+        const normalizedDataUrl = await normalizeFishImage(sourceDataUrl);
+        importedDataUrls.push(normalizedDataUrl);
+      } catch (_error) {
+        // Skip invalid files and continue importing remaining images.
+      }
+    }
+
+    if (importedDataUrls.length > 0) {
+      chrome.storage.local.get(['doodleFishList'], (result) => {
+        const fishArray = result.doodleFishList || [];
+
+        importedDataUrls.forEach((dataUrl, index) => {
           fishArray.push({
-            id: Date.now().toString(),
-            dataUrl: dataUrl,
-            direction: fishDirection.value,
+            id: `${Date.now()}-${index}`,
+            dataUrl,
+            mirrored: false,
+            flipByVelocity: true,
             active: true
           });
-          chrome.storage.local.set({ doodleFishList: fishArray }, () => {
-            renderFishList();
-          });
         });
-      };
-      img.src = event.target.result;
-    };
-    reader.readAsDataURL(file);
-    e.target.value = ''; // Reset so the same file can be imported again
+
+        chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+          renderFishList();
+        });
+      });
+    }
+
+    e.target.value = ''; // Reset so the same file(s) can be imported again
   });
 
   saveBtn.addEventListener('click', () => {
@@ -647,7 +739,7 @@ document.addEventListener('DOMContentLoaded', () => {
     tempCanvas.height = 300;
     const tempCtx = tempCanvas.getContext('2d');
 
-    // Scale canvas into 400x300 preserving aspect ratio
+    // Scale canvas to fit 400x300 preserving aspect ratio, no cropping
     const scale = Math.min(400 / canvas.style.width.replace('px', ''), 300 / canvas.style.height.replace('px', ''));
     const sw = canvas.style.width.replace('px', '') * scale;
     const sh = canvas.style.height.replace('px', '') * scale;
@@ -663,7 +755,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const newFish = {
         id: Date.now().toString(),
         dataUrl: dataUrl,
-        direction: fishDirection.value,
+        mirrored: false,
+        flipByVelocity: true,
         active: true
       };
 
@@ -686,9 +779,24 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      const table = document.createElement('table');
+      table.className = 'fish-table';
+      table.innerHTML = `
+        <thead>
+          <tr>
+            <th>Preview</th>
+            <th>Active</th>
+            <th>Mirror</th>
+            <th>Face Dir</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+      `;
+
+      const tbody = document.createElement('tbody');
+
       fishArray.forEach(fish => {
-        const item = document.createElement('div');
-        item.className = 'fish-item';
+        const row = document.createElement('tr');
 
         const imgContainer = document.createElement('div');
         imgContainer.className = 'fish-img-container';
@@ -696,12 +804,32 @@ document.addEventListener('DOMContentLoaded', () => {
         img.src = fish.dataUrl;
         imgContainer.appendChild(img);
 
-        const actions = document.createElement('div');
-        actions.className = 'fish-actions';
+        const previewCell = document.createElement('td');
+        previewCell.appendChild(imgContainer);
 
-        const directionLabel = document.createElement('span');
-        directionLabel.className = 'fish-direction';
-        directionLabel.textContent = (fish.direction || 'right') === 'left' ? '<-' : '->';
+        const mirrorCheckbox = document.createElement('input');
+        mirrorCheckbox.type = 'checkbox';
+        mirrorCheckbox.checked = Boolean(fish.mirrored);
+        mirrorCheckbox.title = 'Mirror fish';
+        mirrorCheckbox.addEventListener('change', () => {
+          toggleFishMirror(fish.id, mirrorCheckbox.checked);
+        });
+
+        const mirrorCell = document.createElement('td');
+        mirrorCell.className = 'center-cell';
+        mirrorCell.appendChild(mirrorCheckbox);
+
+        const faceDirectionCheckbox = document.createElement('input');
+        faceDirectionCheckbox.type = 'checkbox';
+        faceDirectionCheckbox.checked = fish.flipByVelocity !== false;
+        faceDirectionCheckbox.title = 'Flip based on movement direction';
+        faceDirectionCheckbox.addEventListener('change', () => {
+          toggleFishFlipByVelocity(fish.id, faceDirectionCheckbox.checked);
+        });
+
+        const faceDirectionCell = document.createElement('td');
+        faceDirectionCell.className = 'center-cell';
+        faceDirectionCell.appendChild(faceDirectionCheckbox);
 
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
@@ -710,6 +838,10 @@ document.addEventListener('DOMContentLoaded', () => {
         checkbox.addEventListener('change', () => {
           toggleFishActive(fish.id, checkbox.checked);
         });
+
+        const activeCell = document.createElement('td');
+        activeCell.className = 'center-cell';
+        activeCell.appendChild(checkbox);
 
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'delete-btn';
@@ -755,17 +887,25 @@ document.addEventListener('DOMContentLoaded', () => {
           a.click();
         });
 
-        actions.appendChild(checkbox);
-        actions.appendChild(directionLabel);
-        actions.appendChild(editBtn);
-        actions.appendChild(dlBtn);
-        actions.appendChild(deleteBtn);
+        const rowActions = document.createElement('div');
+        rowActions.className = 'fish-row-actions';
+        rowActions.appendChild(editBtn);
+        rowActions.appendChild(dlBtn);
+        rowActions.appendChild(deleteBtn);
 
-        item.appendChild(imgContainer);
-        item.appendChild(actions);
+        const actionsCell = document.createElement('td');
+        actionsCell.appendChild(rowActions);
 
-        fishList.appendChild(item);
+        row.appendChild(previewCell);
+        row.appendChild(activeCell);
+        row.appendChild(mirrorCell);
+        row.appendChild(faceDirectionCell);
+        row.appendChild(actionsCell);
+        tbody.appendChild(row);
       });
+
+      table.appendChild(tbody);
+      fishList.appendChild(table);
     });
   }
 
@@ -776,6 +916,32 @@ document.addEventListener('DOMContentLoaded', () => {
       if (fishIndex !== -1) {
         fishArray[fishIndex].active = isActive;
         chrome.storage.local.set({ doodleFishList: fishArray });
+      }
+    });
+  }
+
+  function toggleFishMirror(id, isMirrored) {
+    chrome.storage.local.get(['doodleFishList'], (result) => {
+      const fishArray = result.doodleFishList || [];
+      const fishIndex = fishArray.findIndex(f => f.id === id);
+      if (fishIndex !== -1) {
+        fishArray[fishIndex].mirrored = isMirrored;
+        chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+          renderFishList();
+        });
+      }
+    });
+  }
+
+  function toggleFishFlipByVelocity(id, isEnabled) {
+    chrome.storage.local.get(['doodleFishList'], (result) => {
+      const fishArray = result.doodleFishList || [];
+      const fishIndex = fishArray.findIndex(f => f.id === id);
+      if (fishIndex !== -1) {
+        fishArray[fishIndex].flipByVelocity = isEnabled;
+        chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+          renderFishList();
+        });
       }
     });
   }
@@ -812,7 +978,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   setupWindowButtons();
   applyColorInput(colorText.value, true);
-  updateDirectionIndicator();
   configureContext();
   resizeCanvasForViewport();
   window.addEventListener('resize', resizeCanvasForViewport);
