@@ -5,7 +5,9 @@ let mouseX = -1000;
 let mouseY = -1000;
 const DEFAULT_SETTINGS = {
   speedMultiplier: 1,
-  sizeMultiplier: 1
+  sizeMultiplier: 1,
+  interactionType: 'repel',
+  interactionStrength: 1
 };
 let aquariumSettings = { ...DEFAULT_SETTINGS };
 
@@ -16,10 +18,13 @@ function normalizeSettings(raw) {
 
   const speed = Number(raw.speedMultiplier);
   const size = Number(raw.sizeMultiplier);
+  const strength = Number(raw.interactionStrength);
 
   return {
     speedMultiplier: Number.isFinite(speed) && speed > 0 ? speed : DEFAULT_SETTINGS.speedMultiplier,
-    sizeMultiplier: Number.isFinite(size) && size > 0 ? size : DEFAULT_SETTINGS.sizeMultiplier
+    sizeMultiplier: Number.isFinite(size) && size > 0 ? size : DEFAULT_SETTINGS.sizeMultiplier,
+    interactionType: raw.interactionType === 'attract' ? 'attract' : 'repel',
+    interactionStrength: Number.isFinite(strength) && strength >= 0 ? strength : DEFAULT_SETTINGS.interactionStrength
   };
 }
 
@@ -129,14 +134,28 @@ function spawnFish(fishData) {
   img.style.zIndex = '999999';
   img.style.pointerEvents = 'none'; // Don't block clicks on the page
   img.style.maxWidth = 'none';
-  img.style.transformOrigin = 'top left';
+  img.style.transformOrigin = 'center center';
+  img.style.visibility = 'hidden';
 
-  document.body.appendChild(img);
+  const appendToBody = () => {
+    if (document.body) {
+      document.body.appendChild(img);
+    } else {
+      // document.body might not be ready yet if run_at is document_start
+      document.addEventListener('DOMContentLoaded', () => {
+        document.body.appendChild(img);
+      });
+    }
+  };
+  appendToBody();
 
   // Wait for image to load to get dimensions
   img.onload = () => {
-    const baseWidth = Math.min(img.naturalWidth || img.width, 200);
-    const baseHeight = Math.min(img.naturalHeight || img.height, 200);
+    let natWidth = img.naturalWidth || img.width || 400;
+    let natHeight = img.naturalHeight || img.height || 300;
+    let scale = Math.min(200 / natWidth, 200 / natHeight, 1);
+    const baseWidth = natWidth * scale;
+    const baseHeight = natHeight * scale;
     const bounds = getViewportBounds();
 
     img.style.width = `${baseWidth}px`;
@@ -145,9 +164,9 @@ function spawnFish(fishData) {
     const tempFish = { baseWidth, baseHeight };
     const metrics = getRenderMetrics(tempFish);
 
-    // Start at random position
-    const x = bounds.left + Math.random() * Math.max(1, (bounds.width - metrics.width));
-    const y = bounds.top + Math.random() * Math.max(1, (bounds.height - metrics.height));
+    // Start at random position, x and y represent the center point of the fish
+    const x = bounds.left + metrics.width/2 + Math.random() * Math.max(1, (bounds.width - metrics.width));
+    const y = bounds.top + metrics.height/2 + Math.random() * Math.max(1, (bounds.height - metrics.height));
 
     // Random velocity
     const baseSpeed = 1.5 + Math.random() * 2;
@@ -172,6 +191,7 @@ function spawnFish(fishData) {
     });
 
     updateFishTransform(activeFish[activeFish.length - 1]);
+    img.style.visibility = 'visible';
 
     if (!animationFrameId) {
       animate();
@@ -183,7 +203,8 @@ function updateFishTransform(fish) {
   const metrics = getRenderMetrics(fish);
   // Flip image if moving left
   const direction = fish.vx < 0 ? -1 : 1;
-  fish.element.style.transform = `translate(${fish.x}px, ${fish.y}px) scale(${direction * metrics.renderScale}, ${metrics.renderScale})`;
+  // Use translate(-50%, -50%) to ensure scaling happens relative to the precise dynamic center without offsetting logic bugs
+  fish.element.style.transform = `translate(${fish.x}px, ${fish.y}px) translate(-50%, -50%) scale(${direction * metrics.renderScale}, ${metrics.renderScale})`;
 }
 
 function applySettingsToFish() {
@@ -200,39 +221,53 @@ function applySettingsToFish() {
 }
 
 function animate() {
-  const AVOID_RADIUS = 150;
-  const AVOID_FORCE = 0.5;
   const MAX_SPEED = 8 * aquariumSettings.speedMultiplier;
   const MIN_SPEED = 1 * aquariumSettings.speedMultiplier;
   const bounds = getViewportBounds();
+  const DECAY_CONSTANT = 0.015; // Controls how fast the force drops off
 
   for (let i = 0; i < activeFish.length; i++) {
     const fish = activeFish[i];
     const metrics = getRenderMetrics(fish);
     const targetSpeed = fish.baseSpeedRaw * aquariumSettings.speedMultiplier;
 
-    // Center of fish
-    const fishCenterX = fish.x + metrics.width / 2;
-    const fishCenterY = fish.y + metrics.height / 2;
+    // Center of fish is now exactly x, y
+    const fishCenterX = fish.x;
+    const fishCenterY = fish.y;
 
-    // Mouse avoidance
+    // Mouse interaction
     const dx = fishCenterX - mouseX;
     const dy = fishCenterY - mouseY;
     let dist = Math.sqrt(dx * dx + dy * dy);
 
-    if (dist < AVOID_RADIUS) {
+    // Only apply force if mouse is on screen (dist is large if mouseX/Y is -1000)
+    let applyingForce = false;
+    if (mouseX >= 0 && mouseY >= 0 && aquariumSettings.interactionStrength > 0) {
       if (dist === 0) dist = 0.1;
-      // Repel from mouse
-      const repelX = (dx / dist) * AVOID_FORCE;
-      const repelY = (dy / dist) * AVOID_FORCE;
 
-      fish.vx += repelX;
-      fish.vy += repelY;
+      // Calculate force using exponential decay: F = A * e^(-k * d)
+      // A is the base amplitude/strength
+      const baseForce = 2.0 * aquariumSettings.interactionStrength;
+      const forceMagnitude = baseForce * Math.exp(-DECAY_CONSTANT * dist);
+
+      // We still use a small threshold just to skip calculating tiny forces
+      if (forceMagnitude > 0.01) {
+        applyingForce = true;
+        // Direction vector from mouse to fish
+        const dirX = dx / dist;
+        const dirY = dy / dist;
+
+        // If attract, flip the direction vector towards the mouse
+        const sign = aquariumSettings.interactionType === 'attract' ? -1 : 1;
+
+        fish.vx += dirX * forceMagnitude * sign;
+        fish.vy += dirY * forceMagnitude * sign;
+      }
     }
 
     // Apply friction to return to normal speed
     const currentSpeed = Math.sqrt(fish.vx * fish.vx + fish.vy * fish.vy);
-    if (currentSpeed > targetSpeed && dist >= AVOID_RADIUS) {
+    if (currentSpeed > targetSpeed && !applyingForce) {
       fish.vx *= 0.95;
       fish.vy *= 0.95;
     } else if (currentSpeed < MIN_SPEED) {
@@ -253,20 +288,23 @@ function animate() {
     fish.x += fish.vx;
     fish.y += fish.vy;
 
-    // Bounce off edges
-    if (fish.x <= bounds.left) {
-      fish.x = bounds.left;
+    // Bounce off edges (using center coordinate and half-width/height)
+    const halfWidth = metrics.width / 2;
+    const halfHeight = metrics.height / 2;
+
+    if (fish.x - halfWidth <= bounds.left) {
+      fish.x = bounds.left + halfWidth;
       fish.vx *= -1;
-    } else if (fish.x + metrics.width >= bounds.left + bounds.width) {
-      fish.x = bounds.left + bounds.width - metrics.width;
+    } else if (fish.x + halfWidth >= bounds.left + bounds.width) {
+      fish.x = bounds.left + bounds.width - halfWidth;
       fish.vx *= -1;
     }
 
-    if (fish.y <= bounds.top) {
-      fish.y = bounds.top;
+    if (fish.y - halfHeight <= bounds.top) {
+      fish.y = bounds.top + halfHeight;
       fish.vy *= -1;
-    } else if (fish.y + metrics.height >= bounds.top + bounds.height) {
-      fish.y = bounds.top + bounds.height - metrics.height;
+    } else if (fish.y + halfHeight >= bounds.top + bounds.height) {
+      fish.y = bounds.top + bounds.height - halfHeight;
       fish.vy *= -1;
     }
 

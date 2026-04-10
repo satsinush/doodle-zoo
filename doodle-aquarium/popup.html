@@ -10,16 +10,25 @@
       <h1>Doodle Aquarium</h1>
       <div class="header-actions">
         <button id="open-window-btn" class="secondary-btn" type="button">Open Full Window</button>
-        <button id="settings-btn" class="secondary-btn" type="button">Settings</button>
       </div>
     </header>
 
     <div class="canvas-container">
-      <canvas id="drawing-canvas" width="420" height="260"></canvas>
+      <canvas id="drawing-canvas"></canvas>
+      <canvas id="brush-preview" width="40" height="40" style="position: absolute; pointer-events: none; display: none; z-index: 10;"></canvas>
       <div id="direction-indicator" class="direction-indicator" aria-live="polite">Head points -&gt;</div>
     </div>
 
     <div class="controls">
+      <div class="field tools-row">
+        <label>Tool</label>
+        <div class="tool-options">
+          <label><input type="radio" name="tool" value="brush" checked> Brush</label>
+          <label><input type="radio" name="tool" value="fill"> Fill Bucket</label>
+          <label><input type="radio" name="tool" value="eraser"> Eraser</label>
+        </div>
+      </div>
+
       <div class="field">
         <label for="color-picker">Color</label>
         <div class="color-row">
@@ -30,7 +39,9 @@
 
       <div class="field">
         <label for="brush-size">Brush Size</label>
-        <input type="range" id="brush-size" min="1" max="20" value="5">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <input type="range" id="brush-size" min="1" max="100" value="5">
+        </div>
       </div>
 
       <div class="field direction-row">
@@ -42,14 +53,63 @@
       </div>
 
       <div class="buttons-row">
-        <button id="clear-btn" type="button">Clear</button>
+        <button id="undo-btn" class="secondary-btn" type="button" disabled>Undo</button>
+        <button id="redo-btn" class="secondary-btn" type="button" disabled>Redo</button>
+        <button id="clear-btn" class="secondary-btn" type="button">Clear</button>
+        <label class="secondary-btn" style="cursor: pointer;">
+          Import
+          <input type="file" id="import-file" accept="image/*" style="display: none;">
+        </label>
         <button id="save-btn" type="button">Save Fish</button>
       </div>
     </div>
 
-    <h2>My Fish</h2>
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 24px; margin-bottom: 8px;">
+      <h2>My Fish</h2>
+      <div style="display: flex; gap: 8px;">
+        <button id="select-all-btn" class="secondary-btn" style="padding: 4px 8px; font-size: 11px;">Select All</button>
+        <button id="deselect-all-btn" class="secondary-btn" style="padding: 4px 8px; font-size: 11px;">Deselect All</button>
+      </div>
+    </div>
     <div id="fish-list">
       <!-- Fish items will be added here -->
+    </div>
+
+    <div id="settings-panel" style="border-top: 1px solid #ddd; margin-top: 16px; padding-top: 16px;">
+      <h2>Settings</h2>
+      <div class="field">
+        <label for="speed-multiplier">Fish Speed</label>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <input id="speed-multiplier" type="range" min="0.1" max="3.0" step="0.1" value="1">
+          <input id="speed-value" type="number" min="0.1" max="3.0" step="0.1" value="1.0" style="width: 60px;">
+        </div>
+      </div>
+      <div class="field">
+        <label for="size-multiplier">Fish Size</label>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <input id="size-multiplier" type="range" min="0.1" max="3.0" step="0.1" value="1">
+          <input id="size-value" type="number" min="0.1" max="3.0" step="0.1" value="1.0" style="width: 60px;">
+        </div>
+      </div>
+      <div class="field">
+        <label for="interaction-type">Cursor Interaction</label>
+        <select id="interaction-type" style="padding: 4px; border-radius: 4px; border: 1px solid var(--border);">
+          <option value="repel">Repel</option>
+          <option value="attract">Attract</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="interaction-strength">Interaction Strength</label>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <input id="interaction-strength" type="range" min="0.0" max="5.0" step="0.1" value="1">
+          <input id="strength-value" type="number" min="0.0" max="5.0" step="0.1" value="1.0" style="width: 60px;">
+        </div>
+      </div>
+      <div class="buttons-row">
+        <button id="save-settings" type="button">Save Settings</button>
+        <button id="reset-settings" class="secondary-btn" type="button">Reset</button>
+      </div>
+      <p id="status" class="status" aria-live="polite" style="color: green; font-size: 13px; margin-top: 8px;"></p>
     </div>
   </div>
 
