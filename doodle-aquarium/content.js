@@ -196,10 +196,8 @@ function updateFishTransform(fish) {
   const metrics = getRenderMetrics(fish);
   // Flip image if moving left
   const direction = fish.vx < 0 ? -1 : 1;
-  // Translate based on center point minus unscaled half width/height so scale transform applies correctly
-  const renderX = fish.x - fish.baseWidth / 2;
-  const renderY = fish.y - fish.baseHeight / 2;
-  fish.element.style.transform = `translate(${renderX}px, ${renderY}px) scale(${direction * metrics.renderScale}, ${metrics.renderScale})`;
+  // Use translate(-50%, -50%) to ensure scaling happens relative to the precise dynamic center without offsetting logic bugs
+  fish.element.style.transform = `translate(${fish.x}px, ${fish.y}px) translate(-50%, -50%) scale(${direction * metrics.renderScale}, ${metrics.renderScale})`;
 }
 
 function applySettingsToFish() {
