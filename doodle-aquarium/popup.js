@@ -14,9 +14,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const colorPicker = document.getElementById('color-picker');
   const colorText = document.getElementById('color-text');
   const brushSize = document.getElementById('brush-size');
+  const brushSizeDisplay = document.getElementById('brush-size-display');
   const brushPreview = document.getElementById('brush-preview');
   const brushPreviewCtx = brushPreview.getContext('2d');
-  const toolRadios = document.querySelectorAll('input[name="tool"]');
+  
+  const toolGroup = document.getElementById('tool-group');
+  const toolButtons = toolGroup.querySelectorAll('[data-tool]');
+  
   const undoBtn = document.getElementById('undo-btn');
   const redoBtn = document.getElementById('redo-btn');
   const clearBtn = document.getElementById('clear-btn');
@@ -30,11 +34,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const settingsPanel = document.getElementById('settings-panel');
   const speedInput = document.getElementById('speed-multiplier');
   const sizeInput = document.getElementById('size-multiplier');
-  const speedValue = document.getElementById('speed-value');
-  const sizeValue = document.getElementById('size-value');
+  const speedDisplay = document.getElementById('speed-display');
+  const sizeDisplay = document.getElementById('size-display');
   const interactionType = document.getElementById('interaction-type');
   const strengthInput = document.getElementById('interaction-strength');
-  const strengthValue = document.getElementById('strength-value');
+  const strengthDisplay = document.getElementById('strength-display');
   const resetSettingsBtn = document.getElementById('reset-settings');
   const statusEl = document.getElementById('status');
 
@@ -97,14 +101,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  toolRadios.forEach(radio => {
-    radio.addEventListener('change', (e) => {
-      currentTool = e.target.value;
+  toolButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      toolButtons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentTool = btn.dataset.tool;
       updateBrushPreview();
     });
   });
 
   brushSize.addEventListener('input', () => {
+    brushSizeDisplay.textContent = `${brushSize.value}px`;
     updateBrushPreview();
   });
 
@@ -357,8 +364,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function resizeCanvasForViewport() {
     // Dynamic canvas based on window innerWidth. Max width matches extension max popup width.
     const w = window.innerWidth - 32;
-    const maxW = Math.min(w, 800);
-    // Use an approx 4:3 ratio based on width
+    // Cap dimensions more aggressively for standalone
+    const maxW = isStandalone ? Math.min(w, 600) : Math.min(w, 800);
     const maxH = maxW * 0.75;
 
     const rect = canvas.getBoundingClientRect();
@@ -412,6 +419,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     colorText.value = currentDrawColor;
+    
+    // Auto-switch to brush tool
+    currentTool = 'brush';
+    toolButtons.forEach(b => b.classList.toggle('active', b.dataset.tool === 'brush'));
+    
     updateBrushPreview();
     return true;
   }
@@ -463,15 +475,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateLabels() {
-      speedValue.value = Number(speedInput.value).toFixed(1);
-      sizeValue.value = Number(sizeInput.value).toFixed(1);
-      strengthValue.value = Number(strengthInput.value).toFixed(1);
-    }
-
-    function updateSliders() {
-      speedInput.value = Number(speedValue.value).toFixed(1);
-      sizeInput.value = Number(sizeValue.value).toFixed(1);
-      strengthInput.value = Number(strengthValue.value).toFixed(1);
+      speedDisplay.textContent = Number(speedInput.value).toFixed(1);
+      sizeDisplay.textContent = Number(sizeInput.value).toFixed(1);
+      strengthDisplay.textContent = Number(strengthInput.value).toFixed(1);
     }
 
     function normalizeSettings(raw) {
@@ -549,18 +555,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     strengthInput.addEventListener('input', () => {
       updateLabels();
-      scheduleAutoSave();
-    });
-    speedValue.addEventListener('input', () => {
-      updateSliders();
-      scheduleAutoSave();
-    });
-    sizeValue.addEventListener('input', () => {
-      updateSliders();
-      scheduleAutoSave();
-    });
-    strengthValue.addEventListener('input', () => {
-      updateSliders();
       scheduleAutoSave();
     });
     interactionType.addEventListener('change', scheduleAutoSave);
@@ -739,13 +733,16 @@ document.addEventListener('DOMContentLoaded', () => {
     tempCanvas.height = 300;
     const tempCtx = tempCanvas.getContext('2d');
 
-    // Scale canvas to fit 400x300 preserving aspect ratio, no cropping
-    const scale = Math.min(400 / canvas.style.width.replace('px', ''), 300 / canvas.style.height.replace('px', ''));
-    const sw = canvas.style.width.replace('px', '') * scale;
-    const sh = canvas.style.height.replace('px', '') * scale;
+    // Scale canvas into 400x300 while preserving aspect ratio and centering
+    const currentW = Number(canvas.style.width.replace('px', ''));
+    const currentH = Number(canvas.style.height.replace('px', ''));
+    const scale = Math.min(400 / currentW, 300 / currentH);
+    const sw = currentW * scale;
+    const sh = currentH * scale;
     const sx = (400 - sw) / 2;
     const sy = (300 - sh) / 2;
 
+    tempCtx.clearRect(0,0,400,300);
     tempCtx.drawImage(canvas, sx, sy, sw, sh);
 
     const dataUrl = tempCanvas.toDataURL('image/png');
@@ -775,147 +772,98 @@ document.addEventListener('DOMContentLoaded', () => {
       fishList.innerHTML = '';
 
       if (fishArray.length === 0) {
-        fishList.innerHTML = '<p style="text-align:center; color:#666;">No fish drawn yet.</p>';
+        fishList.innerHTML = '<p style="grid-column: 1/-1; text-align:center; color:var(--on-surface-variant); font-size: 13px; padding: 2rem 0;">No fish in your tank yet.</p>';
         return;
       }
 
-      const table = document.createElement('table');
-      table.className = 'fish-table';
-      table.innerHTML = `
-        <thead>
-          <tr>
-            <th>Preview</th>
-            <th>Active</th>
-            <th>Mirror</th>
-            <th>Face Dir</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-      `;
-
-      const tbody = document.createElement('tbody');
-
       fishArray.forEach(fish => {
-        const row = document.createElement('tr');
-
-        const imgContainer = document.createElement('div');
-        imgContainer.className = 'fish-img-container';
+        const item = document.createElement('div');
+        item.className = `gallery-item ${fish.active ? '' : 'inactive'}`;
+        item.title = `${fish.active ? 'Active' : 'Hidden'} - Click to toggle`;
+        
         const img = document.createElement('img');
         img.src = fish.dataUrl;
-        imgContainer.appendChild(img);
+        item.appendChild(img);
 
-        const previewCell = document.createElement('td');
-        previewCell.appendChild(imgContainer);
+        const actions = document.createElement('div');
+        actions.className = 'item-actions';
 
-        const mirrorCheckbox = document.createElement('input');
-        mirrorCheckbox.type = 'checkbox';
-        mirrorCheckbox.checked = Boolean(fish.mirrored);
-        mirrorCheckbox.title = 'Mirror fish';
-        mirrorCheckbox.addEventListener('change', () => {
-          toggleFishMirror(fish.id, mirrorCheckbox.checked);
-        });
-
-        const mirrorCell = document.createElement('td');
-        mirrorCell.className = 'center-cell';
-        mirrorCell.appendChild(mirrorCheckbox);
-
-        const faceDirectionCheckbox = document.createElement('input');
-        faceDirectionCheckbox.type = 'checkbox';
-        faceDirectionCheckbox.checked = fish.flipByVelocity !== false;
-        faceDirectionCheckbox.title = 'Flip based on movement direction';
-        faceDirectionCheckbox.addEventListener('change', () => {
-          toggleFishFlipByVelocity(fish.id, faceDirectionCheckbox.checked);
-        });
-
-        const faceDirectionCell = document.createElement('td');
-        faceDirectionCell.className = 'center-cell';
-        faceDirectionCell.appendChild(faceDirectionCheckbox);
-
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.checked = fish.active;
-        checkbox.title = "In Aquarium";
-        checkbox.addEventListener('change', () => {
-          toggleFishActive(fish.id, checkbox.checked);
-        });
-
-        const activeCell = document.createElement('td');
-        activeCell.className = 'center-cell';
-        activeCell.appendChild(checkbox);
-
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'delete-btn';
-        deleteBtn.textContent = 'Delete';
-        deleteBtn.addEventListener('click', () => {
-          deleteFish(fish.id);
-        });
+        const toggleBtn = document.createElement('button');
+        toggleBtn.className = 'action-btn material-symbols-outlined';
+        toggleBtn.textContent = fish.active ? 'visibility' : 'visibility_off';
+        toggleBtn.title = fish.active ? 'Hide Fish' : 'Show Fish';
+        toggleBtn.onclick = (e) => {
+           e.stopPropagation();
+           toggleFishActive(fish.id, !fish.active, () => {
+             renderFishList(); 
+           });
+        };
 
         const editBtn = document.createElement('button');
-        editBtn.className = 'secondary-btn';
-        editBtn.textContent = 'Edit';
-        editBtn.style.marginLeft = '4px';
-        editBtn.addEventListener('click', () => {
-          saveState();
-          const imgObj = new Image();
-          imgObj.onload = () => {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        editBtn.className = 'action-btn material-symbols-outlined';
+        editBtn.textContent = 'edit';
+        editBtn.title = 'Edit Fish';
+        editBtn.onclick = (e) => {
+            e.stopPropagation();
+            saveState();
+            const imgObj = new Image();
+            imgObj.onload = () => {
+                // Determine current DPR-mapped CSS size
+                const dpr = window.devicePixelRatio || 1;
+                const cw = canvas.width / dpr;
+                const ch = canvas.height / dpr;
+                
+                ctx.clearRect(0, 0, cw, ch);
+                
+                // The saved fish is already centered in a 400x300 box.
+                // We scale that box to fit the current canvas.
+                const boxScale = Math.min(cw / 400, ch / 300);
+                const dw = 400 * boxScale;
+                const dh = 300 * boxScale;
+                const dx = (cw - dw) / 2;
+                const dy = (ch - dh) / 2;
+                
+                ctx.drawImage(imgObj, dx, dy, dw, dh);
+            };
+            imgObj.src = fish.dataUrl;
+        };
 
-            // Need to match CSS width/height from the dynamic scaling
-            const cw = Number(canvas.style.width.replace('px', ''));
-            const ch = Number(canvas.style.height.replace('px', ''));
-            const scaleX = cw / 400;
-            const scaleY = ch / 300;
-            const scale = Math.min(scaleX, scaleY);
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'action-btn material-symbols-outlined delete';
+        deleteBtn.textContent = 'delete';
+        deleteBtn.title = 'Delete Fish';
+        deleteBtn.onclick = (e) => {
+            e.stopPropagation();
+            if (confirm('Delete this fish?')) {
+                deleteFish(fish.id);
+            }
+        };
 
-            const w = imgObj.width * scale;
-            const h = imgObj.height * scale;
-            const x = (cw - w) / 2;
-            const y = (ch - h) / 2;
-            ctx.drawImage(imgObj, x, y, w, h);
-          };
-          imgObj.src = fish.dataUrl;
-        });
+        actions.appendChild(toggleBtn);
+        actions.appendChild(editBtn);
+        actions.appendChild(deleteBtn);
+        item.appendChild(actions);
 
-        const dlBtn = document.createElement('button');
-        dlBtn.className = 'secondary-btn';
-        dlBtn.textContent = 'Export';
-        dlBtn.style.marginLeft = '4px';
-        dlBtn.addEventListener('click', () => {
-          const a = document.createElement('a');
-          a.href = fish.dataUrl;
-          a.download = `fish-${fish.id}.png`;
-          a.click();
-        });
+        item.onclick = () => {
+            toggleFishActive(fish.id, !fish.active, () => {
+                renderFishList();
+            });
+        };
 
-        const rowActions = document.createElement('div');
-        rowActions.className = 'fish-row-actions';
-        rowActions.appendChild(editBtn);
-        rowActions.appendChild(dlBtn);
-        rowActions.appendChild(deleteBtn);
-
-        const actionsCell = document.createElement('td');
-        actionsCell.appendChild(rowActions);
-
-        row.appendChild(previewCell);
-        row.appendChild(activeCell);
-        row.appendChild(mirrorCell);
-        row.appendChild(faceDirectionCell);
-        row.appendChild(actionsCell);
-        tbody.appendChild(row);
+        fishList.appendChild(item);
       });
-
-      table.appendChild(tbody);
-      fishList.appendChild(table);
     });
   }
 
-  function toggleFishActive(id, isActive) {
+  function toggleFishActive(id, isActive, callback) {
     chrome.storage.local.get(['doodleFishList'], (result) => {
       const fishArray = result.doodleFishList || [];
       const fishIndex = fishArray.findIndex(f => f.id === id);
       if (fishIndex !== -1) {
         fishArray[fishIndex].active = isActive;
-        chrome.storage.local.set({ doodleFishList: fishArray });
+        chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+          if (callback) callback();
+        });
       }
     });
   }
@@ -978,6 +926,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   setupWindowButtons();
   applyColorInput(colorText.value, true);
+  brushSizeDisplay.textContent = `${brushSize.value}px`;
   configureContext();
   resizeCanvasForViewport();
   window.addEventListener('resize', resizeCanvasForViewport);
