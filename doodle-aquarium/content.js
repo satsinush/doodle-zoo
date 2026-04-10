@@ -168,7 +168,7 @@ function spawnFish(fishData) {
     const x = bounds.left + metrics.width/2 + Math.random() * Math.max(1, (bounds.width - metrics.width));
     const y = bounds.top + metrics.height/2 + Math.random() * Math.max(1, (bounds.height - metrics.height));
 
-    // Random velocity
+    // Random initial velocity
     const baseSpeed = 1.5 + Math.random() * 2;
     const seededDirection = fishData.direction === 'left' ? -1 : 1;
     const angle = seededDirection < 0
@@ -177,6 +177,8 @@ function spawnFish(fishData) {
     const speed = baseSpeed * aquariumSettings.speedMultiplier;
     const vx = Math.cos(angle) * speed;
     const vy = Math.sin(angle) * speed;
+    // Store a random seed per fish for movement variation
+    const seed = Math.random() * Math.PI * 2;
 
     activeFish.push({
       id: fishData.id,
@@ -187,7 +189,8 @@ function spawnFish(fishData) {
       y: y,
       vx: vx,
       vy: vy,
-      baseSpeedRaw: baseSpeed
+      baseSpeedRaw: baseSpeed,
+      seed: seed
     });
 
     updateFishTransform(activeFish[activeFish.length - 1]);
@@ -221,15 +224,31 @@ function applySettingsToFish() {
 }
 
 function animate() {
-  const MAX_SPEED = 8 * aquariumSettings.speedMultiplier;
-  const MIN_SPEED = 1 * aquariumSettings.speedMultiplier;
   const bounds = getViewportBounds();
-  const DECAY_CONSTANT = 0.015; // Controls how fast the force drops off
+  const time = Date.now() / 1000;
 
   for (let i = 0; i < activeFish.length; i++) {
     const fish = activeFish[i];
     const metrics = getRenderMetrics(fish);
-    const targetSpeed = fish.baseSpeedRaw * aquariumSettings.speedMultiplier;
+    const speedMultiplier = aquariumSettings.speedMultiplier;
+
+    // Constant propulsive force that varies slightly over time using sine waves
+    // Use the fish's own base speed as the baseline for the propulsion strength
+    const propulsionStrength = fish.baseSpeedRaw * speedMultiplier * 0.2;
+
+    // Add some noise to the angle to create natural wiggling motion
+    const wiggle = Math.sin(time * 2 + fish.seed) * 0.1;
+    // Current direction of travel
+    let currentAngle = Math.atan2(fish.vy, fish.vx);
+    if (isNaN(currentAngle)) currentAngle = 0;
+
+    // Add a wandering tendency over time
+    const wander = Math.sin(time * 0.5 + fish.seed * 2) * 0.05;
+    const targetAngle = currentAngle + wiggle + wander;
+
+    // Apply the propulsive force in the target direction
+    fish.vx += Math.cos(targetAngle) * propulsionStrength;
+    fish.vy += Math.sin(targetAngle) * propulsionStrength;
 
     // Center of fish is now exactly x, y
     const fishCenterX = fish.x;
@@ -241,18 +260,16 @@ function animate() {
     let dist = Math.sqrt(dx * dx + dy * dy);
 
     // Only apply force if mouse is on screen (dist is large if mouseX/Y is -1000)
-    let applyingForce = false;
     if (mouseX >= 0 && mouseY >= 0 && aquariumSettings.interactionStrength > 0) {
       if (dist === 0) dist = 0.1;
 
-      // Calculate force using exponential decay: F = A * e^(-k * d)
-      // A is the base amplitude/strength
-      const baseForce = 2.0 * aquariumSettings.interactionStrength;
-      const forceMagnitude = baseForce * Math.exp(-DECAY_CONSTANT * dist);
+      // Calculate force using inverse quadratic: F = A / (d^2 + epsilon)
+      // A is the base amplitude/strength, multiplied by a constant to scale it appropriately
+      const baseForce = 2000.0 * aquariumSettings.interactionStrength;
+      const forceMagnitude = baseForce / (dist * dist + 1000);
 
       // We still use a small threshold just to skip calculating tiny forces
       if (forceMagnitude > 0.01) {
-        applyingForce = true;
         // Direction vector from mouse to fish
         const dirX = dx / dist;
         const dirY = dy / dist;
@@ -265,24 +282,9 @@ function animate() {
       }
     }
 
-    // Apply friction to return to normal speed
-    const currentSpeed = Math.sqrt(fish.vx * fish.vx + fish.vy * fish.vy);
-    if (currentSpeed > targetSpeed && !applyingForce) {
-      fish.vx *= 0.95;
-      fish.vy *= 0.95;
-    } else if (currentSpeed < MIN_SPEED) {
-      // Prevent stopping
-      const angle = Math.atan2(fish.vy, fish.vx);
-      fish.vx = Math.cos(angle) * MIN_SPEED;
-      fish.vy = Math.sin(angle) * MIN_SPEED;
-    }
-
-    // Cap max speed
-    if (currentSpeed > MAX_SPEED) {
-      const angle = Math.atan2(fish.vy, fish.vx);
-      fish.vx = Math.cos(angle) * MAX_SPEED;
-      fish.vy = Math.sin(angle) * MAX_SPEED;
-    }
+    // Apply constant drag/friction
+    fish.vx *= 0.95;
+    fish.vy *= 0.95;
 
     // Move
     fish.x += fish.vx;
@@ -294,18 +296,18 @@ function animate() {
 
     if (fish.x - halfWidth <= bounds.left) {
       fish.x = bounds.left + halfWidth;
-      fish.vx *= -1;
+      fish.vx = Math.abs(fish.vx); // ensure positive
     } else if (fish.x + halfWidth >= bounds.left + bounds.width) {
       fish.x = bounds.left + bounds.width - halfWidth;
-      fish.vx *= -1;
+      fish.vx = -Math.abs(fish.vx); // ensure negative
     }
 
     if (fish.y - halfHeight <= bounds.top) {
       fish.y = bounds.top + halfHeight;
-      fish.vy *= -1;
+      fish.vy = Math.abs(fish.vy); // ensure positive
     } else if (fish.y + halfHeight >= bounds.top + bounds.height) {
       fish.y = bounds.top + bounds.height - halfHeight;
-      fish.vy *= -1;
+      fish.vy = -Math.abs(fish.vy); // ensure negative
     }
 
     updateFishTransform(fish);

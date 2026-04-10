@@ -386,8 +386,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const size = Number(brushSize.value);
     const radius = Math.max(0.5, size / 2);
 
-    // Ensure the preview canvas bounds cover the full brush size
-    const boxSize = Math.max(4, Math.ceil(size));
+    // Ensure the preview canvas bounds cover the full brush size plus padding for the stroke
+    const boxSize = Math.max(4, Math.ceil(size)) + 2;
     brushPreview.width = boxSize;
     brushPreview.height = boxSize;
     brushPreview.style.width = `${boxSize}px`;
@@ -406,6 +406,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (currentTool === 'eraser') {
       brushPreviewCtx.beginPath();
       brushPreviewCtx.arc(center, center, radius, 0, Math.PI * 2);
+      brushPreviewCtx.fillStyle = '#ffffff';
+      brushPreviewCtx.fill();
       brushPreviewCtx.strokeStyle = '#000000';
       brushPreviewCtx.lineWidth = 1;
       brushPreviewCtx.stroke();
@@ -601,8 +603,8 @@ document.addEventListener('DOMContentLoaded', () => {
     reader.onload = (event) => {
       const img = new Image();
       img.onload = () => {
-        // Scale to fit within 400x300 if larger
-        const scale = Math.min(1, Math.min(400 / img.width, 300 / img.height));
+        // Scale to cover 400x300, cropping any overflow
+        const scale = Math.max(400 / img.width, 300 / img.height);
         const finalW = img.width * scale;
         const finalH = img.height * scale;
 
@@ -647,8 +649,8 @@ document.addEventListener('DOMContentLoaded', () => {
     tempCanvas.height = 300;
     const tempCtx = tempCanvas.getContext('2d');
 
-    // Scale canvas into 400x300 preserving aspect ratio
-    const scale = Math.min(400 / canvas.style.width.replace('px', ''), 300 / canvas.style.height.replace('px', ''));
+    // Scale canvas to cover 400x300 preserving aspect ratio, cropping any overflow
+    const scale = Math.max(400 / canvas.style.width.replace('px', ''), 300 / canvas.style.height.replace('px', ''));
     const sw = canvas.style.width.replace('px', '') * scale;
     const sh = canvas.style.height.replace('px', '') * scale;
     const sx = (400 - sw) / 2;
