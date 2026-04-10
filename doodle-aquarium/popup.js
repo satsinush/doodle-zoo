@@ -605,6 +605,16 @@ document.addEventListener('DOMContentLoaded', () => {
     saveState();
     const point = getCanvasPoint(e);
 
+    if (currentTool === 'eyedropper') {
+      const dpr = window.devicePixelRatio || 1;
+      const imgData = ctx.getImageData(point.x * dpr, point.y * dpr, 1, 1).data;
+      if (imgData[3] > 0) { // If not fully transparent
+        const hex = rgbToHex(imgData[0], imgData[1], imgData[2]);
+        applyColorInput(hex);
+      }
+      return; // Switch to brush is handled by applyColorInput
+    }
+
     if (currentTool === 'fill') {
       // Need to map point to actual canvas coordinates based on DPR
       const dpr = window.devicePixelRatio || 1;
@@ -675,6 +685,10 @@ document.addEventListener('DOMContentLoaded', () => {
       applyColorInput(colorText.value);
     }
   });
+
+  function rgbToHex(r, g, b) {
+    return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+  }
 
   // Check if canvas is empty
   function isCanvasBlank() {

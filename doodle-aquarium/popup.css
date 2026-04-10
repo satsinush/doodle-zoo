@@ -420,6 +420,10 @@ select {
 }
 
 .gallery-item.inactive {
+    /* Container stays normal */
+}
+
+.gallery-item.inactive img {
     filter: grayscale(1);
     opacity: 0.6;
 }
