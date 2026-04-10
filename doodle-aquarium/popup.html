@@ -38,7 +38,10 @@
 
       <div class="field">
         <label for="brush-size">Brush Size</label>
-        <input type="range" id="brush-size" min="1" max="20" value="5">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <input type="range" id="brush-size" min="1" max="40" value="5">
+          <canvas id="brush-preview" width="40" height="40" style="border: 1px solid var(--border); border-radius: 4px; background: #fff;"></canvas>
+        </div>
       </div>
 
       <div class="field direction-row">
@@ -86,6 +89,20 @@
         <div style="display: flex; align-items: center; gap: 8px;">
           <input id="size-multiplier" type="range" min="0.1" max="3.0" step="0.1" value="1">
           <input id="size-value" type="number" min="0.1" max="3.0" step="0.1" value="1.0" style="width: 60px;">
+        </div>
+      </div>
+      <div class="field">
+        <label for="interaction-type">Cursor Interaction</label>
+        <select id="interaction-type" style="padding: 4px; border-radius: 4px; border: 1px solid var(--border);">
+          <option value="repel">Repel</option>
+          <option value="attract">Attract</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="interaction-strength">Interaction Strength</label>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <input id="interaction-strength" type="range" min="0.0" max="5.0" step="0.1" value="1">
+          <input id="strength-value" type="number" min="0.0" max="5.0" step="0.1" value="1.0" style="width: 60px;">
         </div>
       </div>
       <div class="buttons-row">

@@ -12,6 +12,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const colorPicker = document.getElementById('color-picker');
   const colorText = document.getElementById('color-text');
   const brushSize = document.getElementById('brush-size');
+  const brushPreview = document.getElementById('brush-preview');
+  const brushPreviewCtx = brushPreview.getContext('2d');
   const toolRadios = document.querySelectorAll('input[name="tool"]');
   const fishDirection = document.getElementById('fish-direction');
   const directionIndicator = document.getElementById('direction-indicator');
@@ -30,13 +32,18 @@ document.addEventListener('DOMContentLoaded', () => {
   const sizeInput = document.getElementById('size-multiplier');
   const speedValue = document.getElementById('speed-value');
   const sizeValue = document.getElementById('size-value');
+  const interactionType = document.getElementById('interaction-type');
+  const strengthInput = document.getElementById('interaction-strength');
+  const strengthValue = document.getElementById('strength-value');
   const saveSettingsBtn = document.getElementById('save-settings');
   const resetSettingsBtn = document.getElementById('reset-settings');
   const statusEl = document.getElementById('status');
 
   const DEFAULT_SETTINGS = {
     speedMultiplier: 1,
-    sizeMultiplier: 1
+    sizeMultiplier: 1,
+    interactionType: 'repel',
+    interactionStrength: 1
   };
 
   let isDrawing = false;
@@ -92,7 +99,12 @@ document.addEventListener('DOMContentLoaded', () => {
   toolRadios.forEach(radio => {
     radio.addEventListener('change', (e) => {
       currentTool = e.target.value;
+      updateBrushPreview();
     });
+  });
+
+  brushSize.addEventListener('input', () => {
+    updateBrushPreview();
   });
 
   function hexToRgba(hex) {
@@ -147,6 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return a < tolerance;
       }
 
+      // For opaque or semi-transparent colored regions, compare RGB and A.
       return Math.abs(r - startR) <= tolerance &&
              Math.abs(g - startG) <= tolerance &&
              Math.abs(b - startB) <= tolerance &&
@@ -384,7 +397,39 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     colorText.value = currentDrawColor;
+    updateBrushPreview();
     return true;
+  }
+
+  function updateBrushPreview() {
+    const size = Number(brushSize.value);
+    const radius = Math.max(0.5, size / 2);
+
+    brushPreviewCtx.clearRect(0, 0, brushPreview.width, brushPreview.height);
+
+    // Draw a subtle checkerboard so we can see white/transparent colors
+    const cw = brushPreview.width;
+    const ch = brushPreview.height;
+    for (let x = 0; x < cw; x += 10) {
+      for (let y = 0; y < ch; y += 10) {
+        brushPreviewCtx.fillStyle = ((x / 10 + y / 10) % 2 === 0) ? '#ffffff' : '#f0f0f0';
+        brushPreviewCtx.fillRect(x, y, 10, 10);
+      }
+    }
+
+    if (currentTool === 'eraser') {
+      // Just draw an outline for eraser
+      brushPreviewCtx.beginPath();
+      brushPreviewCtx.arc(cw / 2, ch / 2, radius, 0, Math.PI * 2);
+      brushPreviewCtx.strokeStyle = '#000000';
+      brushPreviewCtx.lineWidth = 1;
+      brushPreviewCtx.stroke();
+    } else {
+      brushPreviewCtx.beginPath();
+      brushPreviewCtx.arc(cw / 2, ch / 2, radius, 0, Math.PI * 2);
+      brushPreviewCtx.fillStyle = currentDrawColor;
+      brushPreviewCtx.fill();
+    }
   }
 
   function updateDirectionIndicator() {
@@ -403,11 +448,13 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateLabels() {
       speedValue.value = Number(speedInput.value).toFixed(1);
       sizeValue.value = Number(sizeInput.value).toFixed(1);
+      strengthValue.value = Number(strengthInput.value).toFixed(1);
     }
 
     function updateSliders() {
       speedInput.value = Number(speedValue.value).toFixed(1);
       sizeInput.value = Number(sizeValue.value).toFixed(1);
+      strengthInput.value = Number(strengthValue.value).toFixed(1);
     }
 
     function normalizeSettings(raw) {
@@ -416,9 +463,12 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       const speed = Number(raw.speedMultiplier);
       const size = Number(raw.sizeMultiplier);
+      const strength = Number(raw.interactionStrength);
       return {
         speedMultiplier: Number.isFinite(speed) && speed > 0 ? speed : DEFAULT_SETTINGS.speedMultiplier,
-        sizeMultiplier: Number.isFinite(size) && size > 0 ? size : DEFAULT_SETTINGS.sizeMultiplier
+        sizeMultiplier: Number.isFinite(size) && size > 0 ? size : DEFAULT_SETTINGS.sizeMultiplier,
+        interactionType: raw.interactionType === 'attract' ? 'attract' : 'repel',
+        interactionStrength: Number.isFinite(strength) && strength >= 0 ? strength : DEFAULT_SETTINGS.interactionStrength
       };
     }
 
@@ -434,13 +484,17 @@ document.addEventListener('DOMContentLoaded', () => {
     function applyToForm(settings) {
       speedInput.value = settings.speedMultiplier;
       sizeInput.value = settings.sizeMultiplier;
+      interactionType.value = settings.interactionType;
+      strengthInput.value = settings.interactionStrength;
       updateLabels();
     }
 
     saveSettingsBtn.addEventListener('click', () => {
       const settings = {
         speedMultiplier: Number(speedInput.value),
-        sizeMultiplier: Number(sizeInput.value)
+        sizeMultiplier: Number(sizeInput.value),
+        interactionType: interactionType.value,
+        interactionStrength: Number(strengthInput.value)
       };
       chrome.storage.local.set({ doodleSettings: settings }, () => {
         setStatus('Settings saved.');
@@ -456,8 +510,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     speedInput.addEventListener('input', updateLabels);
     sizeInput.addEventListener('input', updateLabels);
+    strengthInput.addEventListener('input', updateLabels);
     speedValue.addEventListener('input', updateSliders);
     sizeValue.addEventListener('input', updateSliders);
+    strengthValue.addEventListener('input', updateSliders);
 
     chrome.storage.local.get(['doodleSettings'], (result) => {
       applyToForm(normalizeSettings(result.doodleSettings));
