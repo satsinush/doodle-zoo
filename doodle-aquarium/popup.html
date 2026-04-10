@@ -15,6 +15,7 @@
 
     <div class="canvas-container">
       <canvas id="drawing-canvas"></canvas>
+      <canvas id="brush-preview" width="40" height="40" style="position: absolute; pointer-events: none; display: none; z-index: 10;"></canvas>
       <div id="direction-indicator" class="direction-indicator" aria-live="polite">Head points -&gt;</div>
     </div>
 
@@ -39,8 +40,7 @@
       <div class="field">
         <label for="brush-size">Brush Size</label>
         <div style="display: flex; align-items: center; gap: 12px;">
-          <input type="range" id="brush-size" min="1" max="40" value="5">
-          <canvas id="brush-preview" width="40" height="40" style="border: 1px solid var(--border); border-radius: 4px; background: #fff;"></canvas>
+          <input type="range" id="brush-size" min="1" max="100" value="5">
         </div>
       </div>
 

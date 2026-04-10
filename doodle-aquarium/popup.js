@@ -154,12 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const b = data[index + 2];
       const a = data[index + 3];
 
-      // If we clicked on fully transparent, only fill mostly transparent stuff
-      if (startA === 0) {
-        return a < tolerance;
-      }
-
-      // For opaque or semi-transparent colored regions, compare RGB and A.
+      // Compare RGB and A with tolerance
       return Math.abs(r - startR) <= tolerance &&
              Math.abs(g - startG) <= tolerance &&
              Math.abs(b - startB) <= tolerance &&
@@ -218,43 +213,29 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // Dilate the mask by 3 pixels to overlap with thicker antialiased borders
+    // Dilate the mask by 1 pixel to overlap with thin antialiased borders
     let dilatedMask = new Uint8Array(fillMask);
-    for (let passes = 0; passes < 3; passes++) {
-      const nextMask = new Uint8Array(dilatedMask);
-      for (let dy = 0; dy < height; dy++) {
-        for (let dx = 0; dx < width; dx++) {
-          let i = dy * width + dx;
-          if (dilatedMask[i]) {
-            if (dx > 0) nextMask[i - 1] = 1;
-            if (dx < width - 1) nextMask[i + 1] = 1;
-            if (dy > 0) nextMask[i - width] = 1;
-            if (dy < height - 1) nextMask[i + width] = 1;
-          }
+    const nextMask = new Uint8Array(dilatedMask);
+    for (let dy = 0; dy < height; dy++) {
+      for (let dx = 0; dx < width; dx++) {
+        let i = dy * width + dx;
+        if (dilatedMask[i]) {
+          if (dx > 0) nextMask[i - 1] = 1;
+          if (dx < width - 1) nextMask[i + 1] = 1;
+          if (dy > 0) nextMask[i - width] = 1;
+          if (dy < height - 1) nextMask[i + width] = 1;
         }
       }
-      dilatedMask = nextMask;
     }
+    dilatedMask = nextMask;
 
     for (let i = 0; i < dilatedMask.length; i++) {
       if (dilatedMask[i]) {
         const ptr = i * 4;
-        // Don't overwrite completely opaque black lines (or whatever the main draw color is)
-        // A simple alpha blend so we don't destroy borders. We just force fill.
-        // Doing destination-over manually basically.
-        if (data[ptr+3] < 200) {
-          data[ptr] = fillRgba[0];
-          data[ptr + 1] = fillRgba[1];
-          data[ptr + 2] = fillRgba[2];
-          data[ptr + 3] = 255;
-        } else {
-          // If we hit an existing solid pixel, blend the fill color behind it
-          const invAlpha = 1 - (data[ptr+3]/255);
-          data[ptr] = data[ptr] + fillRgba[0]*invAlpha;
-          data[ptr + 1] = data[ptr + 1] + fillRgba[1]*invAlpha;
-          data[ptr + 2] = data[ptr + 2] + fillRgba[2]*invAlpha;
-          data[ptr + 3] = 255;
-        }
+        data[ptr] = fillRgba[0];
+        data[ptr + 1] = fillRgba[1];
+        data[ptr + 2] = fillRgba[2];
+        data[ptr + 3] = 255;
       }
     }
 
@@ -405,28 +386,32 @@ document.addEventListener('DOMContentLoaded', () => {
     const size = Number(brushSize.value);
     const radius = Math.max(0.5, size / 2);
 
-    brushPreviewCtx.clearRect(0, 0, brushPreview.width, brushPreview.height);
+    // Ensure the preview canvas bounds cover the full brush size
+    const boxSize = Math.max(4, Math.ceil(size));
+    brushPreview.width = boxSize;
+    brushPreview.height = boxSize;
+    brushPreview.style.width = `${boxSize}px`;
+    brushPreview.style.height = `${boxSize}px`;
 
-    // Draw a subtle checkerboard so we can see white/transparent colors
-    const cw = brushPreview.width;
-    const ch = brushPreview.height;
-    for (let x = 0; x < cw; x += 10) {
-      for (let y = 0; y < ch; y += 10) {
-        brushPreviewCtx.fillStyle = ((x / 10 + y / 10) % 2 === 0) ? '#ffffff' : '#f0f0f0';
-        brushPreviewCtx.fillRect(x, y, 10, 10);
-      }
+    brushPreviewCtx.clearRect(0, 0, boxSize, boxSize);
+
+    if (currentTool === 'fill') {
+      // Hide preview for fill bucket
+      brushPreview.style.display = 'none';
+      return;
     }
 
+    const center = boxSize / 2;
+
     if (currentTool === 'eraser') {
-      // Just draw an outline for eraser
       brushPreviewCtx.beginPath();
-      brushPreviewCtx.arc(cw / 2, ch / 2, radius, 0, Math.PI * 2);
+      brushPreviewCtx.arc(center, center, radius, 0, Math.PI * 2);
       brushPreviewCtx.strokeStyle = '#000000';
       brushPreviewCtx.lineWidth = 1;
       brushPreviewCtx.stroke();
     } else {
       brushPreviewCtx.beginPath();
-      brushPreviewCtx.arc(cw / 2, ch / 2, radius, 0, Math.PI * 2);
+      brushPreviewCtx.arc(center, center, radius, 0, Math.PI * 2);
       brushPreviewCtx.fillStyle = currentDrawColor;
       brushPreviewCtx.fill();
     }
@@ -555,9 +540,29 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  canvas.addEventListener('mousemove', draw);
+  canvas.addEventListener('mousemove', (e) => {
+    draw(e);
+
+    if (currentTool !== 'fill') {
+      brushPreview.style.display = 'block';
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const size = Number(brushSize.value);
+      brushPreview.style.left = `${x - size / 2}px`;
+      brushPreview.style.top = `${y - size / 2}px`;
+    }
+  });
+
+  canvas.addEventListener('mouseenter', (e) => {
+    if (currentTool !== 'fill') brushPreview.style.display = 'block';
+  });
+
   canvas.addEventListener('mouseup', () => isDrawing = false);
-  canvas.addEventListener('mouseout', () => isDrawing = false);
+  canvas.addEventListener('mouseout', () => {
+    isDrawing = false;
+    brushPreview.style.display = 'none';
+  });
 
   clearBtn.addEventListener('click', () => {
     clearCanvas();
@@ -588,49 +593,6 @@ document.addEventListener('DOMContentLoaded', () => {
     return !pixelBuffer.some(color => color !== 0);
   }
 
-  function getCroppedDataUrl(sourceCanvas, sourceCtx) {
-    const imageData = sourceCtx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
-    const data = imageData.data;
-    const w = sourceCanvas.width;
-    const h = sourceCanvas.height;
-
-    let minX = w, minY = h, maxX = 0, maxY = 0;
-    let found = false;
-
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        const alpha = data[(y * w + x) * 4 + 3];
-        if (alpha > 0) {
-          if (x < minX) minX = x;
-          if (x > maxX) maxX = x;
-          if (y < minY) minY = y;
-          if (y > maxY) maxY = y;
-          found = true;
-        }
-      }
-    }
-
-    if (!found) return null;
-
-    // Add a small padding
-    const padding = 2;
-    minX = Math.max(0, minX - padding);
-    minY = Math.max(0, minY - padding);
-    maxX = Math.min(w - 1, maxX + padding);
-    maxY = Math.min(h - 1, maxY + padding);
-
-    const cropW = maxX - minX + 1;
-    const cropH = maxY - minY + 1;
-
-    const cropCanvas = document.createElement('canvas');
-    cropCanvas.width = cropW;
-    cropCanvas.height = cropH;
-    const cropCtx = cropCanvas.getContext('2d');
-
-    cropCtx.putImageData(sourceCtx.getImageData(minX, minY, cropW, cropH), 0, 0);
-    return cropCanvas.toDataURL('image/png');
-  }
-
   importFile.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -639,30 +601,33 @@ document.addEventListener('DOMContentLoaded', () => {
     reader.onload = (event) => {
       const img = new Image();
       img.onload = () => {
-        // Draw to a temporary canvas to crop and auto-save without stretching
+        // Scale to fit within 400x300 if larger
+        const scale = Math.min(1, Math.min(400 / img.width, 300 / img.height));
+        const finalW = img.width * scale;
+        const finalH = img.height * scale;
+
+        // Draw to a temporary canvas to save at exactly 400x300
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = 400;
         tempCanvas.height = 300;
         const tempCtx = tempCanvas.getContext('2d');
-        const x = (400 - img.width) / 2;
-        const y = (300 - img.height) / 2;
-        tempCtx.drawImage(img, x, y);
+        const x = (400 - finalW) / 2;
+        const y = (300 - finalH) / 2;
+        tempCtx.drawImage(img, x, y, finalW, finalH);
 
-        const dataUrl = getCroppedDataUrl(tempCanvas, tempCtx);
-        if (dataUrl) {
-          chrome.storage.local.get(['doodleFishList'], (result) => {
-            const fishArray = result.doodleFishList || [];
-            fishArray.push({
-              id: Date.now().toString(),
-              dataUrl: dataUrl,
-              direction: fishDirection.value,
-              active: true
-            });
-            chrome.storage.local.set({ doodleFishList: fishArray }, () => {
-              renderFishList();
-            });
+        const dataUrl = tempCanvas.toDataURL('image/png');
+        chrome.storage.local.get(['doodleFishList'], (result) => {
+          const fishArray = result.doodleFishList || [];
+          fishArray.push({
+            id: Date.now().toString(),
+            dataUrl: dataUrl,
+            direction: fishDirection.value,
+            active: true
           });
-        }
+          chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+            renderFishList();
+          });
+        });
       };
       img.src = event.target.result;
     };
@@ -691,11 +656,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     tempCtx.drawImage(canvas, sx, sy, sw, sh);
 
-    const dataUrl = getCroppedDataUrl(tempCanvas, tempCtx);
-    if (!dataUrl) {
-      alert("Please draw a fish first!");
-      return;
-    }
+    const dataUrl = tempCanvas.toDataURL('image/png');
 
     chrome.storage.local.get(['doodleFishList'], (result) => {
       const fishArray = result.doodleFishList || [];
