@@ -151,6 +151,11 @@ main {
     cursor: crosshair;
 }
 
+#active-stroke-canvas {
+    z-index: 3;
+    pointer-events: none;
+}
+
 #direction-guide {
     z-index: 1;
     opacity: 0.6;

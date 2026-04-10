@@ -10,6 +10,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   const guideCanvas = document.getElementById('direction-guide');
   const guideCtx = guideCanvas.getContext('2d');
+  const activeCanvas = document.getElementById('active-stroke-canvas');
+  const activeCtx = activeCanvas.getContext('2d');
 
   const colorPicker = document.getElementById('color-picker');
   const colorText = document.getElementById('color-text');
@@ -17,6 +19,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const brushSizeDisplay = document.getElementById('brush-size-display');
   const brushPreview = document.getElementById('brush-preview');
   const brushPreviewCtx = brushPreview.getContext('2d');
+  const brushOpacity = document.getElementById('brush-opacity');
+  const brushOpacityDisplay = document.getElementById('brush-opacity-display');
 
   const toolGroup = document.getElementById('tool-group');
   const toolButtons = toolGroup.querySelectorAll('[data-tool]');
@@ -57,6 +61,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let autoSaveTimer = null;
   let applyingSettings = false;
   let isReentering = false;
+  let currentOpacity = 1.0;
+  let currentStrokePoints = [];
 
   let undoStack = [];
   let redoStack = [];
@@ -322,6 +328,11 @@ document.addEventListener('DOMContentLoaded', () => {
     canvas.width = Math.floor(width * dpr);
     canvas.height = Math.floor(height * dpr);
 
+    activeCanvas.style.width = `${width}px`;
+    activeCanvas.style.height = `${height}px`;
+    activeCanvas.width = Math.floor(width * dpr);
+    activeCanvas.height = Math.floor(height * dpr);
+
     guideCanvas.style.width = `${width}px`;
     guideCanvas.style.height = `${height}px`;
     guideCanvas.width = Math.floor(width * dpr);
@@ -329,6 +340,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     guideCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    activeCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
     configureContext();
 
     drawDirectionGuide(width, height, dpr);
@@ -432,14 +444,39 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     colorText.classList.remove('invalid');
-    currentDrawColor = value.trim();
-
-    const hex = cssColorToHex(currentDrawColor);
-    if (hex) {
-      colorPicker.value = hex;
+    
+    // Parse the input color. If it has alpha and we are not 'silent' (user typed it), update global opacity.
+    const hex6 = cssColorToHex(value);
+    if (hex6) {
+      colorPicker.value = hex6;
     }
 
-    colorText.value = currentDrawColor;
+    // Try to extract alpha from rgba or 8-digit hex
+    let alpha = currentOpacity;
+    const rgbaMatch = value.match(/rgba?\(.*,\s*([\d\.]+)\)/);
+    if (rgbaMatch) {
+      alpha = parseFloat(rgbaMatch[1]);
+    } else if (value.startsWith('#') && value.length === 9) {
+      alpha = parseInt(value.slice(7, 9), 16) / 255;
+    }
+
+    if (!silent && alpha !== currentOpacity) {
+      currentOpacity = alpha;
+      brushOpacity.value = Math.round(alpha * 100);
+      brushOpacityDisplay.textContent = `${brushOpacity.value}%`;
+    }
+
+    // Build the canonical currentDrawColor as rgba
+    if (hex6) {
+      const r = parseInt(hex6.slice(1, 3), 16);
+      const g = parseInt(hex6.slice(3, 5), 16);
+      const b = parseInt(hex6.slice(5, 7), 16);
+      currentDrawColor = `rgba(${r}, ${g}, ${b}, ${currentOpacity})`;
+    } else {
+      currentDrawColor = value; // Fallback
+    }
+
+    colorText.value = value;
 
     // Auto-switch to brush tool
     currentTool = 'brush';
@@ -449,7 +486,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return true;
   }
 
-  function updateBrushPreview() {
+  function updateBrushPreview(overrideColor = null) {
     const size = Number(brushSize.value);
     const radius = Math.max(0.5, size / 2);
 
@@ -479,8 +516,15 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       brushPreviewCtx.beginPath();
       brushPreviewCtx.arc(center, center, radius, 0, Math.PI * 2);
-      brushPreviewCtx.fillStyle = currentDrawColor;
+      brushPreviewCtx.fillStyle = overrideColor || currentDrawColor;
       brushPreviewCtx.fill();
+      
+      if (currentTool === 'eyedropper') {
+        brushPreviewCtx.strokeStyle = '#000000';
+        brushPreviewCtx.lineWidth = 1;
+        brushPreviewCtx.stroke();
+        brushPreview.style.display = 'block';
+      }
     }
   }
 
@@ -578,6 +622,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     interactionType.addEventListener('change', scheduleAutoSave);
 
+    brushOpacity.addEventListener('input', () => {
+      currentOpacity = Number(brushOpacity.value) / 100;
+      brushOpacityDisplay.textContent = `${brushOpacity.value}%`;
+      // Update currentDrawColor with new alpha
+      const hex = cssColorToHex(currentDrawColor) || '#000000';
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      currentDrawColor = `rgba(${r}, ${g}, ${b}, ${currentOpacity})`;
+      updateBrushPreview();
+    });
+
     chrome.storage.local.get(['doodleSettings'], (result) => {
       applyToForm(normalizeSettings(result.doodleSettings));
     });
@@ -595,7 +651,26 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    drawInterpolatedStroke(lastX, lastY, x, y);
+    if (currentTool === 'brush') {
+      currentStrokePoints.push({ x, y });
+      
+      const dpr = window.devicePixelRatio || 1;
+      activeCtx.clearRect(0, 0, activeCanvas.width / dpr, activeCanvas.height / dpr);
+      
+      activeCtx.beginPath();
+      activeCtx.lineCap = 'round';
+      activeCtx.lineJoin = 'round';
+      activeCtx.strokeStyle = currentDrawColor;
+      activeCtx.lineWidth = Number(brushSize.value);
+      
+      activeCtx.moveTo(currentStrokePoints[0].x, currentStrokePoints[0].y);
+      for (let i = 1; i < currentStrokePoints.length; i++) {
+        activeCtx.lineTo(currentStrokePoints[i].x, currentStrokePoints[i].y);
+      }
+      activeCtx.stroke();
+    } else {
+      drawInterpolatedStroke(lastX, lastY, x, y);
+    }
 
     lastX = x;
     lastY = y;
@@ -624,14 +699,19 @@ document.addEventListener('DOMContentLoaded', () => {
       lastX = point.x;
       lastY = point.y;
 
-      if (currentTool === 'eraser') {
+      if (currentTool === 'brush') {
+        currentStrokePoints = [{ x: point.x, y: point.y }];
+      } else if (currentTool === 'eraser') {
         ctx.globalCompositeOperation = 'destination-out';
         ctx.fillStyle = '#000';
       } else {
         ctx.globalCompositeOperation = 'source-over';
         ctx.fillStyle = currentDrawColor;
       }
-      drawStamp(lastX, lastY, Number(brushSize.value));
+      
+      if (currentTool !== 'brush') {
+        drawStamp(lastX, lastY, Number(brushSize.value));
+      }
       ctx.globalCompositeOperation = 'source-over';
     }
   });
@@ -639,7 +719,17 @@ document.addEventListener('DOMContentLoaded', () => {
   canvas.addEventListener('mousemove', (e) => {
     draw(e);
 
-    if (currentTool !== 'fill') {
+    if (currentTool === 'eyedropper') {
+      const point = getCanvasPoint(e);
+      const dpr = window.devicePixelRatio || 1;
+      const imgData = ctx.getImageData(point.x * dpr, point.y * dpr, 1, 1).data;
+      if (imgData[3] > 0) {
+        const hex = rgbToHex(imgData[0], imgData[1], imgData[2]);
+        updateBrushPreview(hex);
+      } else {
+        updateBrushPreview('#ffffff'); // Default to white over transparent
+      }
+    } else if (currentTool !== 'fill') {
       brushPreview.style.display = 'block';
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
@@ -657,14 +747,26 @@ document.addEventListener('DOMContentLoaded', () => {
     if (currentTool !== 'fill') brushPreview.style.display = 'block';
   });
 
-  canvas.addEventListener('mouseup', () => isDrawing = false);
   canvas.addEventListener('mouseout', () => {
     brushPreview.style.display = 'none';
   });
 
   window.addEventListener('mouseup', () => {
-    isDrawing = false;
-    isReentering = false;
+    if (isDrawing) {
+      if (currentTool === 'brush' && currentStrokePoints.length > 0) {
+        // Commit stroke to main canvas
+        const dpr = window.devicePixelRatio || 1;
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.drawImage(activeCanvas, 0, 0);
+        ctx.restore();
+        
+        activeCtx.clearRect(0, 0, activeCanvas.width / dpr, activeCanvas.height / dpr);
+        currentStrokePoints = [];
+      }
+      isDrawing = false;
+      isReentering = false;
+    }
   });
 
   clearBtn.addEventListener('click', () => {
@@ -975,6 +1077,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupWindowButtons();
   applyColorInput(colorText.value, true);
   brushSizeDisplay.textContent = `${brushSize.value}px`;
+  brushOpacityDisplay.textContent = `${brushOpacity.value}%`;
   configureContext();
   resizeCanvasForViewport();
   window.addEventListener('resize', resizeCanvasForViewport);

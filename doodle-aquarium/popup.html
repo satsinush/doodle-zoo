@@ -34,6 +34,7 @@
                     <!-- <div class="badge">Drawing</div> -->
                     <canvas id="direction-guide" aria-hidden="true"></canvas>
                     <canvas id="drawing-canvas"></canvas>
+                    <canvas id="active-stroke-canvas"></canvas>
                     <canvas id="brush-preview" width="40" height="40"></canvas>
                 </div>
             </div>
@@ -72,10 +73,18 @@
                 <!-- Core Settings -->
                 <div class="settings-grid">
                     <div class="settings-card">
-                        <label class="label-tiny">Color</label>
+                        <label class="label-tiny">Color & Opacity</label>
                         <div class="color-row">
                             <input type="color" id="color-picker" value="#000000">
                             <input type="text" id="color-text" value="#000000">
+                        </div>
+                        <div style="margin-top: 0.75rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <label class="label-tiny" style="margin: 0;">Opacity</label>
+                                <span id="brush-opacity-display"
+                                    style="font-size: 10px; font-weight: 800; color: var(--primary);">100%</span>
+                            </div>
+                            <input type="range" id="brush-opacity" min="0" max="100" value="100">
                         </div>
                     </div>
                     <div class="settings-card">
