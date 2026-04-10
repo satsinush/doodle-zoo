@@ -63,6 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let isReentering = false;
   let currentOpacity = 1.0;
   let currentStrokePoints = [];
+  let preHoverColor = null; // Stores color before eyedropper activation
 
   let undoStack = [];
   let redoStack = [];
@@ -130,9 +131,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
   toolButtons.forEach(btn => {
     btn.addEventListener('click', () => {
+      // If we were in eyedropper mode and switching away, revert if we didn't pick
+      if (currentTool === 'eyedropper' && preHoverColor && btn.dataset.tool !== 'eyedropper') {
+        applyColorInput(preHoverColor, true);
+        preHoverColor = null;
+      }
+
       toolButtons.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       currentTool = btn.dataset.tool;
+
+      // If we just entered eyedropper mode, capture the current state for reversion
+      if (currentTool === 'eyedropper') {
+        const hex = cssColorToHex(currentDrawColor) || '#000000';
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        preHoverColor = rgbaToHex8(r, g, b, currentOpacity);
+      }
+
       updateBrushPreview();
     });
   });
@@ -439,7 +456,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return `#${hex(r)}${hex(g)}${hex(b)}${hex(alpha)}`;
   }
 
-  function applyColorInput(value, silent = false) {
+  function applyColorInput(value, silent = false, isHover = false) {
     const normalized = normalizeCssColor(value);
     if (!normalized) {
       colorText.classList.add('invalid');
@@ -484,9 +501,11 @@ document.addEventListener('DOMContentLoaded', () => {
       colorText.value = value.toUpperCase();
     }
 
-    // Auto-switch to brush tool
-    currentTool = 'brush';
-    toolButtons.forEach(b => b.classList.toggle('active', b.dataset.tool === 'brush'));
+    if (!isHover) {
+      // Auto-switch to brush tool
+      currentTool = 'brush';
+      toolButtons.forEach(b => b.classList.toggle('active', b.dataset.tool === 'brush'));
+    }
 
     updateBrushPreview();
     return true;
@@ -690,8 +709,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const dpr = window.devicePixelRatio || 1;
       const imgData = ctx.getImageData(point.x * dpr, point.y * dpr, 1, 1).data;
       if (imgData[3] > 0) {
-        const rgba = `rgba(${imgData[0]}, ${imgData[1]}, ${imgData[2]}, ${imgData[3] / 255})`;
-        applyColorInput(rgbaToHex8(imgData[0], imgData[1], imgData[2], imgData[3] / 255));
+        const hex8 = rgbaToHex8(imgData[0], imgData[1], imgData[2], imgData[3] / 255);
+        applyColorInput(hex8);
+        preHoverColor = null; // Selection confirmed, stop tracking for revert
       }
       return;
     }
@@ -749,6 +769,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const imgData = ctx.getImageData(point.x * dpr, point.y * dpr, 1, 1).data;
       if (imgData[3] > 0) {
         const rgba = `rgba(${imgData[0]}, ${imgData[1]}, ${imgData[2]}, ${imgData[3] / 255})`;
+        const hex8 = rgbaToHex8(imgData[0], imgData[1], imgData[2], imgData[3] / 255);
+        applyColorInput(hex8, true, true);
         updateBrushPreview(rgba);
       } else {
         updateBrushPreview('rgba(255, 255, 255, 0.5)');
@@ -773,6 +795,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   canvas.addEventListener('mouseout', () => {
     brushPreview.style.display = 'none';
+    if (currentTool === 'eyedropper' && preHoverColor) {
+      applyColorInput(preHoverColor, true, true);
+    }
   });
 
   window.addEventListener('mouseup', () => {
