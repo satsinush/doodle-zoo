@@ -31,12 +31,19 @@
             <!-- Canvas Area -->
             <div class="canvas-area">
                 <div class="canvas-container">
-                    <!-- <div class="badge">Drawing</div> -->
-                    <canvas id="direction-guide" aria-hidden="true"></canvas>
-                    <canvas id="drawing-canvas"></canvas>
-                    <canvas id="active-stroke-canvas"></canvas>
-                    <canvas id="brush-preview" width="40" height="40"></canvas>
+                <div class="canvas-viewport">
+                    <div id="canvas-transform-wrapper">
+                        <div id="canvas-surface">
+                            <canvas id="direction-guide"></canvas>
+                            <canvas id="drawing-canvas"></canvas>
+                            <canvas id="active-stroke-canvas"></canvas>
+                        </div>
+                    </div>
+                    <canvas id="brush-preview-outline" width="40" height="40"></canvas>
+                    <canvas id="brush-preview-fill" width="40" height="40"></canvas>
                 </div>
+                <button id="reset-view-btn" class="material-symbols-outlined" title="Reset View">center_focus_strong</button>
+            </div>
             </div>
 
             <!-- Sidebar / Controls -->

@@ -17,10 +17,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const colorText = document.getElementById('color-text');
   const brushSize = document.getElementById('brush-size');
   const brushSizeDisplay = document.getElementById('brush-size-display');
-  const brushPreview = document.getElementById('brush-preview');
-  const brushPreviewCtx = brushPreview.getContext('2d');
+  const brushPreviewContainer = document.getElementById('brush-preview-container');
+  const brushPreviewFill = document.getElementById('brush-preview-fill');
+  const brushPreviewCtx = brushPreviewFill.getContext('2d');
+  const brushPreviewOutline = document.getElementById('brush-preview-outline');
+  const brushPreviewOutlineCtx = brushPreviewOutline.getContext('2d');
   const brushOpacity = document.getElementById('brush-opacity');
   const brushOpacityDisplay = document.getElementById('brush-opacity-display');
+  const canvasViewport = document.querySelector('.canvas-viewport');
+
 
   const toolGroup = document.getElementById('tool-group');
   const toolButtons = toolGroup.querySelectorAll('[data-tool]');
@@ -47,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const strengthDisplay = document.getElementById('strength-display');
   const resetSettingsBtn = document.getElementById('reset-settings');
   const statusEl = document.getElementById('status');
-  
+
   // Modal Elements
   const fishModal = document.getElementById('fish-modal');
   const modalFishPreview = document.getElementById('modal-fish-preview');
@@ -77,10 +82,28 @@ document.addEventListener('DOMContentLoaded', () => {
   let isReentering = false;
   let currentOpacity = 1.0;
   let currentStrokePoints = [];
-  let preHoverColor = null; // Stores color before eyedropper activation
+  let preHoverColor = null;
+
+  // Zoom and Pan State
+  let zoomLevel = 1.0;
+  let panX = 0;
+  let panY = 0;
+  let isPanning = false;
+  let lastMousePos = { x: 0, y: 0 };
+  const canvasTransformWrapper = document.getElementById('canvas-transform-wrapper');
 
   let undoStack = [];
   let redoStack = [];
+
+  const resetViewBtn = document.getElementById('reset-view-btn');
+
+  function getLogicalBrushSize() {
+    const dpr = window.devicePixelRatio || 1;
+    // Current logical height of canvas (set in setCanvasSize)
+    const logicalH = canvas.height / dpr;
+    // Base height is 300. So size 100 = 100/300 of height.
+    return Number(brushSize.value) * (logicalH / 300);
+  }
 
   function saveState() {
     undoStack.push(canvas.toDataURL('image/png'));
@@ -369,6 +392,12 @@ document.addEventListener('DOMContentLoaded', () => {
     guideCanvas.width = Math.floor(width * dpr);
     guideCanvas.height = Math.floor(height * dpr);
 
+    const canvasSurface = document.getElementById('canvas-surface');
+    if (canvasSurface) {
+      canvasSurface.style.width = `${width}px`;
+      canvasSurface.style.height = `${height}px`;
+    }
+
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     guideCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
     activeCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -391,20 +420,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const dpr = window.devicePixelRatio || 1;
     const w = canvasToFlip.width;
     const h = canvasToFlip.height;
-    
+
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = w;
     tempCanvas.height = h;
     const tempCtx = tempCanvas.getContext('2d');
-    
+
     // Copy current state
     tempCtx.drawImage(canvasToFlip, 0, 0);
-    
+
     const ctxToFlip = canvasToFlip.getContext('2d');
     ctxToFlip.save();
     ctxToFlip.setTransform(1, 0, 0, 1, 0, 0);
     ctxToFlip.clearRect(0, 0, w, h);
-    
+
     if (horizontal) {
       ctxToFlip.translate(w, 0);
       ctxToFlip.scale(-1, 1);
@@ -413,15 +442,33 @@ document.addEventListener('DOMContentLoaded', () => {
       ctxToFlip.translate(0, h);
       ctxToFlip.scale(1, -1);
     }
-    
+
     ctxToFlip.drawImage(tempCanvas, 0, 0);
     ctxToFlip.restore();
   }
 
+  function updateViewTransform() {
+    if (canvasTransformWrapper) {
+      canvasTransformWrapper.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomLevel})`;
+    }
+    // Update brush preview scale to match zoom for brush but NOT for eyedropper
+    if (brushPreviewFill) {
+      const transform = currentTool === 'eyedropper' ? '' : `scale(${zoomLevel})`;
+      brushPreviewFill.style.transform = transform;
+      brushPreviewOutline.style.transform = transform;
+    }
+  }
+
   function getCanvasPoint(event) {
     const rect = canvas.getBoundingClientRect();
-    const x = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
-    const y = Math.max(0, Math.min(rect.height, event.clientY - rect.top));
+    const logicalW = Math.max(1, Number(canvas.style.width.replace('px', '')));
+    const logicalH = Math.max(1, Number(canvas.style.height.replace('px', '')));
+
+    // getBoundingClientRect reflects visual screen size (including transform)
+    // So ratio of logical size to visual size tells us how to map the offset.
+    const x = (event.clientX - rect.left) * (logicalW / rect.width);
+    const y = (event.clientY - rect.top) * (logicalH / rect.height);
+
     return { x, y };
   }
 
@@ -433,7 +480,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function drawInterpolatedStroke(fromX, fromY, toX, toY) {
-    const diameter = Number(brushSize.value);
+    const diameter = getLogicalBrushSize();
     const dx = toX - fromX;
     const dy = toY - fromY;
     const distance = Math.hypot(dx, dy);
@@ -459,8 +506,12 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function resizeCanvasForViewport() {
-    // Dynamic canvas based on window innerWidth. Max width matches extension max popup width.
-    const w = window.innerWidth - (isStandalone ? 520 : 32);
+    const isStandaloneDesktop = isStandalone && window.innerWidth >= 750;
+    const sidebarWidth = isStandaloneDesktop ? 420 : 0;
+    const padding = isStandaloneDesktop ? 40 : 32;
+
+    // Dynamic canvas based on window innerWidth.
+    const w = window.innerWidth - sidebarWidth - padding;
     // Cap dimensions for standalone and popup
     const maxW = isStandalone ? Math.min(w, 850) : Math.min(w, 800);
     const maxH = maxW * 0.75;
@@ -514,7 +565,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     colorText.classList.remove('invalid');
-    
+
     // Parse the input color. If it has alpha and we are not 'silent' (user typed it), update global opacity.
     const hex6 = cssColorToHex(value);
     if (hex6) {
@@ -559,43 +610,111 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateBrushPreview(overrideColor = null) {
-    const size = Number(brushSize.value);
-    const radius = Math.max(0.5, size / 2);
-
-    // Ensure the preview canvas bounds cover the full brush size plus padding for the stroke
-    const boxSize = Math.max(4, Math.ceil(size)) + 2;
-    brushPreview.width = boxSize;
-    brushPreview.height = boxSize;
-    brushPreview.style.width = `${boxSize}px`;
-    brushPreview.style.height = `${boxSize}px`;
-
-    brushPreviewCtx.clearRect(0, 0, boxSize, boxSize);
+    const logicalSize = getLogicalBrushSize();
+    const radius = logicalSize / 2;
 
     if (currentTool === 'fill') {
-      // Hide preview for fill bucket
       brushPreview.style.display = 'none';
       return;
     }
 
+    if (currentTool === 'eyedropper') {
+      const zoomSize = 80; // Size of the zoom bubble
+      const pixelRange = 9; // Number of pixels to show
+      brushPreviewFill.width = zoomSize;
+      brushPreviewFill.height = zoomSize;
+      brushPreviewFill.style.width = `${zoomSize}px`;
+      brushPreviewFill.style.height = `${zoomSize}px`;
+
+      brushPreviewFill.classList.add('eyedropper');
+
+      const point = getCanvasPoint({ clientX: lastMousePos.x, clientY: lastMousePos.y });
+      const dpr = window.devicePixelRatio || 1;
+
+      const grabX = Math.floor(point.x * dpr) - Math.floor(pixelRange / 2);
+      const grabY = Math.floor(point.y * dpr) - Math.floor(pixelRange / 2);
+
+      try {
+        const imgData = ctx.getImageData(grabX, grabY, pixelRange, pixelRange);
+
+        // Draw to preview with pixelated scaling
+        brushPreviewCtx.imageSmoothingEnabled = false;
+
+        // Create a temp canvas to hold the ImageData (easiest way to scale it up)
+        const tempC = document.createElement('canvas');
+        tempC.width = pixelRange;
+        tempC.height = pixelRange;
+        tempC.getContext('2d').putImageData(imgData, 0, 0);
+
+        brushPreviewCtx.clearRect(0, 0, zoomSize, zoomSize);
+        brushPreviewCtx.drawImage(tempC, 0, 0, zoomSize, zoomSize);
+
+        // Draw crosshair
+        brushPreviewCtx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+        brushPreviewCtx.lineWidth = 2;
+        brushPreviewCtx.strokeRect(zoomSize / 2 - 4, zoomSize / 2 - 4, 8, 8);
+        brushPreviewCtx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
+        brushPreviewCtx.lineWidth = 1;
+        brushPreviewCtx.strokeRect(zoomSize / 2 - 4, zoomSize / 2 - 4, 8, 8);
+      } catch (e) {
+        // Fallback for out of bounds
+        brushPreviewCtx.fillStyle = '#ccc';
+        brushPreviewCtx.fillRect(0, 0, zoomSize, zoomSize);
+      }
+      return;
+    }
+
+    brushPreviewFill.classList.remove('eyedropper');
+    // Ensure the preview canvas bounds cover the full brush size plus padding for the stroke
+    const boxSize = Math.max(4, Math.ceil(logicalSize)) + 4;
+
+    brushPreviewFill.width = boxSize;
+    brushPreviewFill.height = boxSize;
+    brushPreviewFill.style.width = `${boxSize}px`;
+    brushPreviewFill.style.height = `${boxSize}px`;
+
+    brushPreviewOutline.width = boxSize;
+    brushPreviewOutline.height = boxSize;
+    brushPreviewOutline.style.width = `${boxSize}px`;
+    brushPreviewOutline.style.height = `${boxSize}px`;
+
+    brushPreviewCtx.clearRect(0, 0, boxSize, boxSize);
+    brushPreviewOutlineCtx.clearRect(0, 0, boxSize, boxSize);
+
     const center = boxSize / 2;
 
-    if (currentTool === 'eraser') {
-      brushPreviewCtx.beginPath();
-      brushPreviewCtx.arc(center, center, radius, 0, Math.PI * 2);
-      brushPreviewCtx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
-      brushPreviewCtx.lineWidth = 1;
-      brushPreviewCtx.stroke();
+    if (currentTool === 'eraser' || currentTool === 'brush') {
+      // Draw Fill
+      if (currentTool === 'brush') {
+        brushPreviewCtx.beginPath();
+        brushPreviewCtx.arc(center, center, radius, 0, Math.PI * 2);
+        brushPreviewCtx.fillStyle = overrideColor || currentDrawColor;
+        brushPreviewCtx.fill();
+      }
+
+      // Draw Outline (on its own canvas for resolution matching)
+      brushPreviewOutlineCtx.beginPath();
+      brushPreviewOutlineCtx.arc(center, center, radius - 1, 0, Math.PI * 2);
+
+      // We draw in white because this canvas has mix-blend-mode: difference.
+      // Since the Color Fill canvas is now ON TOP of this one, the outline 
+      // will effectively invert only the fish/background below it.
+      brushPreviewOutlineCtx.strokeStyle = '#fff';
+      brushPreviewOutlineCtx.lineWidth = 1.5;
+      brushPreviewOutlineCtx.stroke();
     } else {
+      // Non-inverted tools (eyedropper handled early, others stay normal)
       brushPreviewCtx.beginPath();
       brushPreviewCtx.arc(center, center, radius, 0, Math.PI * 2);
       brushPreviewCtx.fillStyle = overrideColor || currentDrawColor;
       brushPreviewCtx.fill();
-      
-      if (currentTool === 'eyedropper') {
-        brushPreviewCtx.strokeStyle = '#000000';
-        brushPreviewCtx.lineWidth = 1;
-        brushPreviewCtx.stroke();
-      }
+
+      // Clean static ring for secondary tools
+      brushPreviewOutlineCtx.beginPath();
+      brushPreviewOutlineCtx.arc(center, center, radius, 0, Math.PI * 2);
+      brushPreviewOutlineCtx.strokeStyle = '#fff';
+      brushPreviewOutlineCtx.lineWidth = 1.5;
+      brushPreviewOutlineCtx.stroke();
     }
   }
 
@@ -725,16 +844,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (currentTool === 'brush') {
       currentStrokePoints.push({ x, y });
-      
+
       const dpr = window.devicePixelRatio || 1;
       activeCtx.clearRect(0, 0, activeCanvas.width / dpr, activeCanvas.height / dpr);
-      
+
       activeCtx.beginPath();
       activeCtx.lineCap = 'round';
       activeCtx.lineJoin = 'round';
       activeCtx.strokeStyle = currentDrawColor;
-      activeCtx.lineWidth = Number(brushSize.value);
-      
+      activeCtx.lineWidth = getLogicalBrushSize();
+
       activeCtx.moveTo(currentStrokePoints[0].x, currentStrokePoints[0].y);
       for (let i = 1; i < currentStrokePoints.length; i++) {
         activeCtx.lineTo(currentStrokePoints[i].x, currentStrokePoints[i].y);
@@ -748,107 +867,200 @@ document.addEventListener('DOMContentLoaded', () => {
     lastY = y;
   }
 
-  canvas.addEventListener('mousedown', (e) => {
-    saveState();
-    const point = getCanvasPoint(e);
+  canvasViewport.oncontextmenu = (e) => e.preventDefault();
 
-    if (currentTool === 'eyedropper') {
-      const dpr = window.devicePixelRatio || 1;
-      const imgData = ctx.getImageData(point.x * dpr, point.y * dpr, 1, 1).data;
-      if (imgData[3] > 0) {
-        const hex8 = rgbaToHex8(imgData[0], imgData[1], imgData[2], imgData[3] / 255);
-        applyColorInput(hex8);
-        preHoverColor = null; // Selection confirmed, stop tracking for revert
-      }
+  canvasViewport.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const isCtrl = e.ctrlKey || e.metaKey;
+    const isShift = e.shiftKey;
+
+    if (isCtrl) {
+      // Pan vertical
+      panY -= e.deltaY;
+    } else if (isShift) {
+      // Pan horizontal
+      panX -= e.deltaY; // deltaY is usually the primary wheel axis
+    } else {
+      // Zoom
+      const zoomSpeed = 0.001;
+      const factor = Math.pow(1.1, -e.deltaY / 100);
+      const newZoom = Math.max(0.2, Math.min(10, zoomLevel * factor));
+
+      // Zoom centered on mouse
+      const viewportRect = canvasTransformWrapper.parentElement.getBoundingClientRect();
+      const mouseX = e.clientX - viewportRect.left;
+      const mouseY = e.clientY - viewportRect.top;
+
+      // Anchor formula for transform-origin: 0 0
+      // 1. Calculate relative point in unscaled space
+      const anchorX = (mouseX - panX) / zoomLevel;
+      const anchorY = (mouseY - panY) / zoomLevel;
+
+      zoomLevel = newZoom;
+
+      // 2. Adjust pan to keep anchor fixed under mouse
+      panX = mouseX - anchorX * zoomLevel;
+      panY = mouseY - anchorY * zoomLevel;
+    }
+    updateViewTransform();
+    // For eyedropper, we need to refresh preview on zoom/wheel as pixels change
+    updateBrushPreview();
+  });
+
+  resetViewBtn.onclick = () => {
+    zoomLevel = 1.0;
+    panX = 0;
+    panY = 0;
+    updateViewTransform();
+  };
+
+  canvasViewport.addEventListener('mousedown', (e) => {
+    // Middle click (1) or right click (2) for panning
+    if (e.button === 1 || e.button === 2) {
+      isPanning = true;
+      lastMousePos = { x: e.clientX, y: e.clientY };
+      canvasTransformWrapper.classList.add('panning');
+      brushPreview.style.display = 'none';
+      e.preventDefault();
       return;
     }
 
-    if (currentTool === 'fill') {
-      // Need to map point to actual canvas coordinates based on DPR
-      const dpr = window.devicePixelRatio || 1;
-      floodFill(point.x * dpr, point.y * dpr, cssColorToHex(currentDrawColor) || currentDrawColor);
-    } else {
-      isDrawing = true;
-      lastX = point.x;
-      lastY = point.y;
+    if (e.button === 0) {
+      const point = getCanvasPoint(e);
+      saveState();
 
-      if (currentTool === 'brush') {
-        currentStrokePoints = [{ x: point.x, y: point.y }];
-        // Draw initial point on active canvas
+      if (currentTool === 'eyedropper') {
         const dpr = window.devicePixelRatio || 1;
-        activeCtx.clearRect(0, 0, activeCanvas.width / dpr, activeCanvas.height / dpr);
-        const size = Number(brushSize.value);
-        activeCtx.beginPath();
-        activeCtx.arc(point.x, point.y, size / 2, 0, Math.PI * 2);
-        activeCtx.fillStyle = currentDrawColor;
-        activeCtx.fill();
-      } else if (currentTool === 'eraser') {
-        ctx.globalCompositeOperation = 'destination-out';
-        ctx.fillStyle = '#000';
+        const imgData = ctx.getImageData(point.x * dpr, point.y * dpr, 1, 1).data;
+        if (imgData[3] > 0) {
+          const hex8 = rgbaToHex8(imgData[0], imgData[1], imgData[2], imgData[3] / 255);
+          applyColorInput(hex8);
+          preHoverColor = null; // Selection confirmed
+        }
+        return;
+      }
+
+      if (currentTool === 'fill') {
+        const dpr = window.devicePixelRatio || 1;
+        floodFill(point.x * dpr, point.y * dpr, cssColorToHex(currentDrawColor) || currentDrawColor);
       } else {
+        isDrawing = true;
+        lastX = point.x;
+        lastY = point.y;
+
+        if (currentTool === 'brush') {
+          currentStrokePoints = [{ x: point.x, y: point.y }];
+          const dpr = window.devicePixelRatio || 1;
+          activeCtx.clearRect(0, 0, activeCanvas.width / dpr, activeCanvas.height / dpr);
+
+          activeCtx.beginPath();
+          activeCtx.lineCap = 'round';
+          activeCtx.lineJoin = 'round';
+          activeCtx.strokeStyle = currentDrawColor;
+          activeCtx.lineWidth = getLogicalBrushSize();
+
+          activeCtx.moveTo(currentStrokePoints[0].x, currentStrokePoints[0].y);
+          activeCtx.stroke();
+        } else if (currentTool === 'eraser') {
+          ctx.globalCompositeOperation = 'destination-out';
+        } else {
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.fillStyle = currentDrawColor;
+        }
+
+        if (currentTool !== 'brush') {
+          drawStamp(lastX, lastY, getLogicalBrushSize());
+        }
         ctx.globalCompositeOperation = 'source-over';
-        ctx.fillStyle = currentDrawColor;
       }
-      
-      if (currentTool !== 'brush') {
-        drawStamp(lastX, lastY, Number(brushSize.value));
-      }
-      ctx.globalCompositeOperation = 'source-over';
     }
   });
 
-  canvas.addEventListener('mousemove', (e) => {
+  canvasViewport.addEventListener('mousemove', (e) => {
+    if (isPanning) {
+      const dx = e.clientX - lastMousePos.x;
+      const dy = e.clientY - lastMousePos.y;
+      panX += dx;
+      panY += dy;
+      lastMousePos = { x: e.clientX, y: e.clientY };
+      updateViewTransform();
+      return;
+    }
+
     draw(e);
 
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const size = Number(brushSize.value);
+    const visualRect = canvasTransformWrapper.parentElement.getBoundingClientRect();
+    const x = e.clientX - visualRect.left;
+    const y = e.clientY - visualRect.top;
 
-    // Only show preview if actually inside canvas bounds
-    if (x < 0 || x > rect.width || y < 0 || y > rect.height) {
-      brushPreview.style.display = 'none';
-      return;
-    }
+    // Calculate cursor position relative to canvas logical space
+    const point = getCanvasPoint(e);
+    lastMousePos = { x: e.clientX, y: e.clientY };
 
+    const canvasRect = canvas.getBoundingClientRect();
     if (currentTool === 'eyedropper') {
-      const point = getCanvasPoint(e);
+      const isInside = (e.clientX >= canvasRect.left && e.clientX <= canvasRect.right &&
+        e.clientY >= canvasRect.top && e.clientY <= canvasRect.bottom);
+
       const dpr = window.devicePixelRatio || 1;
-      const imgData = ctx.getImageData(point.x * dpr, point.y * dpr, 1, 1).data;
-      if (imgData[3] > 0) {
-        const rgba = `rgba(${imgData[0]}, ${imgData[1]}, ${imgData[2]}, ${imgData[3] / 255})`;
-        const hex8 = rgbaToHex8(imgData[0], imgData[1], imgData[2], imgData[3] / 255);
-        applyColorInput(hex8, true, true);
-        updateBrushPreview(rgba);
+      if (isInside) {
+        const imgData = ctx.getImageData(point.x * dpr, point.y * dpr, 1, 1).data;
+        if (imgData[3] > 0) {
+          const hex8 = rgbaToHex8(imgData[0], imgData[1], imgData[2], imgData[3] / 255);
+          applyColorInput(hex8, true, true);
+          const rgba = `rgba(${imgData[0]}, ${imgData[1]}, ${imgData[2]}, ${imgData[3] / 255})`;
+          updateBrushPreview(rgba);
+        } else {
+          updateBrushPreview('rgba(255, 255, 255, 0.5)');
+        }
       } else {
-        updateBrushPreview('rgba(255, 255, 255, 0.5)');
+        updateBrushPreview('rgba(255, 255, 255, 0.2)');
       }
-      brushPreview.style.display = 'block';
+      brushPreviewFill.style.display = 'block';
+      brushPreviewOutline.style.display = 'none';
     } else if (currentTool !== 'fill') {
-      brushPreview.style.display = 'block';
+      brushPreviewFill.style.display = 'block';
+      brushPreviewOutline.style.display = 'block';
       updateBrushPreview();
     } else {
-      brushPreview.style.display = 'none';
+      brushPreviewFill.style.display = 'none';
+      brushPreviewOutline.style.display = 'none';
     }
 
-    brushPreview.style.left = `${x - size / 2}px`;
-    brushPreview.style.top = `${y - size / 2}px`;
+    // Position both layers
+    const targetLeft = `${x - brushPreviewFill.width / 2}px`;
+    const targetTop = currentTool === 'eyedropper'
+      ? `${y - brushPreviewFill.height - 20}px`
+      : `${y - brushPreviewFill.height / 2}px`;
+
+    brushPreviewFill.style.left = targetLeft;
+    brushPreviewFill.style.top = targetTop;
+    brushPreviewOutline.style.left = targetLeft;
+    brushPreviewOutline.style.top = targetTop;
   });
 
-  canvas.addEventListener('mouseenter', (e) => {
+  canvasViewport.addEventListener('mouseenter', (e) => {
     if (isDrawing) {
       isReentering = true;
     }
   });
 
-  canvas.addEventListener('mouseout', () => {
-    brushPreview.style.display = 'none';
+  canvasViewport.addEventListener('mouseleave', () => {
+    brushPreviewFill.style.display = 'none';
+    brushPreviewOutline.style.display = 'none';
     if (currentTool === 'eyedropper' && preHoverColor) {
       applyColorInput(preHoverColor, true, true);
+      preHoverColor = null;
     }
   });
 
-  window.addEventListener('mouseup', () => {
+  window.addEventListener('mouseup', (e) => {
+    if (isPanning) {
+      isPanning = false;
+      canvasTransformWrapper.classList.remove('panning');
+      return;
+    }
+
     if (isDrawing) {
       if (currentTool === 'brush' && currentStrokePoints.length > 0) {
         // Commit stroke to main canvas
@@ -857,7 +1069,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.drawImage(activeCanvas, 0, 0);
         ctx.restore();
-        
+
         activeCtx.clearRect(0, 0, activeCanvas.width / dpr, activeCanvas.height / dpr);
         currentStrokePoints = [];
       }
@@ -1014,28 +1226,29 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   function openFishModal(fish) {
-    document.documentElement.style.overflow = 'hidden';
+    if (!fishModal || !modalFishPreview) return;
+
     document.body.style.overflow = 'hidden';
     modalFishPreview.src = fish.dataUrl;
     modalActiveToggle.checked = fish.active !== false;
     modalLockToggle.checked = fish.flipByVelocity !== false;
-    
+
     // Initial display matches current dataUrl (which may already be flipped)
     modalFishPreview.src = fish.dataUrl;
     modalFishPreview.style.transform = ''; // Reset CSS mirror since we're using baked-in flips now
 
     modalActiveToggle.onclick = () => toggleFishActive(fish.id, modalActiveToggle.checked, () => renderFishList());
-    
+
     modalFlipHBtn.onclick = () => flipFishImageData(fish.id, true, false);
     modalFlipVBtn.onclick = () => flipFishImageData(fish.id, false, true);
 
     modalLockToggle.onclick = () => toggleFishFlipByVelocity(fish.id, modalLockToggle.checked);
-    
+
     modalEditBtn.onclick = () => {
       closeFishModal();
       loadFishFromDataUrl(fish.id, fish.dataUrl);
     };
-    
+
     modalDeleteBtn.onclick = () => {
       if (confirm('Delete this fish?')) {
         closeFishModal();
@@ -1046,7 +1259,7 @@ document.addEventListener('DOMContentLoaded', () => {
     modalExportBtn.onclick = () => {
       exportFish(fish);
     };
-    
+
     fishModal.classList.add('active');
   }
 
@@ -1093,7 +1306,7 @@ document.addEventListener('DOMContentLoaded', () => {
       fishArray.forEach(fish => {
         const item = document.createElement('div');
         item.className = `gallery-item ${fish.active ? '' : 'inactive'}`;
-        
+
         const img = document.createElement('img');
         img.src = fish.dataUrl;
         img.alt = 'Fish';
@@ -1126,7 +1339,9 @@ document.addEventListener('DOMContentLoaded', () => {
         actions.appendChild(settingsBtn);
         item.appendChild(actions);
 
-        item.onclick = () => openFishModal(fish);
+        item.onclick = () => {
+          openFishModal(fish);
+        };
 
         fishList.appendChild(item);
       });
@@ -1172,7 +1387,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tempCanvas.width = 400;
         tempCanvas.height = 300;
         const tempCtx = tempCanvas.getContext('2d');
-        
+
         if (horizontal) {
           tempCtx.translate(400, 0);
           tempCtx.scale(-1, 1);
@@ -1181,10 +1396,10 @@ document.addEventListener('DOMContentLoaded', () => {
           tempCtx.translate(0, 300);
           tempCtx.scale(1, -1);
         }
-        
+
         tempCtx.drawImage(img, 0, 0, 400, 300);
         const newDataUrl = tempCanvas.toDataURL('image/png');
-        
+
         fishArray[fishIndex].dataUrl = newDataUrl;
         chrome.storage.local.set({ doodleFishList: fishArray }, () => {
           modalFishPreview.src = newDataUrl;
@@ -1210,7 +1425,7 @@ document.addEventListener('DOMContentLoaded', () => {
     tempCanvas.width = 400;
     tempCanvas.height = 300;
     const tempCtx = tempCanvas.getContext('2d');
-    
+
     const img = new Image();
     img.onload = () => {
       tempCtx.drawImage(img, 0, 0, 400, 300);
