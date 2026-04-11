@@ -37,8 +37,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const importFile = document.getElementById('import-file');
   const openWindowBtn = document.getElementById('open-window-btn');
   const fishList = document.getElementById('fish-list');
-  const selectAllBtn = document.getElementById('select-all-btn');
-  const deselectAllBtn = document.getElementById('deselect-all-btn');
+  const bulkToolbar = document.getElementById('bulk-toolbar');
+  const bulkCount = document.getElementById('bulk-count');
+  const bulkModal = document.getElementById('bulk-modal');
+  let selectedFishIds = [];
+  let lastSelectedIndex = -1;
+
   const flipHBtn = document.getElementById('flip-h-btn');
   const flipVBtn = document.getElementById('flip-v-btn');
 
@@ -1468,56 +1472,229 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.storage.local.get(['doodleFishList'], (result) => {
       const fishArray = result.doodleFishList || [];
       fishList.innerHTML = '';
+      
+      // Clear selection if those fish no longer exist
+      selectedFishIds = selectedFishIds.filter(id => fishArray.some(f => f.id === id));
+      updateBulkToolbar();
 
       if (fishArray.length === 0) {
         fishList.innerHTML = '<p style="grid-column: 1/-1; text-align:center; color:var(--on-surface-variant); font-size: 13px; padding: 2rem 0;">No fish in your tank yet.</p>';
         return;
       }
 
-      fishArray.forEach(fish => {
+      fishArray.forEach((fish, index) => {
+        const isSelected = selectedFishIds.includes(fish.id);
         const item = document.createElement('div');
-        item.className = `gallery-item ${fish.active ? '' : 'inactive'}`;
+        item.className = `gallery-item ${fish.active ? '' : 'inactive'} ${isSelected ? 'selected' : ''}`;
+        item.dataset.id = fish.id;
 
         const img = document.createElement('img');
         img.src = fish.dataUrl;
         img.alt = 'Fish';
         item.appendChild(img);
 
-        const actions = document.createElement('div');
-        actions.className = 'item-actions';
-
-        const toggleBtn = document.createElement('button');
-        toggleBtn.className = 'action-btn material-symbols-outlined';
-        toggleBtn.textContent = fish.active ? 'visibility' : 'visibility_off';
-        toggleBtn.title = fish.active ? 'Hide Fish' : 'Show Fish';
-        toggleBtn.onclick = (e) => {
+        // Selection Toggle (Checkbox)
+        const toggle = document.createElement('div');
+        toggle.className = 'selection-toggle';
+        const icon = document.createElement('span');
+        icon.className = 'material-symbols-outlined';
+        icon.textContent = 'check';
+        toggle.appendChild(icon);
+        
+        toggle.onclick = (e) => {
           e.stopPropagation();
-          toggleFishActive(fish.id, !fish.active, () => {
-            renderFishList();
-          });
+          toggleSelection(fish.id, index, e.shiftKey);
         };
+        
+        item.appendChild(toggle);
 
-        const settingsBtn = document.createElement('button');
-        settingsBtn.className = 'action-btn material-symbols-outlined';
-        settingsBtn.textContent = 'settings';
-        settingsBtn.title = 'Fish Settings';
-        settingsBtn.onclick = (e) => {
-          e.stopPropagation();
-          openFishModal(fish);
-        };
-
-        actions.appendChild(toggleBtn);
-        actions.appendChild(settingsBtn);
-        item.appendChild(actions);
-
-        item.onclick = () => {
-          openFishModal(fish);
+        item.onclick = (e) => {
+          if (e.ctrlKey || e.metaKey || e.shiftKey) {
+            e.stopPropagation();
+            toggleSelection(fish.id, index, e.shiftKey);
+          } else {
+            openFishModal(fish);
+          }
         };
 
         fishList.appendChild(item);
       });
     });
   }
+
+  function toggleSelection(id, index, isShift) {
+    chrome.storage.local.get(['doodleFishList'], (result) => {
+      const fishArray = result.doodleFishList || [];
+      
+      if (isShift && lastSelectedIndex !== -1) {
+        const start = Math.min(lastSelectedIndex, index);
+        const end = Math.max(lastSelectedIndex, index);
+        const rangeIds = fishArray.slice(start, end + 1).map(f => f.id);
+        
+        // If the clicked item is already selected, we are potentially deselecting or toggling
+        // Standard behavior is usually to match the state of the initial selection point
+        // but for simplicity we'll just ensure everything in range is selected.
+        rangeIds.forEach(rid => {
+          if (!selectedFishIds.includes(rid)) selectedFishIds.push(rid);
+        });
+      } else {
+        if (selectedFishIds.includes(id)) {
+          selectedFishIds = selectedFishIds.filter(sid => sid !== id);
+        } else {
+          selectedFishIds.push(id);
+        }
+      }
+      
+      lastSelectedIndex = index;
+      renderFishList();
+    });
+  }
+
+  function updateBulkToolbar() {
+    chrome.storage.local.get(['doodleFishList'], (result) => {
+      const fishArray = result.doodleFishList || [];
+      const masterCheckbox = document.getElementById('master-select-checkbox');
+      const gearBtn = document.getElementById('bulk-edit-settings');
+      
+      if (selectedFishIds.length > 0) {
+        if (gearBtn) gearBtn.disabled = false;
+        bulkCount.textContent = selectedFishIds.length;
+        
+        // Sync master checkbox
+        if (fishArray.length > 0) {
+          if (selectedFishIds.length === fishArray.length) {
+            masterCheckbox.checked = true;
+            masterCheckbox.indeterminate = false;
+          } else {
+            masterCheckbox.checked = false;
+            masterCheckbox.indeterminate = true;
+          }
+        }
+      } else {
+        if (gearBtn) gearBtn.disabled = true;
+        if (masterCheckbox) {
+          masterCheckbox.checked = false;
+          masterCheckbox.indeterminate = false;
+        }
+      }
+    });
+  }
+
+  // Master selection handler
+  const masterSelectWrapper = document.getElementById('master-select-wrapper');
+  masterSelectWrapper.onclick = () => {
+    const masterCheckbox = document.getElementById('master-select-checkbox');
+    // If Unchecked -> Toggle to checked. If Indeterminate/Checked -> Toggle to unchecked.
+    const shouldSelectAll = !masterCheckbox.checked && !masterCheckbox.indeterminate;
+    
+    chrome.storage.local.get(['doodleFishList'], (result) => {
+      const fishArray = result.doodleFishList || [];
+      if (shouldSelectAll) {
+        selectedFishIds = fishArray.map(f => f.id);
+      } else {
+        selectedFishIds = [];
+      }
+      renderFishList();
+    });
+  };
+
+  // Bulk Actions
+  // Note: clear-selection button was removed from HTML as Master Checkbox handles it
+
+
+
+
+  document.getElementById('bulk-delete').onclick = () => {
+    if (confirm(`Are you sure you want to delete ${selectedFishIds.length} fish?`)) {
+      chrome.storage.local.get(['doodleFishList'], (result) => {
+        let fishArray = result.doodleFishList || [];
+        fishArray = fishArray.filter(f => !selectedFishIds.includes(f.id));
+        chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+          selectedFishIds = [];
+          bulkModal.classList.remove('active'); // Close modal after delete
+          renderFishList();
+        });
+      });
+    }
+  };
+
+  document.getElementById('bulk-edit-settings').onclick = () => {
+    openBulkModal();
+  };
+
+  function openBulkModal() {
+    chrome.storage.local.get(['doodleFishList'], (result) => {
+      const fishArray = result.doodleFishList || [];
+      const selectedFish = fishArray.filter(f => selectedFishIds.includes(f.id));
+      if (selectedFish.length === 0) return;
+
+      const flipCheckbox = document.getElementById('bulk-flip-velocity');
+      const activeCheckbox = document.getElementById('bulk-active-toggle');
+
+      // Calculate initial states
+      const allActive = selectedFish.every(f => f.active);
+      const allInactive = selectedFish.every(f => !f.active);
+      const allFlipped = selectedFish.every(f => f.flipByVelocity);
+      const allNotFlipped = selectedFish.every(f => !f.flipByVelocity);
+
+      if (allActive) {
+        activeCheckbox.checked = true;
+        activeCheckbox.indeterminate = false;
+      } else if (allInactive) {
+        activeCheckbox.checked = false;
+        activeCheckbox.indeterminate = false;
+      } else {
+        activeCheckbox.checked = false;
+        activeCheckbox.indeterminate = true;
+      }
+
+      if (allFlipped) {
+        flipCheckbox.checked = true;
+        flipCheckbox.indeterminate = false;
+      } else if (allNotFlipped) {
+        flipCheckbox.checked = false;
+        flipCheckbox.indeterminate = false;
+      } else {
+        flipCheckbox.checked = false;
+        flipCheckbox.indeterminate = true;
+      }
+
+      bulkModal.classList.add('active');
+    });
+  }
+
+  document.getElementById('close-bulk-modal').onclick = () => {
+    bulkModal.classList.remove('active');
+  };
+
+  document.getElementById('save-bulk-btn').onclick = () => {
+    const activeCheckbox = document.getElementById('bulk-active-toggle');
+    const flipCheckbox = document.getElementById('bulk-flip-velocity');
+    
+    // Only apply if NOT indeterminate
+    const applyActive = !activeCheckbox.indeterminate;
+    const activeVal = activeCheckbox.checked;
+    
+    const applyFlip = !flipCheckbox.indeterminate;
+    const flipVal = flipCheckbox.checked;
+
+    chrome.storage.local.get(['doodleFishList'], (result) => {
+      const fishArray = result.doodleFishList || [];
+      selectedFishIds.forEach(id => {
+        const idx = fishArray.findIndex(f => f.id === id);
+        if (idx !== -1) {
+          if (applyActive) fishArray[idx].active = activeVal;
+          if (applyFlip) fishArray[idx].flipByVelocity = flipVal;
+        }
+      });
+
+      chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+        bulkModal.classList.remove('active');
+        renderFishList();
+      });
+    });
+  };
+
 
   function toggleFishActive(id, isActive, callback) {
     chrome.storage.local.get(['doodleFishList'], (result) => {
@@ -1611,25 +1788,7 @@ document.addEventListener('DOMContentLoaded', () => {
     img.src = fish.dataUrl;
   }
 
-  selectAllBtn.addEventListener('click', () => {
-    chrome.storage.local.get(['doodleFishList'], (result) => {
-      const fishArray = result.doodleFishList || [];
-      fishArray.forEach(f => f.active = true);
-      chrome.storage.local.set({ doodleFishList: fishArray }, () => {
-        renderFishList();
-      });
-    });
-  });
 
-  deselectAllBtn.addEventListener('click', () => {
-    chrome.storage.local.get(['doodleFishList'], (result) => {
-      const fishArray = result.doodleFishList || [];
-      fishArray.forEach(f => f.active = false);
-      chrome.storage.local.set({ doodleFishList: fishArray }, () => {
-        renderFishList();
-      });
-    });
-  });
 
   flipHBtn.onclick = () => {
     saveState();

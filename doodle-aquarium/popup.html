@@ -160,17 +160,19 @@
                     </div>
                 </details>
 
-                <div class="settings-card">
-                    <div
-                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                        <h3 style="margin:0; font-size: 14px;">Tank Gallery</h3>
-                        <div style="display: flex; gap: 8px;">
-                            <span id="select-all-btn"
-                                style="font-size: 10px; font-weight: 800; color: var(--primary); text-transform: uppercase; cursor: pointer;">Show
-                                All</span>
-                            <span id="deselect-all-btn"
-                                style="font-size: 10px; font-weight: 800; color: var(--on-surface-variant); text-transform: uppercase; cursor: pointer;">Hide
-                                All</span>
+                <div class="settings-card tank-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; min-height: 24px;">
+                        <h3 id="gallery-title" style="margin:0; font-size: 14px;">Tank Gallery</h3>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div style="display: flex; align-items: center; gap: 6px; cursor: pointer;" id="master-select-wrapper">
+                                <span style="font-size: 10px; font-weight: 800; color: var(--on-surface-variant); text-transform: uppercase; user-select: none;">Select All</span>
+                                <label class="checkbox-container small" style="margin: 0; padding-left: 18px; pointer-events: none;">
+                                    <input type="checkbox" id="master-select-checkbox">
+                                    <span class="checkmark"></span>
+                                </label>
+                            </div>
+                            <button id="bulk-edit-settings" class="toolbar-icon-btn material-symbols-outlined"
+                                title="Bulk Settings" disabled>settings</button>
                         </div>
                     </div>
                     <div id="fish-list" class="gallery-grid"></div>
@@ -243,6 +245,40 @@
                 </div>
                 <button id="modal-delete-btn" class="secondary-btn delete" style="width: 100%;">
                     <span class="material-symbols-outlined">delete</span> Delete Fish
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk Edit Modal -->
+    <div id="bulk-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="brand-font">Bulk Edit (<span id="bulk-count">0</span> fish)</h2>
+                <button id="close-bulk-modal" class="material-symbols-outlined icon-btn">close</button>
+            </div>
+            <div class="field" style="margin-top: 1rem;">
+                <div class="checkbox-field">
+                    <label class="checkbox-container">
+                        <input type="checkbox" id="bulk-active-toggle">
+                        <span class="checkmark"></span>
+                        Show Fish
+                    </label>
+                </div>
+            </div>
+            <div class="field">
+                <div class="checkbox-field">
+                    <label class="checkbox-container">
+                        <input type="checkbox" id="bulk-flip-velocity">
+                        <span class="checkmark"></span>
+                        Auto-Flip
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer" style="flex-direction: column; gap: 0.75rem; padding-top: 1.5rem;">
+                <button id="save-bulk-btn" class="btn-primary" style="width: 100%;">Apply to All</button>
+                <button id="bulk-delete" class="secondary-btn delete" style="width: 100%;">
+                    <span class="material-symbols-outlined">delete</span> Delete Selected
                 </button>
             </div>
         </div>

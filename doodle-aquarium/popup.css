@@ -321,6 +321,77 @@ main {
     display: none;
 }
 
+.gallery-item.selected {
+    border-color: var(--primary);
+    border-width: 3px;
+    box-shadow: 0 0 12px rgba(0, 66, 104, 0.15);
+    background: var(--surface-container-highest);
+}
+
+.selection-toggle {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--surface-container-lowest);
+    border: 1px solid var(--outline-variant);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    transition: all 0.2s;
+    opacity: 0;
+}
+
+.gallery-item:hover .selection-toggle,
+.gallery-item.selected .selection-toggle {
+    opacity: 1;
+}
+
+.gallery-item.selected .selection-toggle {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: var(--on-primary);
+}
+
+.selection-toggle span {
+    font-size: 16px;
+    line-height: 1;
+    display: none;
+    user-select: none;
+    pointer-events: none;
+}
+
+.gallery-item.selected .selection-toggle span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Master Checkbox */
+.checkbox-container.small {
+    margin: 0;
+    padding-left: 20px;
+    font-size: 12px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+}
+
+.checkbox-container.small .checkmark {
+    height: 18px;
+    width: 18px;
+}
+
+.checkbox-container.small .checkmark:after {
+    left: 6px;
+    top: 3px;
+    width: 4px;
+    height: 8px;
+}
+
 #reset-view-btn {
     position: absolute;
     bottom: 1rem;
@@ -690,38 +761,51 @@ select:focus {
 }
 
 .gallery-item img {
-    width: 90%;
-    height: 90%;
+    width: 85%;
+    height: 85%;
     object-fit: contain;
+    transition: transform 0.2s;
 }
 
-.gallery-item .item-actions {
-    position: absolute;
-    inset: 0;
-    background: rgba(0, 66, 104, 0.4);
+.gallery-item:hover img {
+    transform: scale(1.1);
+}
+
+/* Bulk Toolbar */
+.bulk-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    animation: fadeIn 0.2s ease;
+}
+
+.toolbar-icon-btn {
+    width: 28px;
+    height: 28px;
+    padding: 4px;
+    border-radius: var(--radius-lg);
+    background: var(--surface-container-highest);
+    color: var(--primary);
+    border: 1px solid var(--outline-variant);
+    font-size: 18px !important;
+    cursor: pointer;
+    transition: all 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 1rem;
-    opacity: 0;
-    transition: opacity 0.2s;
 }
 
-.gallery-item:hover .item-actions {
-    opacity: 1;
+.toolbar-icon-btn:hover:not(:disabled) {
+    background: var(--primary-container);
 }
 
-.action-btn {
-    background: var(--on-primary);
-    color: var(--primary);
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    font-size: 16px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+.toolbar-icon-btn:disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+    filter: grayscale(1);
 }
 
-.action-btn.delete {
+.toolbar-icon-btn.danger {
     color: var(--danger);
 }
 
