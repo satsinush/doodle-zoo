@@ -138,7 +138,8 @@ main {
         flex: 1;
         overflow: hidden;
         display: flex;
-        flex-direction: row; /* Layout items horizontally */
+        flex-direction: row;
+        /* Layout items horizontally */
         height: 100%;
         min-height: 0;
     }
@@ -198,7 +199,8 @@ main {
     max-width: 850px;
     margin: 0 auto;
     aspect-ratio: 4/3;
-    background-color: #f1eee7; /* Light background matching checkers */
+    background-color: #f1eee7;
+    /* Light background matching checkers */
     border-radius: var(--radius-3xl);
     border: 1px solid var(--outline-variant);
     overflow: hidden;
@@ -212,14 +214,27 @@ main {
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: #ffffff; /* White base for checkers */
+    background-color: #ffffff;
+    /* White base for checkers */
     background-image:
         linear-gradient(45deg, #f1eee7 25%, transparent 25%, transparent 75%, #f1eee7 75%, #f1eee7),
         linear-gradient(45deg, #f1eee7 25%, transparent 25%, transparent 75%, #f1eee7 75%, #f1eee7);
     background-position: 0 0, 10px 10px;
     background-size: 20px 20px;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
-    border: 2px solid #2c2c2c; /* Strong dark outline around the canvas */
+    /* Border removed from here and moved to pseudo-element for 'outside' effect */
+}
+
+#canvas-surface::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    border: 2px solid #2c2c2c;
+    pointer-events: none;
+    border-radius: 4px;
 }
 
 .canvas-viewport {
@@ -295,7 +310,7 @@ main {
 #brush-preview-fill.eyedropper {
     border-radius: 12px;
     border: 3px solid var(--primary);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     image-rendering: pixelated;
 }
 
@@ -733,7 +748,7 @@ select:focus {
     backdrop-filter: blur(8px);
     z-index: 1000;
     /* Safe centering: start from flex-start but center with margin:auto */
-    display: none; 
+    display: none;
     align-items: flex-start;
     justify-content: flex-start;
     padding: 1.5rem;

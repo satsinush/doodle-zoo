@@ -77,6 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastY = 0;
   let currentDrawColor = '#000000';
   let currentTool = 'brush';
+  let isMouseInViewport = false;
   let autoSaveTimer = null;
   let applyingSettings = false;
   let isReentering = false;
@@ -177,6 +178,9 @@ document.addEventListener('DOMContentLoaded', () => {
       toolButtons.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       currentTool = btn.dataset.tool;
+      updateBrushPreview();
+      updateViewTransform();
+      updatePreviewDisplay();
 
       // If we just entered eyedropper mode, capture the current state for reversion
       if (currentTool === 'eyedropper') {
@@ -185,9 +189,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const g = parseInt(hex.slice(3, 5), 16);
         const b = parseInt(hex.slice(5, 7), 16);
         preHoverColor = rgbaToHex8(r, g, b, currentOpacity);
+        updateBrushPreview(); // Force initial bubble draw
       }
-
-      updateBrushPreview();
     });
   });
 
@@ -451,12 +454,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (canvasTransformWrapper) {
       canvasTransformWrapper.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomLevel})`;
     }
-    // Update brush preview scale to match zoom for brush but NOT for eyedropper
-    if (brushPreviewFill) {
-      const transform = currentTool === 'eyedropper' ? '' : `scale(${zoomLevel})`;
-      brushPreviewFill.style.transform = transform;
-      brushPreviewOutline.style.transform = transform;
-    }
   }
 
   function getCanvasPoint(event) {
@@ -592,8 +589,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const r = parseInt(hex6.slice(1, 3), 16);
       const g = parseInt(hex6.slice(3, 5), 16);
       const b = parseInt(hex6.slice(5, 7), 16);
-      currentDrawColor = `rgba(${r}, ${g}, ${b}, ${currentOpacity})`;
-      colorText.value = rgbaToHex8(r, g, b, currentOpacity);
+
+      const displayAlpha = isHover ? alpha : currentOpacity;
+      currentDrawColor = `rgba(${r}, ${g}, ${b}, ${displayAlpha})`;
+      colorText.value = rgbaToHex8(r, g, b, displayAlpha);
+
+      if (!isHover) {
+        currentOpacity = alpha; // Commit for non-hover applications
+        currentDrawColor = `rgba(${r}, ${g}, ${b}, ${currentOpacity})`;
+      }
     } else {
       currentDrawColor = value; // Fallback
       colorText.value = value.toUpperCase();
@@ -614,7 +618,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const radius = logicalSize / 2;
 
     if (currentTool === 'fill') {
-      brushPreview.style.display = 'none';
+      brushPreviewFill.style.display = 'none';
+      brushPreviewOutline.style.display = 'none';
       return;
     }
 
@@ -700,7 +705,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Since the Color Fill canvas is now ON TOP of this one, the outline 
       // will effectively invert only the fish/background below it.
       brushPreviewOutlineCtx.strokeStyle = '#fff';
-      brushPreviewOutlineCtx.lineWidth = 1.5;
+      brushPreviewOutlineCtx.lineWidth = 2.0;
       brushPreviewOutlineCtx.stroke();
     } else {
       // Non-inverted tools (eyedropper handled early, others stay normal)
@@ -713,7 +718,7 @@ document.addEventListener('DOMContentLoaded', () => {
       brushPreviewOutlineCtx.beginPath();
       brushPreviewOutlineCtx.arc(center, center, radius, 0, Math.PI * 2);
       brushPreviewOutlineCtx.strokeStyle = '#fff';
-      brushPreviewOutlineCtx.lineWidth = 1.5;
+      brushPreviewOutlineCtx.lineWidth = 2.0;
       brushPreviewOutlineCtx.stroke();
     }
   }
@@ -903,8 +908,9 @@ document.addEventListener('DOMContentLoaded', () => {
       panY = mouseY - anchorY * zoomLevel;
     }
     updateViewTransform();
-    // For eyedropper, we need to refresh preview on zoom/wheel as pixels change
+    // Refresh preview and scale on zoom
     updateBrushPreview();
+    updatePreviewDisplay(e);
   });
 
   resetViewBtn.onclick = () => {
@@ -912,6 +918,8 @@ document.addEventListener('DOMContentLoaded', () => {
     panX = 0;
     panY = 0;
     updateViewTransform();
+    updateBrushPreview();
+    updatePreviewDisplay();
   };
 
   canvasViewport.addEventListener('mousedown', (e) => {
@@ -920,7 +928,6 @@ document.addEventListener('DOMContentLoaded', () => {
       isPanning = true;
       lastMousePos = { x: e.clientX, y: e.clientY };
       canvasTransformWrapper.classList.add('panning');
-      brushPreview.style.display = 'none';
       e.preventDefault();
       return;
     }
@@ -936,7 +943,10 @@ document.addEventListener('DOMContentLoaded', () => {
           const hex8 = rgbaToHex8(imgData[0], imgData[1], imgData[2], imgData[3] / 255);
           applyColorInput(hex8);
           preHoverColor = null; // Selection confirmed
+          updatePreviewDisplay();
+          return;
         }
+        // Always return for eyedropper tool to prevent falling through to drawing
         return;
       }
 
@@ -960,21 +970,99 @@ document.addEventListener('DOMContentLoaded', () => {
           activeCtx.lineWidth = getLogicalBrushSize();
 
           activeCtx.moveTo(currentStrokePoints[0].x, currentStrokePoints[0].y);
+          activeCtx.lineTo(currentStrokePoints[0].x, currentStrokePoints[0].y);
           activeCtx.stroke();
         } else if (currentTool === 'eraser') {
           ctx.globalCompositeOperation = 'destination-out';
+          drawStamp(lastX, lastY, getLogicalBrushSize());
         } else {
           ctx.globalCompositeOperation = 'source-over';
           ctx.fillStyle = currentDrawColor;
-        }
-
-        if (currentTool !== 'brush') {
           drawStamp(lastX, lastY, getLogicalBrushSize());
         }
         ctx.globalCompositeOperation = 'source-over';
       }
     }
   });
+
+  function updatePreviewDisplay(e = null) {
+    const clientX = e ? e.clientX : lastMousePos.x;
+    const clientY = e ? e.clientY : lastMousePos.y;
+
+    const visualRect = canvasViewport.getBoundingClientRect();
+    const x = clientX - visualRect.left;
+    const y = clientY - visualRect.top;
+
+    // Calculate cursor position relative to canvas logical space
+    // We pass a synthetic event-like object to getCanvasPoint if no event e
+    const point = getCanvasPoint(e || { clientX, clientY });
+
+    // Check eyedropper logic if needed
+    const canvasRect = canvas.getBoundingClientRect();
+    if (currentTool === 'eyedropper') {
+      brushPreviewOutline.style.display = 'none';
+      brushPreviewFill.style.display = isMouseInViewport ? 'block' : 'none';
+
+      if (!isPanning && isMouseInViewport) {
+        const isInside = (clientX >= canvasRect.left && clientX <= canvasRect.right &&
+          clientY >= canvasRect.top && clientY <= canvasRect.bottom);
+
+        const dpr = window.devicePixelRatio || 1;
+        if (isInside) {
+          const imgData = ctx.getImageData(point.x * dpr, point.y * dpr, 1, 1).data;
+          if (imgData[3] > 0) {
+            const hex8 = rgbaToHex8(imgData[0], imgData[1], imgData[2], imgData[3] / 255);
+            applyColorInput(hex8, true, true);
+            const rgba = `rgba(${imgData[0]}, ${imgData[1]}, ${imgData[2]}, ${imgData[3] / 255})`;
+            updateBrushPreview(rgba);
+          } else {
+            updateBrushPreview('rgba(255, 255, 255, 0.5)');
+          }
+        } else {
+          updateBrushPreview('rgba(255, 255, 255, 0.2)');
+        }
+      }
+    } else if (isMouseInViewport) {
+      if (currentTool === 'brush') {
+        brushPreviewFill.style.display = 'block';
+        brushPreviewOutline.style.display = 'none';
+        updateBrushPreview();
+      } else if (currentTool === 'eraser') {
+        brushPreviewFill.style.display = 'none';
+        brushPreviewOutline.style.display = 'block';
+        updateBrushPreview();
+      } else if (currentTool !== 'fill') {
+        // Fallback for other tools (like eyedropper handled above or custom tools)
+        brushPreviewFill.style.display = 'block';
+        brushPreviewOutline.style.display = 'block';
+        updateBrushPreview();
+      } else {
+        brushPreviewFill.style.display = 'none';
+        brushPreviewOutline.style.display = 'none';
+      }
+    } else {
+      brushPreviewFill.style.display = 'none';
+      brushPreviewOutline.style.display = 'none';
+    }
+
+    // Position both layers based on viewport-relative mouse coordinates
+    const vMouseX = clientX - visualRect.left;
+    const vMouseY = clientY - visualRect.top;
+
+    const targetLeft = `${vMouseX - brushPreviewFill.width / 2}px`;
+    const targetTop = currentTool === 'eyedropper'
+      ? `${vMouseY - brushPreviewFill.height - 20}px`
+      : `${vMouseY - brushPreviewFill.height / 2}px`;
+
+    const transform = currentTool === 'eyedropper' ? '' : `scale(${zoomLevel})`;
+    brushPreviewFill.style.transform = transform;
+    brushPreviewOutline.style.transform = transform;
+
+    brushPreviewFill.style.left = targetLeft;
+    brushPreviewFill.style.top = targetTop;
+    brushPreviewOutline.style.left = targetLeft;
+    brushPreviewOutline.style.top = targetTop;
+  }
 
   canvasViewport.addEventListener('mousemove', (e) => {
     if (isPanning) {
@@ -984,68 +1072,24 @@ document.addEventListener('DOMContentLoaded', () => {
       panY += dy;
       lastMousePos = { x: e.clientX, y: e.clientY };
       updateViewTransform();
+      updatePreviewDisplay(e);
       return;
     }
 
     draw(e);
-
-    const visualRect = canvasTransformWrapper.parentElement.getBoundingClientRect();
-    const x = e.clientX - visualRect.left;
-    const y = e.clientY - visualRect.top;
-
-    // Calculate cursor position relative to canvas logical space
-    const point = getCanvasPoint(e);
     lastMousePos = { x: e.clientX, y: e.clientY };
-
-    const canvasRect = canvas.getBoundingClientRect();
-    if (currentTool === 'eyedropper') {
-      const isInside = (e.clientX >= canvasRect.left && e.clientX <= canvasRect.right &&
-        e.clientY >= canvasRect.top && e.clientY <= canvasRect.bottom);
-
-      const dpr = window.devicePixelRatio || 1;
-      if (isInside) {
-        const imgData = ctx.getImageData(point.x * dpr, point.y * dpr, 1, 1).data;
-        if (imgData[3] > 0) {
-          const hex8 = rgbaToHex8(imgData[0], imgData[1], imgData[2], imgData[3] / 255);
-          applyColorInput(hex8, true, true);
-          const rgba = `rgba(${imgData[0]}, ${imgData[1]}, ${imgData[2]}, ${imgData[3] / 255})`;
-          updateBrushPreview(rgba);
-        } else {
-          updateBrushPreview('rgba(255, 255, 255, 0.5)');
-        }
-      } else {
-        updateBrushPreview('rgba(255, 255, 255, 0.2)');
-      }
-      brushPreviewFill.style.display = 'block';
-      brushPreviewOutline.style.display = 'none';
-    } else if (currentTool !== 'fill') {
-      brushPreviewFill.style.display = 'block';
-      brushPreviewOutline.style.display = 'block';
-      updateBrushPreview();
-    } else {
-      brushPreviewFill.style.display = 'none';
-      brushPreviewOutline.style.display = 'none';
-    }
-
-    // Position both layers
-    const targetLeft = `${x - brushPreviewFill.width / 2}px`;
-    const targetTop = currentTool === 'eyedropper'
-      ? `${y - brushPreviewFill.height - 20}px`
-      : `${y - brushPreviewFill.height / 2}px`;
-
-    brushPreviewFill.style.left = targetLeft;
-    brushPreviewFill.style.top = targetTop;
-    brushPreviewOutline.style.left = targetLeft;
-    brushPreviewOutline.style.top = targetTop;
+    updatePreviewDisplay(e);
   });
 
   canvasViewport.addEventListener('mouseenter', (e) => {
+    isMouseInViewport = true;
     if (isDrawing) {
       isReentering = true;
     }
   });
 
   canvasViewport.addEventListener('mouseleave', () => {
+    isMouseInViewport = false;
     brushPreviewFill.style.display = 'none';
     brushPreviewOutline.style.display = 'none';
     if (currentTool === 'eyedropper' && preHoverColor) {
