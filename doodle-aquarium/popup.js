@@ -96,6 +96,9 @@ document.addEventListener('DOMContentLoaded', () => {
   let undoStack = [];
   let redoStack = [];
 
+  let fillPreviewRequest = null;
+  let lastFillPoint = { x: -1, y: -1 };
+
   const resetViewBtn = document.getElementById('reset-view-btn');
 
   function getLogicalBrushSize() {
@@ -207,9 +210,14 @@ document.addEventListener('DOMContentLoaded', () => {
         c = [c[0], c[0], c[1], c[1], c[2], c[2]];
       }
       c = '0x' + c.join('');
-      return [(c >> 16) & 255, (c >> 8) & 255, c & 255, 255];
+      return [
+        (c >> 16) & 255,
+        (c >> 8) & 255,
+        c & 255,
+        Math.round(currentOpacity * 255)
+      ];
     }
-    return [0, 0, 0, 255];
+    return [0, 0, 0, Math.round(currentOpacity * 255)];
   }
 
   function floodFill(startX, startY, fillColorHex) {
@@ -231,11 +239,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const startA = data[startIndex + 3];
 
     const fillRgba = hexToRgba(fillColorHex);
-
-    // If colors are the same, don't fill
-    if (startR === fillRgba[0] && startG === fillRgba[1] && startB === fillRgba[2] && startA === fillRgba[3]) {
-      return;
-    }
 
     // Add color tolerance to fill into anti-aliased gaps
     const tolerance = 20;
@@ -321,17 +324,117 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     dilatedMask = nextMask;
 
+    const srcA = fillRgba[3] / 255;
+
     for (let i = 0; i < dilatedMask.length; i++) {
       if (dilatedMask[i]) {
         const ptr = i * 4;
-        data[ptr] = fillRgba[0];
-        data[ptr + 1] = fillRgba[1];
-        data[ptr + 2] = fillRgba[2];
-        data[ptr + 3] = 255;
+        const dstA = data[ptr + 3] / 255;
+        const outA = srcA + dstA * (1 - srcA);
+
+        if (outA > 0) {
+          data[ptr] = Math.round((fillRgba[0] * srcA + data[ptr] * dstA * (1 - srcA)) / outA);
+          data[ptr + 1] = Math.round((fillRgba[1] * srcA + data[ptr + 1] * dstA * (1 - srcA)) / outA);
+          data[ptr + 2] = Math.round((fillRgba[2] * srcA + data[ptr + 2] * dstA * (1 - srcA)) / outA);
+          data[ptr + 3] = Math.round(outA * 255);
+        }
       }
     }
 
     ctx.putImageData(imageData, 0, 0);
+  }
+
+  function updateFillPreview(startX, startY) {
+    if (fillPreviewRequest) return;
+
+    // Use a small distance threshold to avoid unnecessary recalculation
+    const dx = startX - lastFillPoint.x;
+    const dy = startY - lastFillPoint.y;
+    if (Math.abs(dx) < 2 && Math.abs(dy) < 2 && lastFillPoint.color === currentDrawColor) return;
+
+    fillPreviewRequest = requestAnimationFrame(() => {
+      fillPreviewRequest = null;
+      lastFillPoint = { x: startX, y: startY, color: currentDrawColor };
+
+      const dpr = window.devicePixelRatio || 1;
+      const width = canvas.width;
+      const height = canvas.height;
+      const imageData = ctx.getImageData(0, 0, width, height);
+      const data = imageData.data;
+
+      const sx = Math.floor(startX * dpr);
+      const sy = Math.floor(startY * dpr);
+
+      // Clear if out of bounds
+      if (sx < 0 || sx >= width || sy < 0 || sy >= height) {
+        activeCtx.clearRect(0, 0, activeCanvas.width / dpr, activeCanvas.height / dpr);
+        return;
+      }
+
+      const startIndex = (sy * width + sx) * 4;
+      const startR = data[startIndex];
+      const startG = data[startIndex + 1];
+      const startB = data[startIndex + 2];
+      const startA = data[startIndex + 3];
+
+      const fillRgba = hexToRgba(cssColorToHex(currentDrawColor) || currentDrawColor);
+      // Scaled preview alpha - brighter than final but follows opacity
+      const previewA = Math.round(currentOpacity * 128);
+
+      const tolerance = 20;
+      const matchStartColor = (index) => {
+        return Math.abs(data[index] - startR) <= tolerance &&
+          Math.abs(data[index + 1] - startG) <= tolerance &&
+          Math.abs(data[index + 2] - startB) <= tolerance &&
+          Math.abs(data[index + 3] - startA) <= tolerance;
+      };
+
+      const fillMask = new Uint8Array(width * height);
+      const pixelStack = [[sx, sy]];
+
+      while (pixelStack.length > 0) {
+        const newPos = pixelStack.pop();
+        const x = newPos[0];
+        let y = newPos[1];
+        let pixelPos = (y * width + x) * 4;
+        while (y-- >= 0 && matchStartColor(pixelPos) && !fillMask[pixelPos / 4]) {
+          pixelPos -= width * 4;
+        }
+        pixelPos += width * 4;
+        ++y;
+        let reachLeft = false;
+        let reachRight = false;
+        while (y++ < height - 1 && matchStartColor(pixelPos) && !fillMask[pixelPos / 4]) {
+          fillMask[pixelPos / 4] = 1;
+          if (x > 0) {
+            if (matchStartColor(pixelPos - 4)) {
+              if (!reachLeft) { pixelStack.push([x - 1, y]); reachLeft = true; }
+            } else if (reachLeft) reachLeft = false;
+          }
+          if (x < width - 1) {
+            if (matchStartColor(pixelPos + 4)) {
+              if (!reachRight) { pixelStack.push([x + 1, y]); reachRight = true; }
+            } else if (reachRight) reachRight = false;
+          }
+          pixelPos += width * 4;
+        }
+      }
+
+      // Create preview image
+      const previewData = activeCtx.createImageData(width, height);
+      const pData = previewData.data;
+      for (let i = 0; i < fillMask.length; i++) {
+        if (fillMask[i]) {
+          const ptr = i * 4;
+          pData[ptr] = fillRgba[0];
+          pData[ptr + 1] = fillRgba[1];
+          pData[ptr + 2] = fillRgba[2];
+          pData[ptr + 3] = previewA;
+        }
+      }
+      activeCtx.clearRect(0, 0, activeCanvas.width / dpr, activeCanvas.height / dpr);
+      activeCtx.putImageData(previewData, 0, 0);
+    });
   }
 
   // Keep drawing coordinates in CSS pixels while rendering crisply on high DPI screens.
@@ -601,12 +704,6 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       currentDrawColor = value; // Fallback
       colorText.value = value.toUpperCase();
-    }
-
-    if (!isHover) {
-      // Auto-switch to brush tool
-      currentTool = 'brush';
-      toolButtons.forEach(b => b.classList.toggle('active', b.dataset.tool === 'brush'));
     }
 
     updateBrushPreview();
@@ -986,6 +1083,13 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   function updatePreviewDisplay(e = null) {
+    const dpr = window.devicePixelRatio || 1;
+    // Don't clear immediately for 'fill' since updateFillPreview handles it
+    // in a throttled frame to prevent flickering.
+    if (!isDrawing && currentTool !== 'fill') {
+      activeCtx.clearRect(0, 0, activeCanvas.width / dpr, activeCanvas.height / dpr);
+    }
+
     const clientX = e ? e.clientX : lastMousePos.x;
     const clientY = e ? e.clientY : lastMousePos.y;
 
@@ -1031,6 +1135,12 @@ document.addEventListener('DOMContentLoaded', () => {
         brushPreviewFill.style.display = 'none';
         brushPreviewOutline.style.display = 'block';
         updateBrushPreview();
+      } else if (currentTool === 'fill') {
+        brushPreviewFill.style.display = 'none';
+        brushPreviewOutline.style.display = 'none';
+        const point = getCanvasPoint(e || { clientX, clientY });
+        updateFillPreview(point.x, point.y);
+        return; // Fill doesn't need standard circle preview
       } else if (currentTool !== 'fill') {
         // Fallback for other tools (like eyedropper handled above or custom tools)
         brushPreviewFill.style.display = 'block';
@@ -1041,8 +1151,10 @@ document.addEventListener('DOMContentLoaded', () => {
         brushPreviewOutline.style.display = 'none';
       }
     } else {
+      const dpr = window.devicePixelRatio || 1;
       brushPreviewFill.style.display = 'none';
       brushPreviewOutline.style.display = 'none';
+      activeCtx.clearRect(0, 0, activeCanvas.width / dpr, activeCanvas.height / dpr);
     }
 
     // Position both layers based on viewport-relative mouse coordinates
@@ -1090,8 +1202,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   canvasViewport.addEventListener('mouseleave', () => {
     isMouseInViewport = false;
+    const dpr = window.devicePixelRatio || 1;
     brushPreviewFill.style.display = 'none';
     brushPreviewOutline.style.display = 'none';
+    activeCtx.clearRect(0, 0, activeCanvas.width / dpr, activeCanvas.height / dpr);
+
     if (currentTool === 'eyedropper' && preHoverColor) {
       applyColorInput(preHoverColor, true, true);
       preHoverColor = null;
