@@ -937,15 +937,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const { x, y } = getCanvasPoint(e);
 
-    if (isReentering) {
-      lastX = x;
-      lastY = y;
-      isReentering = false;
-      return;
-    }
-
     if (currentTool === 'brush') {
-      currentStrokePoints.push({ x, y });
+      currentStrokePoints.push({ x, y, isNewPath: isReentering });
+      isReentering = false; // Reset here so we continue this path
 
       const dpr = window.devicePixelRatio || 1;
       activeCtx.clearRect(0, 0, activeCanvas.width / dpr, activeCanvas.height / dpr);
@@ -956,12 +950,25 @@ document.addEventListener('DOMContentLoaded', () => {
       activeCtx.strokeStyle = currentDrawColor;
       activeCtx.lineWidth = getLogicalBrushSize();
 
-      activeCtx.moveTo(currentStrokePoints[0].x, currentStrokePoints[0].y);
-      for (let i = 1; i < currentStrokePoints.length; i++) {
-        activeCtx.lineTo(currentStrokePoints[i].x, currentStrokePoints[i].y);
+      if (currentStrokePoints.length > 0) {
+        activeCtx.moveTo(currentStrokePoints[0].x, currentStrokePoints[0].y);
+        for (let i = 1; i < currentStrokePoints.length; i++) {
+          const pt = currentStrokePoints[i];
+          if (pt.isNewPath) {
+            activeCtx.moveTo(pt.x, pt.y);
+          } else {
+            activeCtx.lineTo(pt.x, pt.y);
+          }
+        }
       }
       activeCtx.stroke();
     } else {
+      if (isReentering) {
+        lastX = x;
+        lastY = y;
+        isReentering = false;
+        return;
+      }
       drawInterpolatedStroke(lastX, lastY, x, y);
     }
 
@@ -1205,7 +1212,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const dpr = window.devicePixelRatio || 1;
     brushPreviewFill.style.display = 'none';
     brushPreviewOutline.style.display = 'none';
-    activeCtx.clearRect(0, 0, activeCanvas.width / dpr, activeCanvas.height / dpr);
+    
+    // Only clear the preview stroke if we are NOT currently drawing.
+    // This allows the line to persist when the mouse exits the viewport.
+    if (!isDrawing) {
+      activeCtx.clearRect(0, 0, activeCanvas.width / dpr, activeCanvas.height / dpr);
+    }
 
     if (currentTool === 'eyedropper' && preHoverColor) {
       applyColorInput(preHoverColor, true, true);
