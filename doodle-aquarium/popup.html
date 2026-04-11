@@ -31,39 +31,25 @@
             <!-- Canvas Area -->
             <div class="canvas-area">
                 <div class="canvas-container">
-                <div class="canvas-viewport">
-                    <div id="canvas-transform-wrapper">
-                        <div id="canvas-surface">
-                            <canvas id="direction-guide"></canvas>
-                            <canvas id="drawing-canvas"></canvas>
-                            <canvas id="active-stroke-canvas"></canvas>
+                    <div class="canvas-viewport">
+                        <div id="canvas-transform-wrapper">
+                            <div id="canvas-surface">
+                                <canvas id="direction-guide"></canvas>
+                                <canvas id="drawing-canvas"></canvas>
+                                <canvas id="active-stroke-canvas"></canvas>
+                            </div>
                         </div>
+                        <canvas id="brush-preview-outline" width="40" height="40"></canvas>
+                        <canvas id="brush-preview-fill" width="40" height="40"></canvas>
                     </div>
-                    <canvas id="brush-preview-outline" width="40" height="40"></canvas>
-                    <canvas id="brush-preview-fill" width="40" height="40"></canvas>
+                    <button id="reset-view-btn" class="material-symbols-outlined"
+                        title="Reset View">center_focus_strong</button>
                 </div>
-                <button id="reset-view-btn" class="material-symbols-outlined" title="Reset View">center_focus_strong</button>
-            </div>
             </div>
 
             <!-- Sidebar / Controls -->
             <div class="sidebar">
                 <div class="toolbar">
-                    <div class="btn-group" id="tool-group">
-                        <button class="icon-btn active" data-tool="brush" title="Brush">
-                            <span class="material-symbols-outlined">brush</span>
-                        </button>
-                        <button class="icon-btn" data-tool="fill" title="Fill Bucket">
-                            <span class="material-symbols-outlined">format_color_fill</span>
-                        </button>
-                        <button class="icon-btn" data-tool="eraser" title="Eraser">
-                            <span class="material-symbols-outlined">ink_eraser</span>
-                        </button>
-                        <button class="icon-btn" data-tool="eyedropper" title="Eyedropper">
-                            <span class="material-symbols-outlined">colorize</span>
-                        </button>
-                    </div>
-                    <div class="divider"></div>
                     <div class="btn-group">
                         <button id="undo-btn" class="icon-btn" title="Undo" disabled>
                             <span class="material-symbols-outlined">undo</span>
@@ -71,23 +57,39 @@
                         <button id="redo-btn" class="icon-btn" title="Redo" disabled>
                             <span class="material-symbols-outlined">redo</span>
                         </button>
-                        <div class="divider" style="margin: 0 4px;"></div>
+                        <div class="divider"></div>
                         <button id="flip-h-btn" class="icon-btn" title="Flip Horizontal">
                             <span class="material-symbols-outlined">flip</span>
                         </button>
-                        <button id="flip-v-btn" class="icon-btn" title="Flip Vertical" style="transform: rotate(90deg);">
+                        <button id="flip-v-btn" class="icon-btn" title="Flip Vertical"
+                            style="transform: rotate(90deg);">
                             <span class="material-symbols-outlined">flip</span>
                         </button>
-                        <div class="divider" style="margin: 0 4px;"></div>
+                        <div class="divider"></div>
                         <button id="clear-btn" class="icon-btn" title="Clear Canvas">
                             <span class="material-symbols-outlined">delete_sweep</span>
                         </button>
                     </div>
                 </div>
 
-                <!-- Core Settings -->
-                <div class="settings-grid">
-                    <div class="settings-card">
+                <!-- Core Settings with Vertical Tools -->
+                <div class="settings-row">
+                    <div class="vertical-tools" id="tool-group">
+                        <button class="icon-btn active" data-tool="brush" title="Brush">
+                            <span class="material-symbols-outlined">brush</span>
+                        </button>
+                        <button class="icon-btn" data-tool="eraser" title="Eraser">
+                            <span class="material-symbols-outlined">ink_eraser</span>
+                        </button>
+                        <button class="icon-btn" data-tool="fill" title="Fill Bucket">
+                            <span class="material-symbols-outlined">format_color_fill</span>
+                        </button>
+                        <button class="icon-btn" data-tool="eyedropper" title="Eyedropper">
+                            <span class="material-symbols-outlined">colorize</span>
+                        </button>
+                    </div>
+
+                    <div class="settings-card brush-card">
                         <label class="label-tiny">Brush Settings</label>
                         <div class="color-row">
                             <input type="color" id="color-picker" value="#000000">
@@ -185,7 +187,7 @@
                 <h2 class="brand-font">Fish Settings</h2>
                 <button id="close-modal" class="material-symbols-outlined icon-btn">close</button>
             </div>
-            
+
             <div id="modal-preview-container">
                 <img id="modal-fish-preview" src="" alt="Fish Preview">
             </div>
@@ -211,7 +213,8 @@
                         <button id="modal-flip-h-btn" class="secondary-btn icon-only" title="Flip Horizontal">
                             <span class="material-symbols-outlined">flip</span>
                         </button>
-                        <button id="modal-flip-v-btn" class="secondary-btn icon-only" title="Flip Vertical" style="transform: rotate(90deg);">
+                        <button id="modal-flip-v-btn" class="secondary-btn icon-only" title="Flip Vertical"
+                            style="transform: rotate(90deg);">
                             <span class="material-symbols-outlined">flip</span>
                         </button>
                     </div>
