@@ -881,10 +881,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (isCtrl) {
       // Pan vertical
-      panY -= e.deltaY;
+      panY -= e.deltaY * 0.33;
     } else if (isShift) {
       // Pan horizontal
-      panX -= e.deltaY; // deltaY is usually the primary wheel axis
+      panX -= e.deltaY * 0.33; // deltaY is usually the primary wheel axis
     } else {
       // Zoom
       const zoomSpeed = 0.001;
