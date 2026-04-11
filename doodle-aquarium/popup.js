@@ -55,6 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const modalActiveToggle = document.getElementById('modal-active-toggle');
   const modalEditBtn = document.getElementById('modal-edit-btn');
   const modalDeleteBtn = document.getElementById('modal-delete-btn');
+  const modalExportBtn = document.getElementById('modal-export-btn');
 
   const DEFAULT_SETTINGS = {
     speedMultiplier: 0.5,
@@ -983,8 +984,15 @@ document.addEventListener('DOMContentLoaded', () => {
     modalMirrorToggle.checked = !!fish.mirrored;
     modalLockToggle.checked = fish.flipByVelocity !== false;
     
+    // Update preview mirroring
+    modalFishPreview.style.transform = fish.mirrored ? 'scaleX(-1)' : 'scaleX(1)';
+    
     modalActiveToggle.onclick = () => toggleFishActive(fish.id, modalActiveToggle.checked, () => renderFishList());
-    modalMirrorToggle.onclick = () => toggleFishMirror(fish.id, modalMirrorToggle.checked);
+    modalMirrorToggle.onclick = () => {
+      const isMirrored = modalMirrorToggle.checked;
+      modalFishPreview.style.transform = isMirrored ? 'scaleX(-1)' : 'scaleX(1)';
+      toggleFishMirror(fish.id, isMirrored);
+    };
     modalLockToggle.onclick = () => toggleFishFlipByVelocity(fish.id, modalLockToggle.checked);
     
     modalEditBtn.onclick = () => {
@@ -997,6 +1005,11 @@ document.addEventListener('DOMContentLoaded', () => {
         closeFishModal();
         deleteFish(fish.id);
       }
+    };
+
+    modalExportBtn.onclick = () => {
+      const isMirrored = modalMirrorToggle.checked;
+      exportFish(fish, isMirrored);
     };
     
     fishModal.classList.add('active');
@@ -1049,6 +1062,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const img = document.createElement('img');
         img.src = fish.dataUrl;
         img.alt = 'Fish';
+        if (fish.mirrored) {
+          img.style.transform = 'scaleX(-1)';
+        }
         item.appendChild(img);
 
         const actions = document.createElement('div');
@@ -1132,6 +1148,31 @@ document.addEventListener('DOMContentLoaded', () => {
         renderFishList();
       });
     });
+  }
+
+  function exportFish(fish, mirrorActive) {
+    const tempCanvas = document.createElement('canvas'); // Final export is 400x300
+    tempCanvas.width = 400;
+    tempCanvas.height = 300;
+    const tempCtx = tempCanvas.getContext('2d');
+    
+    if (mirrorActive) {
+      tempCtx.translate(400, 0);
+      tempCtx.scale(-1, 1);
+    }
+    
+    const img = new Image();
+    img.onload = () => {
+      tempCtx.drawImage(img, 0, 0, 400, 300);
+      const dataUrl = tempCanvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = `doodle-fish-${Date.now()}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    };
+    img.src = fish.dataUrl;
   }
 
   selectAllBtn.addEventListener('click', () => {

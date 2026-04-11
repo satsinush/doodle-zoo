@@ -97,16 +97,15 @@
                     </div>
                 </div>
 
-                <div class="action-buttons">
+                <div class="action-buttons horizontal">
                     <button id="save-btn" class="btn-primary">
                         <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">save</span>
-                        Save Fish
+                        Save
                     </button>
 
-                    <label class="secondary-btn" style="cursor: pointer; text-align: center; display: block;">
-                        <span class="material-symbols-outlined"
-                            style="vertical-align: middle; font-size: 18px; margin-right: 4px;">upload_file</span>
-                        Import Fish
+                    <label class="secondary-btn">
+                        <span class="material-symbols-outlined">upload_file</span>
+                        Import
                         <input type="file" id="import-file" accept="image/*" multiple style="display: none;">
                     </label>
                 </div>
@@ -211,12 +210,17 @@
                 </div>
             </div>
 
-            <div class="modal-footer">
-                <button id="modal-edit-btn" class="secondary-btn" style="flex: 1;">
-                    <span class="material-symbols-outlined">edit</span> Edit
-                </button>
-                <button id="modal-delete-btn" class="secondary-btn delete" style="flex: 1;">
-                    <span class="material-symbols-outlined">delete</span> Delete
+            <div class="modal-footer" style="flex-direction: column; gap: 0.75rem;">
+                <div style="display: flex; gap: 0.75rem; width: 100%;">
+                    <button id="modal-edit-btn" class="secondary-btn" style="flex: 1;">
+                        <span class="material-symbols-outlined">edit</span> Edit
+                    </button>
+                    <button id="modal-export-btn" class="secondary-btn" style="flex: 1;">
+                        <span class="material-symbols-outlined">download</span> Export
+                    </button>
+                </div>
+                <button id="modal-delete-btn" class="secondary-btn delete" style="width: 100%;">
+                    <span class="material-symbols-outlined">delete</span> Delete Fish
                 </button>
             </div>
         </div>
