@@ -31,6 +31,7 @@
 body {
     font-family: 'Inter', sans-serif;
     width: 480px;
+    min-width: 400px;
     margin: 0;
     background-color: var(--surface);
     color: var(--on-surface);
@@ -41,6 +42,7 @@ body {
 body.standalone {
     width: 100vw;
     min-height: 100vh;
+    min-width: 400px;
 }
 
 h1,
@@ -201,15 +203,32 @@ main {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 4px;
     background: var(--surface-container-low);
-    padding: 0.4rem;
+    padding: 0.35rem 0.5rem;
     border-radius: var(--radius-2xl);
     border: 1px solid var(--outline-variant);
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+}
+
+.toolbar::-webkit-scrollbar {
+    display: none;
 }
 
 .btn-group {
     display: flex;
-    gap: 0.25rem;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.divider {
+    height: 1.5rem;
+    width: 1px;
+    background: var(--outline-variant);
+    margin: 0 0.5rem;
+    flex-shrink: 0;
 }
 
 button {
@@ -224,7 +243,7 @@ button {
 }
 
 .icon-btn {
-    padding: 0.6rem;
+    padding: 0.5rem;
     background: transparent;
     border-radius: var(--radius-xl);
     color: var(--on-surface-variant);
@@ -287,6 +306,11 @@ button {
 
 .secondary-btn:hover {
     background: var(--surface-container-highest);
+}
+
+.secondary-btn.icon-only {
+    padding: 0.6rem;
+    min-width: 42px;
 }
 
 .secondary-btn:disabled {
@@ -541,9 +565,9 @@ select:focus {
 /* Material Icons */
 .material-symbols-outlined {
     font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
-    font-size: 20px;
-    width: 24px;
-    height: 24px;
+    font-size: 18px;
+    width: 20px;
+    height: 20px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -577,14 +601,21 @@ select:focus {
     max-width: 340px;
     border-radius: var(--radius-3xl);
     padding: 1.5rem;
-    box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
     border: 1px solid var(--outline-variant);
     animation: modalPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 @keyframes modalPop {
-    from { transform: scale(0.9); opacity: 0; }
-    to { transform: scale(1); opacity: 1; }
+    from {
+        transform: scale(0.9);
+        opacity: 0;
+    }
+
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
 }
 
 .modal-header {
@@ -687,13 +718,13 @@ select:focus {
     background-color: white;
     transition: .3s;
     border-radius: 50%;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
-input:checked + .slider {
+input:checked+.slider {
     background-color: var(--primary);
 }
 
-input:checked + .slider:before {
+input:checked+.slider:before {
     transform: translateX(18px);
 }

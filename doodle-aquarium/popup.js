@@ -34,6 +34,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const fishList = document.getElementById('fish-list');
   const selectAllBtn = document.getElementById('select-all-btn');
   const deselectAllBtn = document.getElementById('deselect-all-btn');
+  const flipHBtn = document.getElementById('flip-h-btn');
+  const flipVBtn = document.getElementById('flip-v-btn');
 
   const settingsPanel = document.getElementById('settings-panel');
   const speedInput = document.getElementById('speed-multiplier');
@@ -50,7 +52,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const fishModal = document.getElementById('fish-modal');
   const modalFishPreview = document.getElementById('modal-fish-preview');
   const modalCloseBtn = document.getElementById('close-modal');
-  const modalMirrorToggle = document.getElementById('modal-mirror-toggle');
+  const modalFlipHBtn = document.getElementById('modal-flip-h-btn');
+  const modalFlipVBtn = document.getElementById('modal-flip-v-btn');
   const modalLockToggle = document.getElementById('modal-lock-toggle');
   const modalActiveToggle = document.getElementById('modal-active-toggle');
   const modalEditBtn = document.getElementById('modal-edit-btn');
@@ -380,6 +383,39 @@ document.addEventListener('DOMContentLoaded', () => {
       };
       redraw.src = snapshot;
     }
+  }
+
+  function flipCanvas(canvasToFlip, horizontal = false, vertical = false) {
+    if (!horizontal && !vertical) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvasToFlip.width;
+    const h = canvasToFlip.height;
+    
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = w;
+    tempCanvas.height = h;
+    const tempCtx = tempCanvas.getContext('2d');
+    
+    // Copy current state
+    tempCtx.drawImage(canvasToFlip, 0, 0);
+    
+    const ctxToFlip = canvasToFlip.getContext('2d');
+    ctxToFlip.save();
+    ctxToFlip.setTransform(1, 0, 0, 1, 0, 0);
+    ctxToFlip.clearRect(0, 0, w, h);
+    
+    if (horizontal) {
+      ctxToFlip.translate(w, 0);
+      ctxToFlip.scale(-1, 1);
+    }
+    if (vertical) {
+      ctxToFlip.translate(0, h);
+      ctxToFlip.scale(1, -1);
+    }
+    
+    ctxToFlip.drawImage(tempCanvas, 0, 0);
+    ctxToFlip.restore();
   }
 
   function getCanvasPoint(event) {
@@ -739,6 +775,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (currentTool === 'brush') {
         currentStrokePoints = [{ x: point.x, y: point.y }];
         // Draw initial point on active canvas
+        const dpr = window.devicePixelRatio || 1;
         activeCtx.clearRect(0, 0, activeCanvas.width / dpr, activeCanvas.height / dpr);
         const size = Number(brushSize.value);
         activeCtx.beginPath();
@@ -981,18 +1018,17 @@ document.addEventListener('DOMContentLoaded', () => {
     document.body.style.overflow = 'hidden';
     modalFishPreview.src = fish.dataUrl;
     modalActiveToggle.checked = fish.active !== false;
-    modalMirrorToggle.checked = !!fish.mirrored;
     modalLockToggle.checked = fish.flipByVelocity !== false;
     
-    // Update preview mirroring
-    modalFishPreview.style.transform = fish.mirrored ? 'scaleX(-1)' : 'scaleX(1)';
-    
+    // Initial display matches current dataUrl (which may already be flipped)
+    modalFishPreview.src = fish.dataUrl;
+    modalFishPreview.style.transform = ''; // Reset CSS mirror since we're using baked-in flips now
+
     modalActiveToggle.onclick = () => toggleFishActive(fish.id, modalActiveToggle.checked, () => renderFishList());
-    modalMirrorToggle.onclick = () => {
-      const isMirrored = modalMirrorToggle.checked;
-      modalFishPreview.style.transform = isMirrored ? 'scaleX(-1)' : 'scaleX(1)';
-      toggleFishMirror(fish.id, isMirrored);
-    };
+    
+    modalFlipHBtn.onclick = () => flipFishImageData(fish.id, true, false);
+    modalFlipVBtn.onclick = () => flipFishImageData(fish.id, false, true);
+
     modalLockToggle.onclick = () => toggleFishFlipByVelocity(fish.id, modalLockToggle.checked);
     
     modalEditBtn.onclick = () => {
@@ -1008,8 +1044,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     modalExportBtn.onclick = () => {
-      const isMirrored = modalMirrorToggle.checked;
-      exportFish(fish, isMirrored);
+      exportFish(fish);
     };
     
     fishModal.classList.add('active');
@@ -1062,9 +1097,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const img = document.createElement('img');
         img.src = fish.dataUrl;
         img.alt = 'Fish';
-        if (fish.mirrored) {
-          img.style.transform = 'scaleX(-1)';
-        }
         item.appendChild(img);
 
         const actions = document.createElement('div');
@@ -1114,19 +1146,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  function toggleFishMirror(id, isMirrored) {
-    chrome.storage.local.get(['doodleFishList'], (result) => {
-      const fishArray = result.doodleFishList || [];
-      const fishIndex = fishArray.findIndex(f => f.id === id);
-      if (fishIndex !== -1) {
-        fishArray[fishIndex].mirrored = isMirrored;
-        chrome.storage.local.set({ doodleFishList: fishArray }, () => {
-          renderFishList();
-        });
-      }
-    });
-  }
-
   function toggleFishFlipByVelocity(id, isEnabled) {
     chrome.storage.local.get(['doodleFishList'], (result) => {
       const fishArray = result.doodleFishList || [];
@@ -1140,6 +1159,42 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function flipFishImageData(id, horizontal, vertical) {
+    chrome.storage.local.get(['doodleFishList'], (result) => {
+      const fishArray = result.doodleFishList || [];
+      const fishIndex = fishArray.findIndex(f => f.id === id);
+      if (fishIndex === -1) return;
+
+      const fish = fishArray[fishIndex];
+      const img = new Image();
+      img.onload = () => {
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = 400;
+        tempCanvas.height = 300;
+        const tempCtx = tempCanvas.getContext('2d');
+        
+        if (horizontal) {
+          tempCtx.translate(400, 0);
+          tempCtx.scale(-1, 1);
+        }
+        if (vertical) {
+          tempCtx.translate(0, 300);
+          tempCtx.scale(1, -1);
+        }
+        
+        tempCtx.drawImage(img, 0, 0, 400, 300);
+        const newDataUrl = tempCanvas.toDataURL('image/png');
+        
+        fishArray[fishIndex].dataUrl = newDataUrl;
+        chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+          modalFishPreview.src = newDataUrl;
+          renderFishList();
+        });
+      };
+      img.src = fish.dataUrl;
+    });
+  }
+
   function deleteFish(id) {
     chrome.storage.local.get(['doodleFishList'], (result) => {
       let fishArray = result.doodleFishList || [];
@@ -1150,16 +1205,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  function exportFish(fish, mirrorActive) {
+  function exportFish(fish) {
     const tempCanvas = document.createElement('canvas'); // Final export is 400x300
     tempCanvas.width = 400;
     tempCanvas.height = 300;
     const tempCtx = tempCanvas.getContext('2d');
-    
-    if (mirrorActive) {
-      tempCtx.translate(400, 0);
-      tempCtx.scale(-1, 1);
-    }
     
     const img = new Image();
     img.onload = () => {
@@ -1194,6 +1244,16 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
   });
+
+  flipHBtn.onclick = () => {
+    saveState();
+    flipCanvas(canvas, true, false);
+  };
+
+  flipVBtn.onclick = () => {
+    saveState();
+    flipCanvas(canvas, false, true);
+  };
 
   setupWindowButtons();
   applyColorInput(colorText.value, true);
