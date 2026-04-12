@@ -182,9 +182,11 @@ document.addEventListener('DOMContentLoaded', () => {
           toolManager.applyColorInput(hex8, true, true);
           toolManager.updateBrushPreview(`rgba(${imgData[0]}, ${imgData[1]}, ${imgData[2]}, ${imgData[3] / 255})`, { clientX, clientY }, point);
         } else {
+          if (toolManager.preHoverColor) toolManager.applyColorInput(toolManager.preHoverColor, true, true);
           toolManager.updateBrushPreview('rgba(255, 255, 255, 0.5)', { clientX, clientY }, point);
         }
       } else {
+        if (toolManager.preHoverColor) toolManager.applyColorInput(toolManager.preHoverColor, true, true);
         toolManager.updateBrushPreview('rgba(255, 255, 255, 0.2)', { clientX, clientY }, point);
       }
     } else if (isMouseInViewport) {
@@ -231,7 +233,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!isDrawing) canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width / (window.devicePixelRatio || 1), canvasManager.activeCanvas.height / (window.devicePixelRatio || 1));
     if (toolManager.currentTool === 'eyedropper' && toolManager.preHoverColor) {
       toolManager.applyColorInput(toolManager.preHoverColor, true, true);
-      toolManager.preHoverColor = null;
     }
     els.brushPreviewFill.style.display = 'none';
     els.brushPreviewOutline.style.display = 'none';
@@ -253,8 +254,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const dpr = window.devicePixelRatio || 1;
         const imgData = canvasManager.ctx.getImageData(point.x * dpr, point.y * dpr, 1, 1).data;
         if (imgData[3] > 0) {
-          toolManager.applyColorInput(toolManager.rgbaToHex8(imgData[0], imgData[1], imgData[2], imgData[3] / 255));
-          toolManager.preHoverColor = null;
+          const hex8 = toolManager.rgbaToHex8(imgData[0], imgData[1], imgData[2], imgData[3] / 255);
+          toolManager.applyColorInput(hex8);
+          toolManager.preHoverColor = hex8; // New base color to revert to if we keep the dropper active
           updatePreviewDisplay();
         }
         return;

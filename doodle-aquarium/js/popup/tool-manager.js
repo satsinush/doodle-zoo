@@ -148,13 +148,13 @@ export class ToolManager {
     if (this.currentTool === 'eyedropper') {
       this.elements.brushPreviewFill.style.display = 'block';
       this.elements.brushPreviewOutline.style.display = 'block';
-      
+
       const zoomSize = 108;
       const outlineSize = 114;
       const pixelRange = 9;
       const fillCtx = this.elements.brushPreviewFill.getContext('2d');
       const outlineCtx = this.elements.brushPreviewOutline.getContext('2d');
-      
+
       this.elements.brushPreviewFill.width = zoomSize * dpr;
       this.elements.brushPreviewFill.height = zoomSize * dpr;
       this.elements.brushPreviewOutline.width = outlineSize * dpr;
@@ -164,7 +164,7 @@ export class ToolManager {
       this.elements.brushPreviewFill.style.height = `${zoomSize}px`;
       this.elements.brushPreviewOutline.style.width = `${outlineSize}px`;
       this.elements.brushPreviewOutline.style.height = `${outlineSize}px`;
-      
+
       this.elements.brushPreviewFill.classList.add('eyedropper');
 
       const point = logicalPoint || this.canvasManager.getCanvasPoint(lastMousePos);
@@ -177,7 +177,7 @@ export class ToolManager {
         tempC.width = pixelRange;
         tempC.height = pixelRange;
         tempC.getContext('2d').putImageData(imgData, 0, 0);
-        
+
         fillCtx.imageSmoothingEnabled = false;
         fillCtx.clearRect(0, 0, zoomSize * dpr, zoomSize * dpr);
         fillCtx.drawImage(tempC, 0, 0, zoomSize * dpr, zoomSize * dpr);
