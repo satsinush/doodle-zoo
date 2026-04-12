@@ -331,11 +331,11 @@ main {
 }
 
 #brush-preview-fill.eyedropper {
-    border-radius: 50%;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    border-radius: 50% !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
     image-rendering: pixelated;
     overflow: hidden;
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
     backdrop-filter: blur(5px);
 }
 
@@ -421,10 +421,10 @@ main {
     background: var(--surface-container-high);
     color: var(--primary);
     border: 1px solid var(--outline-variant);
-    padding: 0.5rem;
+    padding: 0.75rem;
     border-radius: 50%;
     cursor: pointer;
-    font-size: 20px;
+    font-size: 18px;
     display: flex;
     align-items: center;
     justify-content: center;
