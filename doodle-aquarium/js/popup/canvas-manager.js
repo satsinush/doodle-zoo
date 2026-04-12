@@ -80,8 +80,9 @@ export class CanvasManager {
   configureContext() {
     this.ctx.lineJoin = 'round';
     this.ctx.lineCap = 'round';
-    this.ctx.imageSmoothingEnabled = true;
-    this.guideCtx.imageSmoothingEnabled = true;
+    this.ctx.imageSmoothingEnabled = false;
+    this.guideCtx.imageSmoothingEnabled = false;
+    this.activeCtx.imageSmoothingEnabled = false;
   }
 
   drawDirectionGuide(width, height, dpr) {

@@ -140,8 +140,11 @@ export class ToolManager {
     const logicalSize = this.canvasManager.getLogicalBrushSize(this.elements.brushSize.value);
     const radius = logicalSize / 2;
 
+    const dpr = window.devicePixelRatio || 1;
     const fillCtx = this.elements.brushPreviewFill.getContext('2d');
     const outlineCtx = this.elements.brushPreviewOutline.getContext('2d');
+    fillCtx.imageSmoothingEnabled = false;
+    outlineCtx.imageSmoothingEnabled = false;
 
     if (this.currentTool === 'fill') {
       this.elements.brushPreviewFill.style.display = 'none';
@@ -150,58 +153,72 @@ export class ToolManager {
     }
 
     if (this.currentTool === 'eyedropper') {
-      const zoomSize = 80;
-      const outlineSize = 86; // Slightly larger to frame the pixels
-      const pixelRange = 9;
+      const zoomSize = 90;
+      const outlineSize = 96;
+      const pixelRange = 15;
       
-      this.elements.brushPreviewFill.width = zoomSize;
-      this.elements.brushPreviewFill.height = zoomSize;
-      this.elements.brushPreviewOutline.width = outlineSize;
-      this.elements.brushPreviewOutline.height = outlineSize;
+      this.elements.brushPreviewFill.width = zoomSize * dpr;
+      this.elements.brushPreviewFill.height = zoomSize * dpr;
+      this.elements.brushPreviewOutline.width = outlineSize * dpr;
+      this.elements.brushPreviewOutline.height = outlineSize * dpr;
+
+      this.elements.brushPreviewFill.style.width = `${zoomSize}px`;
+      this.elements.brushPreviewFill.style.height = `${zoomSize}px`;
+      this.elements.brushPreviewOutline.style.width = `${outlineSize}px`;
+      this.elements.brushPreviewOutline.style.height = `${outlineSize}px`;
+      
       this.elements.brushPreviewFill.classList.add('eyedropper');
 
       const point = this.canvasManager.getCanvasPoint(lastMousePos);
-      const dpr = window.devicePixelRatio || 1;
       const grabX = Math.floor(point.x * dpr) - Math.floor(pixelRange / 2);
       const grabY = Math.floor(point.y * dpr) - Math.floor(pixelRange / 2);
 
       try {
         const imgData = this.canvasManager.ctx.getImageData(grabX, grabY, pixelRange, pixelRange);
-        fillCtx.imageSmoothingEnabled = false;
         const tempC = document.createElement('canvas');
         tempC.width = pixelRange;
         tempC.height = pixelRange;
         tempC.getContext('2d').putImageData(imgData, 0, 0);
-        fillCtx.clearRect(0, 0, zoomSize, zoomSize);
-        fillCtx.drawImage(tempC, 0, 0, zoomSize, zoomSize);
+        
+        fillCtx.clearRect(0, 0, zoomSize * dpr, zoomSize * dpr);
+        fillCtx.drawImage(tempC, 0, 0, zoomSize * dpr, zoomSize * dpr);
 
-        // Inverted UI on outline canvas (Overlaying everything)
-        outlineCtx.clearRect(0, 0, outlineSize, outlineSize);
+        outlineCtx.clearRect(0, 0, outlineSize * dpr, outlineSize * dpr);
+        outlineCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
         outlineCtx.strokeStyle = '#fff';
 
-        // Outer circle - centered in the slightly larger outline canvas
+        // Outer circle (logical units)
         outlineCtx.beginPath();
         outlineCtx.arc(outlineSize / 2, outlineSize / 2, zoomSize / 2 + 1, 0, Math.PI * 2);
         outlineCtx.lineWidth = 3.0;
         outlineCtx.stroke();
 
-        // Inner square reticle (inverted) - centered
+        // Inner square reticle (inverted, logical units)
         const rectSize = zoomSize / pixelRange;
         outlineCtx.lineWidth = 1.0;
         outlineCtx.strokeRect(outlineSize / 2 - rectSize / 2, outlineSize / 2 - rectSize / 2, rectSize, rectSize);
+        outlineCtx.setTransform(1, 0, 0, 1, 0, 0);
       } catch (e) {
         fillCtx.fillStyle = '#ccc';
-        fillCtx.fillRect(0, 0, zoomSize, zoomSize);
+        fillCtx.fillRect(0, 0, zoomSize * dpr, zoomSize * dpr);
       }
       return;
     }
 
     this.elements.brushPreviewFill.classList.remove('eyedropper');
     const boxSize = Math.max(4, Math.ceil(logicalSize)) + 4;
-    this.elements.brushPreviewFill.width = boxSize;
-    this.elements.brushPreviewFill.height = boxSize;
-    this.elements.brushPreviewOutline.width = boxSize;
-    this.elements.brushPreviewOutline.height = boxSize;
+    this.elements.brushPreviewFill.width = boxSize * dpr;
+    this.elements.brushPreviewFill.height = boxSize * dpr;
+    this.elements.brushPreviewOutline.width = boxSize * dpr;
+    this.elements.brushPreviewOutline.height = boxSize * dpr;
+
+    this.elements.brushPreviewFill.style.width = `${boxSize}px`;
+    this.elements.brushPreviewFill.style.height = `${boxSize}px`;
+    this.elements.brushPreviewOutline.style.width = `${boxSize}px`;
+    this.elements.brushPreviewOutline.style.height = `${boxSize}px`;
+
+    fillCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    outlineCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     fillCtx.clearRect(0, 0, boxSize, boxSize);
     outlineCtx.clearRect(0, 0, boxSize, boxSize);
@@ -216,7 +233,7 @@ export class ToolManager {
         fillCtx.fill();
       }
       outlineCtx.beginPath();
-      outlineCtx.arc(center, center, radius - 1, 0, Math.PI * 2);
+      outlineCtx.arc(center, center, Math.max(0, radius - 1), 0, Math.PI * 2);
       outlineCtx.strokeStyle = '#fff';
       outlineCtx.lineWidth = 2.0;
       outlineCtx.stroke();
@@ -231,5 +248,7 @@ export class ToolManager {
       outlineCtx.lineWidth = 2.0;
       outlineCtx.stroke();
     }
+    fillCtx.setTransform(1, 0, 0, 1, 0, 0);
+    outlineCtx.setTransform(1, 0, 0, 1, 0, 0);
   }
 }

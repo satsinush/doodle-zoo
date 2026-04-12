@@ -90,6 +90,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const fishEditor = new FishEditor(els, canvasManager, galleryManager);
   const toolManager = new ToolManager(els, canvasManager);
 
+  // Sync preview position when brush size changes (even if mouse doesn't move)
+  els.brushSize.addEventListener('input', () => updatePreviewDisplay());
+
   // Settings logic
   const updateSettingsLabels = () => {
     els.speedDisplay.textContent = Number(els.speedMultiplier.value).toFixed(1);
@@ -179,51 +182,59 @@ document.addEventListener('DOMContentLoaded', () => {
             toolManager.applyColorInput(hex8, true, true);
             toolManager.updateBrushPreview(`rgba(${imgData[0]}, ${imgData[1]}, ${imgData[2]}, ${imgData[3] / 255})`, { clientX, clientY });
           } else {
-            toolManager.updateBrushPreview('rgba(255, 255, 255, 0.5)', {clientX, clientY});
+            toolManager.updateBrushPreview('rgba(255, 255, 255, 0.5)', { clientX, clientY });
           }
         } else {
-          toolManager.updateBrushPreview('rgba(255, 255, 255, 0.2)', {clientX, clientY});
+          toolManager.updateBrushPreview('rgba(255, 255, 255, 0.2)', { clientX, clientY });
         }
       }
     } else if (isMouseInViewport) {
       const showFill = toolManager.currentTool === 'brush';
-      const showOutline = toolManager.currentTool === 'eraser' || toolManager.currentTool === 'brush';
+      const showOutline = toolManager.currentTool === 'eraser';
       els.brushPreviewFill.style.display = showFill ? 'block' : 'none';
       els.brushPreviewOutline.style.display = showOutline ? 'block' : 'none';
       if (toolManager.currentTool === 'fill') {
         canvasManager.updateFillPreview(point.x, point.y, toolManager.currentDrawColor, toolManager.currentOpacity, (c) => toolManager.cssColorToHex(c));
       } else {
-        toolManager.updateBrushPreview(null, {clientX, clientY});
+        toolManager.updateBrushPreview(null, { clientX, clientY });
       }
     } else {
       els.brushPreviewFill.style.display = 'none';
       els.brushPreviewOutline.style.display = 'none';
-      if (!isDrawing) canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width / dpr, canvasManager.activeCanvas.height / dpr);
+      if (!isDrawing) {
+        const dpr = window.devicePixelRatio || 1;
+        canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width / dpr, canvasManager.activeCanvas.height / dpr);
+      }
     }
 
     const vMouseX = clientX - visualRect.left;
     const vMouseY = clientY - visualRect.top;
-    
+
+    const lWidth = els.brushPreviewFill.width / dpr;
+    const lHeight = els.brushPreviewFill.height / dpr;
+    const loWidth = els.brushPreviewOutline.width / dpr;
+    const loHeight = els.brushPreviewOutline.height / dpr;
+
     // Calculate center point for the magnifier
     const centerX = vMouseX;
-    const centerY = toolManager.currentTool === 'eyedropper' ? (vMouseY - els.brushPreviewFill.height / 2 - 20) : vMouseY;
+    const centerY = toolManager.currentTool === 'eyedropper' ? (vMouseY - lHeight / 2 - 20) : vMouseY;
 
     const transform = toolManager.currentTool === 'eyedropper' ? '' : `scale(${canvasManager.zoomLevel})`;
-    
+
     els.brushPreviewFill.style.transform = transform;
     els.brushPreviewOutline.style.transform = transform;
 
-    els.brushPreviewFill.style.left = `${centerX - els.brushPreviewFill.width / 2}px`;
-    els.brushPreviewFill.style.top = `${centerY - els.brushPreviewFill.height / 2}px`;
-    els.brushPreviewOutline.style.left = `${centerX - els.brushPreviewOutline.width / 2}px`;
-    els.brushPreviewOutline.style.top = `${centerY - els.brushPreviewOutline.height / 2}px`;
+    els.brushPreviewFill.style.left = `${centerX - lWidth / 2}px`;
+    els.brushPreviewFill.style.top = `${centerY - lHeight / 2}px`;
+    els.brushPreviewOutline.style.left = `${centerX - loWidth / 2}px`;
+    els.brushPreviewOutline.style.top = `${centerY - loHeight / 2}px`;
   };
 
   els.canvasViewport.oncontextmenu = (e) => e.preventDefault();
   els.canvasViewport.addEventListener('mouseenter', () => { isMouseInViewport = true; if (isDrawing) isReentering = true; });
   els.canvasViewport.addEventListener('mouseleave', () => {
     isMouseInViewport = false;
-    if (!isDrawing) canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width/(window.devicePixelRatio||1), canvasManager.activeCanvas.height/(window.devicePixelRatio||1));
+    if (!isDrawing) canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width / (window.devicePixelRatio || 1), canvasManager.activeCanvas.height / (window.devicePixelRatio || 1));
     if (toolManager.currentTool === 'eyedropper' && toolManager.preHoverColor) {
       toolManager.applyColorInput(toolManager.preHoverColor, true, true);
       toolManager.preHoverColor = null;
@@ -372,7 +383,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const sourceDataUrl = await FishEditor.fileToDataUrl(file);
         const normalizedDataUrl = await FishEditor.normalizeFishImage(sourceDataUrl);
         importedDataUrls.push(normalizedDataUrl);
-      } catch (_e) {}
+      } catch (_e) { }
     }
     if (importedDataUrls.length > 0) {
       chrome.storage.local.get(['doodleFishList'], (result) => {
