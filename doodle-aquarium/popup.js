@@ -70,6 +70,8 @@ document.addEventListener('DOMContentLoaded', () => {
     toolButtons: document.querySelectorAll('[data-tool]'),
     hoverFillCanvas: document.getElementById('hover-preview-fill'),
     hoverOutlineCanvas: document.getElementById('hover-preview-outline'),
+    newFishBtn: document.getElementById('new-fish-btn'),
+    saveBtnText: document.getElementById('save-btn-text'),
   };
 
   // State
@@ -85,12 +87,27 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastMousePos = { clientX: 0, clientY: 0 };
   let panX = 0;
   let panY = 0;
+  let currentEditingFishId = null;
 
   // Init Managers
-  const canvasManager = new CanvasManager(els);
+  const canvasManager = new CanvasManager(els, {
+    onRestoreComplete: () => updatePreviewDisplay()
+  });
   const galleryManager = new GalleryManager(els, (fish) => fishEditor.openFishModal(fish));
-  const fishEditor = new FishEditor(els, canvasManager, galleryManager);
-  const toolManager = new ToolManager(els, canvasManager);
+  const fishEditor = new FishEditor(els, canvasManager, galleryManager, {
+    onEdit: (id) => setEditingState(id),
+    onNew: () => resetEditingState()
+  });
+  const toolManager = new ToolManager(els, canvasManager, {
+    onToolChange: (tool) => {
+      currentStrokePoints = [];
+      const dpr = window.devicePixelRatio || 1;
+      canvasManager.activeCtx.setTransform(1, 0, 0, 1, 0, 0);
+      canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width, canvasManager.activeCanvas.height);
+      canvasManager.activeCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      updatePreviewDisplay();
+    }
+  });
 
   // Sync preview position when brush size changes (even if mouse doesn't move)
   els.brushSize.addEventListener('input', () => updatePreviewDisplay());
@@ -144,7 +161,90 @@ document.addEventListener('DOMContentLoaded', () => {
   els.sizeMultiplier.oninput = () => { updateSettingsLabels(); scheduleAutoSave(); };
   els.interactionStrength.oninput = () => { updateSettingsLabels(); scheduleAutoSave(); };
   els.interactionType.onchange = scheduleAutoSave;
-  els.clearBtn.onclick = () => canvasManager.clearCanvas();
+
+  const resetEditingState = () => {
+    currentEditingFishId = null;
+  };
+
+  const setEditingState = (id) => {
+    currentEditingFishId = id;
+  };
+
+  const startNewFish = () => {
+    canvasManager.clearCanvas();
+    resetEditingState();
+    els.status.textContent = 'Started new fish.';
+    setTimeout(() => els.status.textContent = '', 1600);
+  };
+
+  const saveFish = (forceNew = false) => {
+    if (canvasManager.isCanvasBlank()) { els.status.textContent = "Please draw a fish first!"; setTimeout(() => els.status.textContent = '', 1600); return; }
+    
+    const tempCanvas = document.createElement('canvas'); tempCanvas.width = 400; tempCanvas.height = 300;
+    const tempCtx = tempCanvas.getContext('2d');
+    const currentW = Number(els.canvas.style.width.replace('px', '')), currentH = Number(els.canvas.style.height.replace('px', ''));
+    const scale = Math.min(400 / currentW, 300 / currentH);
+    const sw = currentW * scale, sh = currentH * scale, sx = (400 - sw) / 2, sy = (300 - sh) / 2;
+    tempCtx.clearRect(0, 0, 400, 300); tempCtx.drawImage(canvasManager.canvas, sx, sy, sw, sh);
+    const dataUrl = tempCanvas.toDataURL('image/png');
+
+    chrome.storage.local.get(['doodleFishList'], (result) => {
+      const fishArray = result.doodleFishList || [];
+      
+      if (!forceNew && currentEditingFishId) {
+        const idx = fishArray.findIndex(f => f.id === currentEditingFishId);
+        if (idx !== -1) {
+          fishArray[idx].dataUrl = dataUrl;
+          chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+            els.status.textContent = 'Fish updated.';
+            galleryManager.renderFishList();
+            setTimeout(() => els.status.textContent = '', 1600);
+          });
+          return;
+        }
+      }
+
+      // Create new
+      const newId = Date.now().toString();
+      fishArray.push({ id: newId, dataUrl, mirrored: false, flipByVelocity: true, active: true });
+      chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+        setEditingState(newId);
+        els.status.textContent = 'New fish saved.';
+        galleryManager.renderFishList();
+        setTimeout(() => els.status.textContent = '', 1600);
+      });
+    });
+  };
+
+  els.clearBtn.onclick = () => { canvasManager.clearCanvas(); canvasManager.saveState(); };
+  els.newFishBtn.onclick = startNewFish;
+  els.saveBtn.onclick = () => saveFish(false);
+
+  // Global Keyboard Shortcuts
+  window.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+
+    const isCtrl = e.ctrlKey || e.metaKey;
+    const isShift = e.shiftKey;
+    const key = e.key.toLowerCase();
+
+    // Tools
+    if (!isCtrl && !isShift) {
+      if (key === 'b') { toolManager.setTool('brush'); updatePreviewDisplay(); }
+      if (key === 'e') { toolManager.setTool('eraser'); updatePreviewDisplay(); }
+      if (key === 'f') { toolManager.setTool('fill'); updatePreviewDisplay(); }
+      if (key === 'd') { toolManager.setTool('eyedropper'); updatePreviewDisplay(); }
+    }
+
+    // Commands
+    if (isCtrl) {
+      if (!isShift && key === 'z') { e.preventDefault(); canvasManager.performUndo(); }
+      if (!isShift && key === 'y') { e.preventDefault(); canvasManager.performRedo(); }
+      if (!isShift && key === 'n') { e.preventDefault(); startNewFish(); }
+      if (key === 's') { e.preventDefault(); saveFish(isShift); }
+    }
+  });
+
   els.flipHBtn.onclick = () => { canvasManager.saveState(); canvasManager.flipCanvas(true, false); };
   els.flipVBtn.onclick = () => { canvasManager.saveState(); canvasManager.flipCanvas(false, true); };
   els.resetViewBtn.onclick = () => {
@@ -163,66 +263,77 @@ document.addEventListener('DOMContentLoaded', () => {
   // Drawing Orchestration
   const updatePreviewDisplay = (e = null) => {
     const dpr = window.devicePixelRatio || 1;
-    if (!isDrawing && toolManager.currentTool !== 'fill') {
-      canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width / dpr, canvasManager.activeCanvas.height / dpr);
-    }
-    const clientX = e ? e.clientX : lastMousePos.clientX;
-    const clientY = e ? e.clientY : lastMousePos.clientY;
-    const visualRect = els.canvasViewport.getBoundingClientRect();
-    const canvasRect = els.canvas.getBoundingClientRect();
-    const point = canvasManager.getCanvasPoint(e || { clientX, clientY });
+    
+    // Always track latest mouse position immediately
+    if (e) lastMousePos = { clientX: e.clientX, clientY: e.clientY };
 
+    // 1. Mandatory Cleanup Run - clean up active layer if not drawing
+    canvasManager.clearHover();
+    if (!isDrawing && toolManager.currentTool !== 'fill') {
+      canvasManager.activeCtx.setTransform(1, 0, 0, 1, 0, 0);
+      canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width, canvasManager.activeCanvas.height);
+      canvasManager.activeCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    els.brushPreviewFill.style.display = 'none';
+    els.brushPreviewOutline.style.display = 'none';
+
+    // 2. Early Exits (Out of viewport or no mouse tracking yet)
+    if (!lastMousePos || lastMousePos.clientX === undefined || !isMouseInViewport) return;
+
+    // 3. Logic Setup
+    const clientX = lastMousePos.clientX;
+    const clientY = lastMousePos.clientY;
+    const point = canvasManager.getCanvasPoint(lastMousePos);
+
+    // 4. Tool Specific Drawing
     if (toolManager.currentTool === 'eyedropper') {
-      const isInside = (clientX >= canvasRect.left && clientX <= canvasRect.right && clientY >= canvasRect.top && clientY <= canvasRect.bottom);
-      if (!isPanning && isMouseInViewport && isInside) {
-        const dpr = window.devicePixelRatio || 1;
+      els.brushPreviewFill.style.display = 'block';
+      els.brushPreviewOutline.style.display = 'block';
+
+      const canvasRect = els.canvas.getBoundingClientRect();
+      const isInsideCanvas = (
+        clientX >= canvasRect.left && clientX <= canvasRect.right && 
+        clientY >= canvasRect.top && clientY <= canvasRect.bottom
+      );
+
+      let pointColor = 'rgba(255, 255, 255, 0.2)';
+      if (!isPanning && isInsideCanvas) {
         const imgData = canvasManager.ctx.getImageData(point.x * dpr, point.y * dpr, 1, 1).data;
         if (imgData[3] > 0) {
           const hex8 = toolManager.rgbaToHex8(imgData[0], imgData[1], imgData[2], imgData[3] / 255);
           toolManager.applyColorInput(hex8, true, true);
-          toolManager.updateBrushPreview(`rgba(${imgData[0]}, ${imgData[1]}, ${imgData[2]}, ${imgData[3] / 255})`, { clientX, clientY }, point);
-        } else {
-          if (toolManager.preHoverColor) toolManager.applyColorInput(toolManager.preHoverColor, true, true);
-          toolManager.updateBrushPreview('rgba(255, 255, 255, 0.5)', { clientX, clientY }, point);
+          pointColor = `rgba(${imgData[0]}, ${imgData[1]}, ${imgData[2]}, ${imgData[3] / 255})`;
+        } else if (toolManager.preHoverColor) {
+          toolManager.applyColorInput(toolManager.preHoverColor, true, true);
+          pointColor = 'rgba(255, 255, 255, 0.5)';
         }
-      } else {
-        if (toolManager.preHoverColor) toolManager.applyColorInput(toolManager.preHoverColor, true, true);
-        toolManager.updateBrushPreview('rgba(255, 255, 255, 0.2)', { clientX, clientY }, point);
+      } else if (toolManager.preHoverColor) {
+        toolManager.applyColorInput(toolManager.preHoverColor, true, true);
       }
-    } else if (isMouseInViewport) {
-      // Standard Tools (Layered)
-      if (toolManager.currentTool === 'fill') {
-        canvasManager.updateFillPreview(point.x, point.y, toolManager.currentDrawColor, toolManager.currentOpacity, (c) => toolManager.cssColorToHex(c));
-      } else {
-        toolManager.updateBrushPreview(null, { clientX, clientY }, point);
-      }
-    } else {
-      toolManager.updateBrushPreview(null, { clientX, clientY }, null);
-      if (!isDrawing) {
-        const dpr = window.devicePixelRatio || 1;
-        canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width / dpr, canvasManager.activeCanvas.height / dpr);
-      }
-    }
 
-    // Centering the floating previews (Specifically for eyedropper magnifier)
-    if (toolManager.currentTool === 'eyedropper') {
-      const dpr = window.devicePixelRatio || 1;
-      const lWidth = els.brushPreviewFill.width / dpr;
-      const lHeight = els.brushPreviewFill.height / dpr;
-      const loWidth = els.brushPreviewOutline.width / dpr;
-      const loHeight = els.brushPreviewOutline.height / dpr;
+      toolManager.drawEyedropperLens(point, pointColor);
 
-      const vMouseX = clientX - visualRect.left;
-      const vMouseY = clientY - visualRect.top;
-      const centerX = vMouseX;
-      const centerY = vMouseY - lHeight / 2 - 20;
+      // DOM positioning
+      const visualRect = els.canvasViewport.getBoundingClientRect();
+      const hw = (els.brushPreviewFill.width / dpr) / 2;
+      const hh = (els.brushPreviewFill.height / dpr) / 2;
+      const oW = (els.brushPreviewOutline.width / dpr) / 2;
+      const oH = (els.brushPreviewOutline.height / dpr) / 2;
+      
+      const centerX = clientX - visualRect.left;
+      const centerY = clientY - visualRect.top - hh - 20;
 
       els.brushPreviewFill.style.transform = '';
       els.brushPreviewOutline.style.transform = '';
-      els.brushPreviewFill.style.left = `${centerX - lWidth / 2}px`;
-      els.brushPreviewFill.style.top = `${centerY - lHeight / 2}px`;
-      els.brushPreviewOutline.style.left = `${centerX - loWidth / 2}px`;
-      els.brushPreviewOutline.style.top = `${centerY - loHeight / 2}px`;
+      els.brushPreviewFill.style.left = `${centerX - hw}px`;
+      els.brushPreviewFill.style.top = `${centerY - hh}px`;
+      els.brushPreviewOutline.style.left = `${centerX - oW}px`;
+      els.brushPreviewOutline.style.top = `${centerY - oH}px`;
+
+    } else if (toolManager.currentTool === 'fill') {
+      canvasManager.updateFillPreview(point.x, point.y, toolManager.currentDrawColor, toolManager.currentOpacity, (c) => toolManager.cssColorToHex(c));
+    } else if (toolManager.currentTool === 'brush' || toolManager.currentTool === 'eraser') {
+      toolManager.drawBrushReticle(point);
     }
   };
 
@@ -279,12 +390,16 @@ document.addEventListener('DOMContentLoaded', () => {
           canvasManager.activeCtx.lineTo(point.x, point.y);
           canvasManager.activeCtx.stroke();
         } else if (toolManager.currentTool === 'eraser') {
-          canvasManager.ctx.globalCompositeOperation = 'destination-out';
-          canvasManager.drawStamp(lastX, lastY, canvasManager.getLogicalBrushSize(els.brushSize.value));
+          const dpr = window.devicePixelRatio || 1;
+          canvasManager.activeCtx.setTransform(1, 0, 0, 1, 0, 0);
+          canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width, canvasManager.activeCanvas.height);
+          canvasManager.activeCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          
+          canvasManager.drawInterpolatedStroke(lastX, lastY, lastX, lastY, 'eraser', canvasManager.getLogicalBrushSize(els.brushSize.value));
         }
-        canvasManager.ctx.globalCompositeOperation = 'source-over';
       }
     }
+    updatePreviewDisplay(e);
   });
 
   els.canvasViewport.addEventListener('mousemove', (e) => {
@@ -298,22 +413,37 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (isDrawing) {
       const { x, y } = canvasManager.getCanvasPoint(e);
+      
       if (toolManager.currentTool === 'brush') {
-        currentStrokePoints.push({ x, y, isNewPath: isReentering }); isReentering = false;
+        currentStrokePoints.push({ x, y, isNewPath: isReentering });
+        isReentering = false;
+        
         const dpr = window.devicePixelRatio || 1;
-        canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width / dpr, canvasManager.activeCanvas.height / dpr);
+        canvasManager.activeCtx.setTransform(1, 0, 0, 1, 0, 0);
+        canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width, canvasManager.activeCanvas.height);
+        canvasManager.activeCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        
         canvasManager.activeCtx.beginPath();
-        canvasManager.activeCtx.lineCap = 'round'; canvasManager.activeCtx.lineJoin = 'round';
+        canvasManager.activeCtx.lineCap = 'round';
+        canvasManager.activeCtx.lineJoin = 'round';
         canvasManager.activeCtx.strokeStyle = toolManager.currentDrawColor;
         canvasManager.activeCtx.lineWidth = canvasManager.getLogicalBrushSize(els.brushSize.value);
+        
         if (currentStrokePoints.length > 0) {
           canvasManager.activeCtx.moveTo(currentStrokePoints[0].x, currentStrokePoints[0].y);
-          currentStrokePoints.forEach(pt => pt.isNewPath ? canvasManager.activeCtx.moveTo(pt.x, pt.y) : canvasManager.activeCtx.lineTo(pt.x, pt.y));
+          currentStrokePoints.forEach(pt => {
+            if (pt.isNewPath) canvasManager.activeCtx.moveTo(pt.x, pt.y);
+            else canvasManager.activeCtx.lineTo(pt.x, pt.y);
+          });
         }
         canvasManager.activeCtx.stroke();
-      } else {
-        if (isReentering) { lastX = x; lastY = y; isReentering = false; }
-        else canvasManager.drawInterpolatedStroke(lastX, lastY, x, y, toolManager.currentTool, canvasManager.getLogicalBrushSize(els.brushSize.value), toolManager.currentDrawColor);
+      } else if (toolManager.currentTool === 'eraser') {
+        if (isReentering) {
+          lastX = x;
+          lastY = y;
+          isReentering = false;
+        }
+        canvasManager.drawInterpolatedStroke(lastX, lastY, x, y, 'eraser', canvasManager.getLogicalBrushSize(els.brushSize.value));
       }
       lastX = x; lastY = y;
     }

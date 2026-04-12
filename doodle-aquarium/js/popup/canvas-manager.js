@@ -1,5 +1,7 @@
 export class CanvasManager {
-  constructor(elements) {
+  constructor(elements, callbacks = {}) {
+    this.elements = elements;
+    this.callbacks = callbacks;
     this.canvas = elements.canvas;
     this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
     this.guideCanvas = elements.guideCanvas;
@@ -59,6 +61,7 @@ export class CanvasManager {
       this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
       this.ctx.drawImage(img, 0, 0, this.canvas.width, this.canvas.height);
       this.ctx.restore();
+      if (this.callbacks.onRestoreComplete) this.callbacks.onRestoreComplete();
     };
     img.src = dataUrl;
   }

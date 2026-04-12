@@ -1,8 +1,9 @@
 export class FishEditor {
-  constructor(elements, canvasManager, galleryManager) {
+  constructor(elements, canvasManager, galleryManager, callbacks = {}) {
     this.elements = elements;
     this.canvasManager = canvasManager;
     this.galleryManager = galleryManager;
+    this.callbacks = callbacks;
 
     this.setupListeners();
   }
@@ -66,6 +67,9 @@ export class FishEditor {
       const dx = (cw - dw) / 2;
       const dy = (ch - dh) / 2;
       this.canvasManager.ctx.drawImage(imgObj, dx, dy, dw, dh);
+
+      if (this.callbacks.onEdit) this.callbacks.onEdit(id);
+
       window.scrollTo({ top: 0, behavior: 'smooth' });
     };
     imgObj.src = dataUrl;

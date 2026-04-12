@@ -1,14 +1,18 @@
 export class ToolManager {
-  constructor(elements, canvasManager) {
+  constructor(elements, canvasManager, callbacks = {}) {
     this.elements = elements;
     this.canvasManager = canvasManager;
+    this.callbacks = callbacks;
 
     this.currentTool = 'brush';
-    this.currentDrawColor = '#000000';
-    this.currentOpacity = 1.0;
+    this.currentOpacity = Number(this.elements.brushOpacity.value) / 100 || 1.0;
+    this.currentDrawColor = '#000000'; 
     this.preHoverColor = null;
 
+    // Default opacity/etc already handled by setupListeners/elements
     this.setupListeners();
+    // Force initialize color UI
+    this.applyColorInput(this.elements.colorPicker.value, true);
   }
 
   setupListeners() {
@@ -51,7 +55,12 @@ export class ToolManager {
 
     this.elements.toolButtons.forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
     this.currentTool = tool;
-    this.updateBrushPreview();
+
+    // Explicitly notify the app to reset drawing states if needed
+    if (this.callbacks.onToolChange) {
+      this.callbacks.onToolChange(tool);
+    }
+
     this.canvasManager.updateViewTransform();
 
     if (this.currentTool === 'eyedropper') {
@@ -60,7 +69,6 @@ export class ToolManager {
       const g = parseInt(hex.slice(3, 5), 16);
       const b = parseInt(hex.slice(5, 7), 16);
       this.preHoverColor = this.rgbaToHex8(r, g, b, this.currentOpacity);
-      this.updateBrushPreview();
     }
   }
 
@@ -132,107 +140,79 @@ export class ToolManager {
       this.elements.colorText.value = value.toUpperCase();
     }
 
-    this.updateBrushPreview();
+    if (this.callbacks.onColorChange) this.callbacks.onColorChange();
     return true;
   }
 
-  updateBrushPreview(overrideColor = null, lastMousePos = null, logicalPoint = null) {
-    if (!lastMousePos) return;
+  drawEyedropperLens(point, pointColor) {
+    const dpr = window.devicePixelRatio || 1;
+    const zoomSize = 108;
+    const outlineSize = 114;
+    const pixelRange = 9;
 
-    this.canvasManager.clearHover();
+    this.elements.brushPreviewFill.width = zoomSize * dpr;
+    this.elements.brushPreviewFill.height = zoomSize * dpr;
+    this.elements.brushPreviewOutline.width = outlineSize * dpr;
+    this.elements.brushPreviewOutline.height = outlineSize * dpr;
+    this.elements.brushPreviewFill.style.width = `${zoomSize}px`;
+    this.elements.brushPreviewFill.style.height = `${zoomSize}px`;
+    this.elements.brushPreviewOutline.style.width = `${outlineSize}px`;
+    this.elements.brushPreviewOutline.style.height = `${outlineSize}px`;
+
+    this.elements.brushPreviewFill.classList.add('eyedropper');
+
+    const grabX = Math.floor(point.x * dpr) - Math.floor(pixelRange / 2);
+    const grabY = Math.floor(point.y * dpr) - Math.floor(pixelRange / 2);
+    const fillCtx = this.elements.brushPreviewFill.getContext('2d');
+    const outlineCtx = this.elements.brushPreviewOutline.getContext('2d');
+
+    try {
+      const imgData = this.canvasManager.ctx.getImageData(grabX, grabY, pixelRange, pixelRange);
+      const tempC = document.createElement('canvas');
+      tempC.width = pixelRange;
+      tempC.height = pixelRange;
+      tempC.getContext('2d').putImageData(imgData, 0, 0);
+
+      fillCtx.imageSmoothingEnabled = false;
+      fillCtx.clearRect(0, 0, zoomSize * dpr, zoomSize * dpr);
+      fillCtx.drawImage(tempC, 0, 0, zoomSize * dpr, zoomSize * dpr);
+
+      outlineCtx.clearRect(0, 0, outlineSize * dpr, outlineSize * dpr);
+      outlineCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      outlineCtx.strokeStyle = '#fff';
+
+      // Inverted inner reticle (logical units)
+      const rectSize = zoomSize / pixelRange;
+      outlineCtx.lineWidth = 1.0;
+      outlineCtx.strokeRect(outlineSize / 2 - rectSize / 2, outlineSize / 2 - rectSize / 2, rectSize, rectSize);
+      outlineCtx.setTransform(1, 0, 0, 1, 0, 0);
+    } catch (e) {
+      fillCtx.fillStyle = '#ccc';
+      fillCtx.fillRect(0, 0, zoomSize * dpr, zoomSize * dpr);
+    }
+  }
+
+  drawBrushReticle(point, overrideColor = null) {
+    this.elements.brushPreviewFill.classList.remove('eyedropper');
     const logicalSize = this.canvasManager.getLogicalBrushSize(this.elements.brushSize.value);
     const radius = logicalSize / 2;
-    const dpr = window.devicePixelRatio || 1;
 
-    // Eyedropper Magnifier (Floating)
-    if (this.currentTool === 'eyedropper') {
-      this.elements.brushPreviewFill.style.display = 'block';
-      this.elements.brushPreviewOutline.style.display = 'block';
-
-      const zoomSize = 108;
-      const outlineSize = 114;
-      const pixelRange = 9;
-      const fillCtx = this.elements.brushPreviewFill.getContext('2d');
-      const outlineCtx = this.elements.brushPreviewOutline.getContext('2d');
-
-      this.elements.brushPreviewFill.width = zoomSize * dpr;
-      this.elements.brushPreviewFill.height = zoomSize * dpr;
-      this.elements.brushPreviewOutline.width = outlineSize * dpr;
-      this.elements.brushPreviewOutline.height = outlineSize * dpr;
-
-      this.elements.brushPreviewFill.style.width = `${zoomSize}px`;
-      this.elements.brushPreviewFill.style.height = `${zoomSize}px`;
-      this.elements.brushPreviewOutline.style.width = `${outlineSize}px`;
-      this.elements.brushPreviewOutline.style.height = `${outlineSize}px`;
-
-      this.elements.brushPreviewFill.classList.add('eyedropper');
-
-      const point = logicalPoint || this.canvasManager.getCanvasPoint(lastMousePos);
-      const grabX = Math.floor(point.x * dpr) - Math.floor(pixelRange / 2);
-      const grabY = Math.floor(point.y * dpr) - Math.floor(pixelRange / 2);
-
-      try {
-        const imgData = this.canvasManager.ctx.getImageData(grabX, grabY, pixelRange, pixelRange);
-        const tempC = document.createElement('canvas');
-        tempC.width = pixelRange;
-        tempC.height = pixelRange;
-        tempC.getContext('2d').putImageData(imgData, 0, 0);
-
-        fillCtx.imageSmoothingEnabled = false;
-        fillCtx.clearRect(0, 0, zoomSize * dpr, zoomSize * dpr);
-        fillCtx.drawImage(tempC, 0, 0, zoomSize * dpr, zoomSize * dpr);
-
-        outlineCtx.clearRect(0, 0, outlineSize * dpr, outlineSize * dpr);
-        outlineCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        outlineCtx.strokeStyle = '#fff';
-
-        // Inverted inner reticle (logical units)
-        const rectSize = zoomSize / pixelRange;
-        outlineCtx.lineWidth = 1.0;
-        outlineCtx.strokeRect(outlineSize / 2 - rectSize / 2, outlineSize / 2 - rectSize / 2, rectSize, rectSize);
-        outlineCtx.setTransform(1, 0, 0, 1, 0, 0);
-      } catch (e) {
-        fillCtx.fillStyle = '#ccc';
-        fillCtx.fillRect(0, 0, zoomSize * dpr, zoomSize * dpr);
+    if (this.currentTool === 'brush') {
+      const fctx = this.canvasManager.hoverFillCtx;
+      if (fctx) {
+        fctx.beginPath();
+        fctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+        fctx.fillStyle = overrideColor || this.currentDrawColor;
+        fctx.fill();
       }
-      return;
-    }
-
-    // Standard Tools (Layered)
-    this.elements.brushPreviewFill.style.display = 'none';
-    this.elements.brushPreviewOutline.style.display = 'none';
-    // Standard Tools (Layered)
-    this.elements.brushPreviewFill.style.display = 'none';
-    this.elements.brushPreviewOutline.style.display = 'none';
-    this.elements.brushPreviewFill.classList.remove('eyedropper');
-
-    // Store state for slider-only updates
-    if (lastMousePos) this.lastMousePos = lastMousePos;
-    if (logicalPoint) this.lastLogicalPoint = logicalPoint;
-
-    const usePoint = logicalPoint || this.lastLogicalPoint;
-    const usePos = lastMousePos || this.lastMousePos;
-
-    if (!usePoint || !usePos) return;
-
-    if (this.currentTool === 'brush' || this.currentTool === 'eraser') {
-      if (this.currentTool === 'brush') {
-        const fctx = this.canvasManager.hoverFillCtx;
-        if (fctx) {
-          fctx.beginPath();
-          fctx.arc(usePoint.x, usePoint.y, radius, 0, Math.PI * 2);
-          fctx.fillStyle = overrideColor || this.currentDrawColor;
-          fctx.fill();
-        }
-      } else {
-        const octx = this.canvasManager.hoverOutlineCtx;
-        if (octx) {
-          octx.beginPath();
-          octx.arc(usePoint.x, usePoint.y, Math.max(0, radius - 1), 0, Math.PI * 2);
-          octx.strokeStyle = '#fff';
-          octx.lineWidth = 2.0;
-          octx.stroke();
-        }
+    } else if (this.currentTool === 'eraser') {
+      const octx = this.canvasManager.hoverOutlineCtx;
+      if (octx) {
+        octx.beginPath();
+        octx.arc(point.x, point.y, Math.max(0, radius - 1), 0, Math.PI * 2);
+        octx.strokeStyle = '#fff';
+        octx.lineWidth = 2.0;
+        octx.stroke();
       }
     }
   }
