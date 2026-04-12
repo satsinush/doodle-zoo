@@ -136,26 +136,24 @@ export class ToolManager {
     return true;
   }
 
-  updateBrushPreview(overrideColor = null, lastMousePos = { x: 0, y: 0 }) {
+  updateBrushPreview(overrideColor = null, lastMousePos = null, logicalPoint = null) {
+    if (!lastMousePos) return;
+
+    this.canvasManager.clearHover();
     const logicalSize = this.canvasManager.getLogicalBrushSize(this.elements.brushSize.value);
     const radius = logicalSize / 2;
-
     const dpr = window.devicePixelRatio || 1;
-    const fillCtx = this.elements.brushPreviewFill.getContext('2d');
-    const outlineCtx = this.elements.brushPreviewOutline.getContext('2d');
-    fillCtx.imageSmoothingEnabled = false;
-    outlineCtx.imageSmoothingEnabled = false;
 
-    if (this.currentTool === 'fill') {
-      this.elements.brushPreviewFill.style.display = 'none';
-      this.elements.brushPreviewOutline.style.display = 'none';
-      return;
-    }
-
+    // Eyedropper Magnifier (Floating)
     if (this.currentTool === 'eyedropper') {
-      const zoomSize = 90;
-      const outlineSize = 96;
-      const pixelRange = 15;
+      this.elements.brushPreviewFill.style.display = 'block';
+      this.elements.brushPreviewOutline.style.display = 'block';
+      
+      const zoomSize = 108;
+      const outlineSize = 114;
+      const pixelRange = 9;
+      const fillCtx = this.elements.brushPreviewFill.getContext('2d');
+      const outlineCtx = this.elements.brushPreviewOutline.getContext('2d');
       
       this.elements.brushPreviewFill.width = zoomSize * dpr;
       this.elements.brushPreviewFill.height = zoomSize * dpr;
@@ -169,7 +167,7 @@ export class ToolManager {
       
       this.elements.brushPreviewFill.classList.add('eyedropper');
 
-      const point = this.canvasManager.getCanvasPoint(lastMousePos);
+      const point = logicalPoint || this.canvasManager.getCanvasPoint(lastMousePos);
       const grabX = Math.floor(point.x * dpr) - Math.floor(pixelRange / 2);
       const grabY = Math.floor(point.y * dpr) - Math.floor(pixelRange / 2);
 
@@ -180,6 +178,7 @@ export class ToolManager {
         tempC.height = pixelRange;
         tempC.getContext('2d').putImageData(imgData, 0, 0);
         
+        fillCtx.imageSmoothingEnabled = false;
         fillCtx.clearRect(0, 0, zoomSize * dpr, zoomSize * dpr);
         fillCtx.drawImage(tempC, 0, 0, zoomSize * dpr, zoomSize * dpr);
 
@@ -187,13 +186,7 @@ export class ToolManager {
         outlineCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
         outlineCtx.strokeStyle = '#fff';
 
-        // Outer circle (logical units)
-        outlineCtx.beginPath();
-        outlineCtx.arc(outlineSize / 2, outlineSize / 2, zoomSize / 2 + 1, 0, Math.PI * 2);
-        outlineCtx.lineWidth = 3.0;
-        outlineCtx.stroke();
-
-        // Inner square reticle (inverted, logical units)
+        // Inverted inner reticle (logical units)
         const rectSize = zoomSize / pixelRange;
         outlineCtx.lineWidth = 1.0;
         outlineCtx.strokeRect(outlineSize / 2 - rectSize / 2, outlineSize / 2 - rectSize / 2, rectSize, rectSize);
@@ -205,50 +198,42 @@ export class ToolManager {
       return;
     }
 
+    // Standard Tools (Layered)
+    this.elements.brushPreviewFill.style.display = 'none';
+    this.elements.brushPreviewOutline.style.display = 'none';
+    // Standard Tools (Layered)
+    this.elements.brushPreviewFill.style.display = 'none';
+    this.elements.brushPreviewOutline.style.display = 'none';
     this.elements.brushPreviewFill.classList.remove('eyedropper');
-    const boxSize = Math.max(4, Math.ceil(logicalSize)) + 4;
-    this.elements.brushPreviewFill.width = boxSize * dpr;
-    this.elements.brushPreviewFill.height = boxSize * dpr;
-    this.elements.brushPreviewOutline.width = boxSize * dpr;
-    this.elements.brushPreviewOutline.height = boxSize * dpr;
 
-    this.elements.brushPreviewFill.style.width = `${boxSize}px`;
-    this.elements.brushPreviewFill.style.height = `${boxSize}px`;
-    this.elements.brushPreviewOutline.style.width = `${boxSize}px`;
-    this.elements.brushPreviewOutline.style.height = `${boxSize}px`;
+    // Store state for slider-only updates
+    if (lastMousePos) this.lastMousePos = lastMousePos;
+    if (logicalPoint) this.lastLogicalPoint = logicalPoint;
 
-    fillCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    outlineCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const usePoint = logicalPoint || this.lastLogicalPoint;
+    const usePos = lastMousePos || this.lastMousePos;
 
-    fillCtx.clearRect(0, 0, boxSize, boxSize);
-    outlineCtx.clearRect(0, 0, boxSize, boxSize);
+    if (!usePoint || !usePos) return;
 
-    const center = boxSize / 2;
-
-    if (this.currentTool === 'eraser' || this.currentTool === 'brush') {
+    if (this.currentTool === 'brush' || this.currentTool === 'eraser') {
       if (this.currentTool === 'brush') {
-        fillCtx.beginPath();
-        fillCtx.arc(center, center, radius, 0, Math.PI * 2);
-        fillCtx.fillStyle = overrideColor || this.currentDrawColor;
-        fillCtx.fill();
+        const fctx = this.canvasManager.hoverFillCtx;
+        if (fctx) {
+          fctx.beginPath();
+          fctx.arc(usePoint.x, usePoint.y, radius, 0, Math.PI * 2);
+          fctx.fillStyle = overrideColor || this.currentDrawColor;
+          fctx.fill();
+        }
+      } else {
+        const octx = this.canvasManager.hoverOutlineCtx;
+        if (octx) {
+          octx.beginPath();
+          octx.arc(usePoint.x, usePoint.y, Math.max(0, radius - 1), 0, Math.PI * 2);
+          octx.strokeStyle = '#fff';
+          octx.lineWidth = 2.0;
+          octx.stroke();
+        }
       }
-      outlineCtx.beginPath();
-      outlineCtx.arc(center, center, Math.max(0, radius - 1), 0, Math.PI * 2);
-      outlineCtx.strokeStyle = '#fff';
-      outlineCtx.lineWidth = 2.0;
-      outlineCtx.stroke();
-    } else {
-      fillCtx.beginPath();
-      fillCtx.arc(center, center, radius, 0, Math.PI * 2);
-      fillCtx.fillStyle = overrideColor || this.currentDrawColor;
-      fillCtx.fill();
-      outlineCtx.beginPath();
-      outlineCtx.arc(center, center, radius, 0, Math.PI * 2);
-      outlineCtx.strokeStyle = '#fff';
-      outlineCtx.lineWidth = 2.0;
-      outlineCtx.stroke();
     }
-    fillCtx.setTransform(1, 0, 0, 1, 0, 0);
-    outlineCtx.setTransform(1, 0, 0, 1, 0, 0);
   }
 }

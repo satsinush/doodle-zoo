@@ -288,6 +288,17 @@ main {
     pointer-events: none;
 }
 
+#hover-preview-fill {
+    z-index: 4;
+    pointer-events: none;
+}
+
+#hover-preview-outline {
+    z-index: 5;
+    pointer-events: none;
+    mix-blend-mode: difference;
+}
+
 #direction-guide {
     z-index: 1;
     opacity: 0.6;
@@ -306,6 +317,7 @@ main {
 #brush-preview-outline {
     mix-blend-mode: difference;
     z-index: 110;
+    border-radius: 50%;
 }
 
 #brush-preview-fill {

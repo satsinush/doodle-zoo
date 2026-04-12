@@ -6,6 +6,10 @@ export class CanvasManager {
     this.guideCtx = this.guideCanvas.getContext('2d');
     this.activeCanvas = elements.activeCanvas;
     this.activeCtx = this.activeCanvas.getContext('2d');
+    this.hoverFillCanvas = elements.hoverFillCanvas;
+    this.hoverFillCtx = this.hoverFillCanvas?.getContext('2d');
+    this.hoverOutlineCanvas = elements.hoverOutlineCanvas;
+    this.hoverOutlineCtx = this.hoverOutlineCanvas?.getContext('2d');
     this.canvasTransformWrapper = elements.canvasTransformWrapper;
     this.canvasViewport = elements.canvasViewport;
 
@@ -83,6 +87,22 @@ export class CanvasManager {
     this.ctx.imageSmoothingEnabled = false;
     this.guideCtx.imageSmoothingEnabled = false;
     this.activeCtx.imageSmoothingEnabled = false;
+    if (this.hoverFillCtx) this.hoverFillCtx.imageSmoothingEnabled = false;
+    if (this.hoverOutlineCtx) this.hoverOutlineCtx.imageSmoothingEnabled = false;
+  }
+
+  clearHover() {
+    const dpr = window.devicePixelRatio || 1;
+    if (this.hoverFillCtx) {
+      this.hoverFillCtx.setTransform(1, 0, 0, 1, 0, 0);
+      this.hoverFillCtx.clearRect(0, 0, this.hoverFillCanvas.width, this.hoverFillCanvas.height);
+      this.hoverFillCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    if (this.hoverOutlineCtx) {
+      this.hoverOutlineCtx.setTransform(1, 0, 0, 1, 0, 0);
+      this.hoverOutlineCtx.clearRect(0, 0, this.hoverOutlineCanvas.width, this.hoverOutlineCanvas.height);
+      this.hoverOutlineCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
   }
 
   drawDirectionGuide(width, height, dpr) {
@@ -115,7 +135,8 @@ export class CanvasManager {
     const dpr = window.devicePixelRatio || 1;
     const snapshot = preserveDrawing ? this.canvas.toDataURL('image/png') : null;
 
-    [this.canvas, this.activeCanvas, this.guideCanvas].forEach(c => {
+    [this.canvas, this.activeCanvas, this.guideCanvas, this.hoverFillCanvas, this.hoverOutlineCanvas].forEach(c => {
+      if (!c) return;
       c.style.width = `${width}px`;
       c.style.height = `${height}px`;
       c.width = Math.floor(width * dpr);
@@ -131,6 +152,8 @@ export class CanvasManager {
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.guideCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.activeCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (this.hoverFillCtx) this.hoverFillCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (this.hoverOutlineCtx) this.hoverOutlineCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.configureContext();
     this.drawDirectionGuide(width, height, dpr);
 

@@ -68,6 +68,8 @@ document.addEventListener('DOMContentLoaded', () => {
     modalExportBtn: document.getElementById('modal-export-btn'),
     toolGroup: document.getElementById('tool-group'),
     toolButtons: document.querySelectorAll('[data-tool]'),
+    hoverFillCanvas: document.getElementById('hover-preview-fill'),
+    hoverOutlineCanvas: document.getElementById('hover-preview-outline'),
   };
 
   // State
@@ -164,70 +166,62 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!isDrawing && toolManager.currentTool !== 'fill') {
       canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width / dpr, canvasManager.activeCanvas.height / dpr);
     }
-    const clientX = e ? e.clientX : lastMousePos.x;
-    const clientY = e ? e.clientY : lastMousePos.y;
+    const clientX = e ? e.clientX : lastMousePos.clientX;
+    const clientY = e ? e.clientY : lastMousePos.clientY;
     const visualRect = els.canvasViewport.getBoundingClientRect();
+    const canvasRect = els.canvas.getBoundingClientRect();
     const point = canvasManager.getCanvasPoint(e || { clientX, clientY });
 
-    const canvasRect = els.canvas.getBoundingClientRect();
     if (toolManager.currentTool === 'eyedropper') {
-      els.brushPreviewOutline.style.display = isMouseInViewport ? 'block' : 'none';
-      els.brushPreviewFill.style.display = isMouseInViewport ? 'block' : 'none';
-      if (!isPanning && isMouseInViewport) {
-        const isInside = (clientX >= canvasRect.left && clientX <= canvasRect.right && clientY >= canvasRect.top && clientY <= canvasRect.bottom);
-        if (isInside) {
-          const imgData = canvasManager.ctx.getImageData(point.x * dpr, point.y * dpr, 1, 1).data;
-          if (imgData[3] > 0) {
-            const hex8 = toolManager.rgbaToHex8(imgData[0], imgData[1], imgData[2], imgData[3] / 255);
-            toolManager.applyColorInput(hex8, true, true);
-            toolManager.updateBrushPreview(`rgba(${imgData[0]}, ${imgData[1]}, ${imgData[2]}, ${imgData[3] / 255})`, { clientX, clientY });
-          } else {
-            toolManager.updateBrushPreview('rgba(255, 255, 255, 0.5)', { clientX, clientY });
-          }
+      const isInside = (clientX >= canvasRect.left && clientX <= canvasRect.right && clientY >= canvasRect.top && clientY <= canvasRect.bottom);
+      if (!isPanning && isMouseInViewport && isInside) {
+        const dpr = window.devicePixelRatio || 1;
+        const imgData = canvasManager.ctx.getImageData(point.x * dpr, point.y * dpr, 1, 1).data;
+        if (imgData[3] > 0) {
+          const hex8 = toolManager.rgbaToHex8(imgData[0], imgData[1], imgData[2], imgData[3] / 255);
+          toolManager.applyColorInput(hex8, true, true);
+          toolManager.updateBrushPreview(`rgba(${imgData[0]}, ${imgData[1]}, ${imgData[2]}, ${imgData[3] / 255})`, { clientX, clientY }, point);
         } else {
-          toolManager.updateBrushPreview('rgba(255, 255, 255, 0.2)', { clientX, clientY });
+          toolManager.updateBrushPreview('rgba(255, 255, 255, 0.5)', { clientX, clientY }, point);
         }
+      } else {
+        toolManager.updateBrushPreview('rgba(255, 255, 255, 0.2)', { clientX, clientY }, point);
       }
     } else if (isMouseInViewport) {
-      const showFill = toolManager.currentTool === 'brush';
-      const showOutline = toolManager.currentTool === 'eraser';
-      els.brushPreviewFill.style.display = showFill ? 'block' : 'none';
-      els.brushPreviewOutline.style.display = showOutline ? 'block' : 'none';
+      // Standard Tools (Layered)
       if (toolManager.currentTool === 'fill') {
         canvasManager.updateFillPreview(point.x, point.y, toolManager.currentDrawColor, toolManager.currentOpacity, (c) => toolManager.cssColorToHex(c));
       } else {
-        toolManager.updateBrushPreview(null, { clientX, clientY });
+        toolManager.updateBrushPreview(null, { clientX, clientY }, point);
       }
     } else {
-      els.brushPreviewFill.style.display = 'none';
-      els.brushPreviewOutline.style.display = 'none';
+      toolManager.updateBrushPreview(null, { clientX, clientY }, null);
       if (!isDrawing) {
         const dpr = window.devicePixelRatio || 1;
         canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width / dpr, canvasManager.activeCanvas.height / dpr);
       }
     }
 
-    const vMouseX = clientX - visualRect.left;
-    const vMouseY = clientY - visualRect.top;
+    // Centering the floating previews (Specifically for eyedropper magnifier)
+    if (toolManager.currentTool === 'eyedropper') {
+      const dpr = window.devicePixelRatio || 1;
+      const lWidth = els.brushPreviewFill.width / dpr;
+      const lHeight = els.brushPreviewFill.height / dpr;
+      const loWidth = els.brushPreviewOutline.width / dpr;
+      const loHeight = els.brushPreviewOutline.height / dpr;
 
-    const lWidth = els.brushPreviewFill.width / dpr;
-    const lHeight = els.brushPreviewFill.height / dpr;
-    const loWidth = els.brushPreviewOutline.width / dpr;
-    const loHeight = els.brushPreviewOutline.height / dpr;
+      const vMouseX = clientX - visualRect.left;
+      const vMouseY = clientY - visualRect.top;
+      const centerX = vMouseX;
+      const centerY = vMouseY - lHeight / 2 - 20;
 
-    // Calculate center point for the magnifier
-    const centerX = vMouseX;
-    const centerY = toolManager.currentTool === 'eyedropper' ? (vMouseY - lHeight / 2 - 20) : vMouseY;
-
-    const transform = toolManager.currentTool === 'eyedropper' ? '' : `scale(${canvasManager.zoomLevel})`;
-
-    els.brushPreviewFill.style.transform = transform;
-    els.brushPreviewOutline.style.transform = transform;
-
-    els.brushPreviewFill.style.left = `${centerX - lWidth / 2}px`;
-    els.brushPreviewFill.style.top = `${centerY - lHeight / 2}px`;
-    els.brushPreviewOutline.style.left = `${centerX - loWidth / 2}px`;
-    els.brushPreviewOutline.style.top = `${centerY - loHeight / 2}px`;
+      els.brushPreviewFill.style.transform = '';
+      els.brushPreviewOutline.style.transform = '';
+      els.brushPreviewFill.style.left = `${centerX - lWidth / 2}px`;
+      els.brushPreviewFill.style.top = `${centerY - lHeight / 2}px`;
+      els.brushPreviewOutline.style.left = `${centerX - loWidth / 2}px`;
+      els.brushPreviewOutline.style.top = `${centerY - loHeight / 2}px`;
+    }
   };
 
   els.canvasViewport.oncontextmenu = (e) => e.preventDefault();
@@ -241,6 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     els.brushPreviewFill.style.display = 'none';
     els.brushPreviewOutline.style.display = 'none';
+    canvasManager.clearHover();
   });
 
   els.canvasViewport.addEventListener('mousedown', (e) => {
