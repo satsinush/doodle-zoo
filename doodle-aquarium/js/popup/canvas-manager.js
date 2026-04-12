@@ -85,7 +85,7 @@ export class CanvasManager {
     this.ctx.lineJoin = 'round';
     this.ctx.lineCap = 'round';
     this.ctx.imageSmoothingEnabled = false;
-    this.guideCtx.imageSmoothingEnabled = false;
+    this.guideCtx.imageSmoothingEnabled = true;
     this.activeCtx.imageSmoothingEnabled = false;
     if (this.hoverFillCtx) this.hoverFillCtx.imageSmoothingEnabled = false;
     if (this.hoverOutlineCtx) this.hoverOutlineCtx.imageSmoothingEnabled = false;
