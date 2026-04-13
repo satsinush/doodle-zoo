@@ -812,7 +812,19 @@ select:focus {
     justify-content: center;
     overflow: hidden;
     cursor: pointer;
-    transition: transform 0.2s;
+    transition: transform 0.2s, opacity 0.2s, border-color 0.2s;
+}
+
+.gallery-item.dragging {
+    opacity: 0.4;
+    transform: scale(0.95);
+    cursor: grabbing;
+}
+
+.gallery-item.drag-over {
+    border: 2px solid var(--primary);
+    background: var(--primary-container);
+    transform: scale(1.05);
 }
 
 .editing-badge {
@@ -857,35 +869,7 @@ select:focus {
     transform: scale(1.1);
 }
 
-.settings-hover-icon {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: var(--surface-container-high);
-    color: var(--on-surface-variant);
-    border-radius: 50%;
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    transition: opacity 0.2s, background 0.2s, color 0.2s, box-shadow 0.2s;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    z-index: 5;
-    pointer-events: none;
-}
 
-.gallery-item:hover .settings-hover-icon {
-    opacity: 1;
-    pointer-events: auto;
-    /* Enable clicking when visible */
-}
-
-.settings-hover-icon .material-symbols-outlined {
-    font-size: 14px !important;
-}
 
 /* Bulk Toolbar */
 .bulk-toolbar {
@@ -923,6 +907,65 @@ select:focus {
 
 .toolbar-icon-btn.danger {
     color: var(--danger);
+}
+
+.toolbar-icon-btn.danger:hover:not(:disabled) {
+    background: rgba(209, 70, 70, 0.1);
+    border-color: var(--danger);
+}
+
+/* Context Menu */
+.context-menu {
+    position: fixed;
+    background: var(--surface);
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    z-index: 2000;
+    padding: 0.5rem;
+    min-width: 160px;
+    display: none;
+    animation: menuFadeIn 0.15s ease-out;
+}
+
+@keyframes menuFadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.context-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 0.75rem;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--on-surface);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.context-menu-item:hover {
+    background: var(--surface-container-highest);
+}
+
+.context-menu-item.danger {
+    color: var(--danger);
+}
+
+.context-menu-item.danger:hover {
+    background: rgba(209, 70, 70, 0.08);
+}
+
+.context-menu-divider {
+    height: 1px;
+    background: var(--outline-variant);
+    margin: 0.4rem 0.25rem;
+}
+
+.context-menu-item .material-symbols-outlined {
+    font-size: 18px !important;
 }
 
 /* Status */

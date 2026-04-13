@@ -1,12 +1,14 @@
 import { DEFAULT_SETTINGS } from '../common/constants.js';
 export class GalleryManager {
-  constructor(elements, onOpenFishModal) {
+  constructor(elements, handlers) {
     this.elements = elements;
-    this.onOpenFishModal = onOpenFishModal;
+    this.handlers = handlers; // { onOpenSettings: fish => ..., onEditFish: fish => ... }
     this.selectedFishIds = [];
     this.lastSelectedIndex = -1;
     this.currentEditingFishId = null;
     this._bulkTouches = {};
+    this.draggedItemId = null;
+    this.contextFishId = null;
 
     this.bulkDOM = {
       speedMultiplier: document.getElementById('bulk-speed-multiplier'),
@@ -110,6 +112,168 @@ export class GalleryManager {
         });
       });
     });
+
+    this.elements.bulkDeleteSelected?.addEventListener('click', () => {
+      if (this.selectedFishIds.length === 0) return;
+      if (confirm(`Delete ${this.selectedFishIds.length} fish?`)) {
+        chrome.storage.local.get(['doodleFishList'], (result) => {
+          let fishArray = result.doodleFishList || [];
+          fishArray = fishArray.filter(f => !this.selectedFishIds.includes(f.id));
+          chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+            this.selectedFishIds = [];
+            this.renderFishList();
+          });
+        });
+      }
+    });
+
+    // Global listeners to hide context menu
+    window.addEventListener('mousedown', (e) => {
+      // Hide if clicking outside the menu
+      if (this.elements.galleryContextMenu && !this.elements.galleryContextMenu.contains(e.target)) {
+        this.hideContextMenu();
+      }
+    });
+    window.addEventListener('resize', () => this.hideContextMenu());
+    window.addEventListener('scroll', () => this.hideContextMenu(), true);
+
+    this.elements.ctxSettings?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const fishId = this.contextFishId;
+      const selectedIds = [...this.selectedFishIds];
+      this.hideContextMenu();
+
+      if (fishId) {
+        if (selectedIds.includes(fishId) && selectedIds.length > 1) {
+          this.openBulkModal();
+        } else {
+          chrome.storage.local.get(['doodleFishList'], (res) => {
+            const fish = (res.doodleFishList || []).find(f => f.id === fishId);
+            if (fish) this.handlers.onOpenSettings(fish);
+          });
+        }
+      }
+    });
+
+    this.elements.ctxEditFish?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const fishId = this.contextFishId;
+      this.hideContextMenu();
+
+      if (fishId) {
+        chrome.storage.local.get(['doodleFishList'], (res) => {
+          const fish = (res.doodleFishList || []).find(f => f.id === fishId);
+          if (fish) this.handlers.onEditFish(fish);
+        });
+      }
+    });
+
+    this.elements.ctxDelete?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const fishId = this.contextFishId;
+      const selectedIds = [...this.selectedFishIds];
+      this.hideContextMenu();
+
+      if (fishId) {
+        if (selectedIds.includes(fishId) && selectedIds.length > 1) {
+          if (confirm(`Delete all ${selectedIds.length} selected fish?`)) {
+            this.bulkDelete();
+          }
+        } else {
+          if (confirm('Delete this fish?')) {
+            this.deleteSingleFish(fishId);
+          }
+        }
+      }
+    });
+
+    this.elements.ctxExport?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const fishId = this.contextFishId;
+      const selectedIds = [...this.selectedFishIds];
+      this.hideContextMenu();
+
+      if (fishId) {
+        if (selectedIds.includes(fishId) && selectedIds.length > 1) {
+          this.exportSelectedIndividually();
+        } else {
+          chrome.storage.local.get(['doodleFishList'], (res) => {
+            const fish = (res.doodleFishList || []).find(f => f.id === fishId);
+            if (fish) this.exportSingleFish(fish);
+          });
+        }
+      }
+    });
+  }
+
+  bulkDelete() {
+    chrome.storage.local.get(['doodleFishList'], (result) => {
+      let fishArray = result.doodleFishList || [];
+      fishArray = fishArray.filter(f => !this.selectedFishIds.includes(f.id));
+      chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+        this.selectedFishIds = [];
+        this.renderFishList();
+      });
+    });
+  }
+
+  hideContextMenu() {
+    if (this.elements.galleryContextMenu) {
+      this.elements.galleryContextMenu.style.display = 'none';
+    }
+    this.contextFishId = null;
+  }
+
+  showContextMenu(e, fishId) {
+    e.preventDefault();
+    this.contextFishId = fishId;
+    const menu = this.elements.galleryContextMenu;
+    if (!menu) return;
+
+    menu.style.display = 'block';
+    
+    // Position menu and keep within viewport
+    let x = e.clientX;
+    let y = e.clientY;
+
+    const menuWidth = menu.offsetWidth || 160;
+    const menuHeight = menu.offsetHeight || 150;
+    const winWidth = window.innerWidth;
+    const winHeight = window.innerHeight;
+
+    // Toggle "Edit Fish" visibility - only for single fish outside of a group
+    const isPartOfGroup = this.selectedFishIds.includes(fishId) && this.selectedFishIds.length > 1;
+    if (this.elements.ctxEditFish) {
+      this.elements.ctxEditFish.style.display = isPartOfGroup ? 'none' : 'flex';
+    }
+
+    if (x + menuWidth > winWidth) x -= menuWidth;
+    if (y + menuHeight > winHeight) y -= menuHeight;
+
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+  }
+
+  deleteSingleFish(id) {
+    chrome.storage.local.get(['doodleFishList'], (result) => {
+      let fishArray = result.doodleFishList || [];
+      fishArray = fishArray.filter(f => f.id !== id);
+      chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+        if (this.selectedFishIds.includes(id)) {
+          this.selectedFishIds = this.selectedFishIds.filter(sid => sid !== id);
+        }
+        this.renderFishList();
+      });
+    });
+  }
+
+  exportSingleFish(fish) {
+    const a = document.createElement('a');
+    a.href = fish.dataUrl;
+    a.download = `fish_${fish.id || Date.now()}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   }
 
   renderFishList(editingId = undefined) {
@@ -131,6 +295,52 @@ export class GalleryManager {
         const item = document.createElement('div');
         item.className = `gallery-item ${fish.active ? '' : 'inactive'} ${isSelected ? 'selected' : ''}`;
         item.dataset.id = fish.id;
+        item.draggable = true;
+
+        item.addEventListener('dragstart', (e) => {
+          this.draggedItemId = fish.id;
+          const isSelected = this.selectedFishIds.includes(fish.id);
+          if (isSelected) {
+            this.elements.fishList.querySelectorAll('.gallery-item').forEach(el => {
+              if (this.selectedFishIds.includes(el.dataset.id)) el.classList.add('dragging');
+            });
+          } else {
+            item.classList.add('dragging');
+          }
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', fish.id);
+        });
+
+        item.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          const isSelectedSource = this.selectedFishIds.includes(this.draggedItemId);
+          const isTargetSelected = this.selectedFishIds.includes(fish.id);
+          
+          if (this.draggedItemId !== fish.id && !(isSelectedSource && isTargetSelected)) {
+            item.classList.add('drag-over');
+          }
+        });
+
+        item.addEventListener('dragleave', () => {
+          item.classList.remove('drag-over');
+        });
+
+        item.addEventListener('dragend', () => {
+          this.elements.fishList.querySelectorAll('.gallery-item').forEach(el => {
+            el.classList.remove('dragging');
+            el.classList.remove('drag-over');
+          });
+          this.draggedItemId = null;
+        });
+
+        item.addEventListener('drop', (e) => {
+          e.preventDefault();
+          item.classList.remove('drag-over');
+          if (this.draggedItemId && this.draggedItemId !== fish.id) {
+            this.handleReorder(this.draggedItemId, fish.id);
+          }
+        });
 
         const img = document.createElement('img');
         img.src = fish.dataUrl;
@@ -148,14 +358,6 @@ export class GalleryManager {
           item.appendChild(badge);
         }
 
-        const gearIcon = document.createElement('div');
-        gearIcon.className = 'settings-hover-icon';
-        const gearSpan = document.createElement('span');
-        gearSpan.className = 'material-symbols-outlined';
-        gearSpan.textContent = 'settings';
-        gearIcon.appendChild(gearSpan);
-        item.appendChild(gearIcon);
-
         const toggle = document.createElement('div');
         toggle.className = 'selection-toggle';
         const icon = document.createElement('span');
@@ -168,15 +370,62 @@ export class GalleryManager {
         };
         item.appendChild(toggle);
 
-        item.onclick = (e) => {
+        item.addEventListener('click', (e) => {
           if (e.ctrlKey || e.metaKey || e.shiftKey) {
             e.stopPropagation();
             this.toggleSelection(fish.id, index, e.shiftKey, fishArray);
           } else {
-            this.onOpenFishModal(fish);
+            // Single click selects only this fish
+            this.selectedFishIds = [fish.id];
+            this.lastSelectedIndex = index;
+            this.renderFishList();
           }
-        };
+        });
+
+        item.addEventListener('dblclick', (e) => {
+          e.stopPropagation();
+          this.handlers.onOpenSettings(fish);
+        });
+
+        item.addEventListener('contextmenu', (e) => {
+          this.showContextMenu(e, fish.id);
+        });
+
         this.elements.fishList.appendChild(item);
+      });
+    });
+  }
+
+  handleReorder(draggedId, targetId) {
+    chrome.storage.local.get(['doodleFishList'], (result) => {
+      let fishArray = result.doodleFishList || [];
+      
+      let idsToMove = [draggedId];
+      if (this.selectedFishIds.includes(draggedId)) {
+        // Move all selected fish, maintaining their relative order in the current list
+        idsToMove = fishArray
+          .filter(f => this.selectedFishIds.includes(f.id))
+          .map(f => f.id);
+      }
+
+      const draggedItems = [];
+      const originalIndices = idsToMove.map(id => fishArray.findIndex(f => f.id === id));
+      
+      // Extract items (sorted by index descending to avoid splice index-shifting issues)
+      const sortedIndices = [...originalIndices].sort((a, b) => b - a);
+      for (const idx of sortedIndices) {
+        if (idx !== -1) {
+          draggedItems.unshift(fishArray.splice(idx, 1)[0]);
+        }
+      }
+
+      let targetIndex = fishArray.findIndex(f => f.id === targetId);
+      if (targetIndex === -1) targetIndex = fishArray.length;
+
+      fishArray.splice(targetIndex, 0, ...draggedItems);
+
+      chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+        this.renderFishList();
       });
     });
   }
@@ -204,10 +453,12 @@ export class GalleryManager {
     const masterCheckbox = this.elements.masterSelectCheckbox;
     const exportBtn = this.elements.bulkExportSelected;
     const gearBtn = this.elements.bulkEditSettings;
+    const deleteBtn = this.elements.bulkDeleteSelected;
 
     if (this.selectedFishIds.length > 0) {
       if (gearBtn) gearBtn.disabled = false;
       if (exportBtn) exportBtn.disabled = false;
+      if (deleteBtn) deleteBtn.disabled = false;
       if (this.elements.bulkCount) this.elements.bulkCount.textContent = this.selectedFishIds.length;
       if (fishArray.length > 0) {
         if (this.selectedFishIds.length === fishArray.length) {
@@ -221,6 +472,7 @@ export class GalleryManager {
     } else {
       if (gearBtn) gearBtn.disabled = true;
       if (exportBtn) exportBtn.disabled = true;
+      if (deleteBtn) deleteBtn.disabled = true;
       if (this.elements.bulkCount) this.elements.bulkCount.textContent = '0';
       if (masterCheckbox) {
         masterCheckbox.checked = false;
@@ -234,6 +486,11 @@ export class GalleryManager {
       const fishArray = result.doodleFishList || [];
       const selectedFish = fishArray.filter(f => this.selectedFishIds.includes(f.id));
       if (selectedFish.length === 0) return;
+
+      if (selectedFish.length === 1) {
+        this.handlers.onOpenSettings(selectedFish[0]);
+        return;
+      }
 
       this._bulkTouches = {};
 

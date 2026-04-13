@@ -39,6 +39,12 @@ function updateAquarium(fishList) {
       fish.flipByVelocity = nextFlipByVelocity;
       updateFishTransform(fish);
     }
+    
+    // Update rendering order based on list index
+    const listIndex = fishList.findIndex(f => f.id === fish.id);
+    if (listIndex !== -1) {
+      fish.element.style.zIndex = 999999 + listIndex;
+    }
   }
 
   if (activeFish.length === 0 && animationFrameId) {

@@ -76,6 +76,12 @@ document.addEventListener('DOMContentLoaded', () => {
     helpBtn: document.getElementById('help-btn'),
     helpModal: document.getElementById('help-modal'),
     closeHelpModal: document.getElementById('close-help-modal'),
+    bulkDeleteSelected: document.getElementById('bulk-delete-selected'),
+    galleryContextMenu: document.getElementById('gallery-context-menu'),
+    ctxSettings: document.getElementById('ctx-settings'),
+    ctxEditFish: document.getElementById('ctx-edit-fish'),
+    ctxDelete: document.getElementById('ctx-delete'),
+    ctxExport: document.getElementById('ctx-export'),
   };
 
   // State
@@ -107,7 +113,10 @@ document.addEventListener('DOMContentLoaded', () => {
       updatePreviewDisplay();
     }
   });
-  const galleryManager = new GalleryManager(els, (fish) => fishEditor.openFishModal(fish));
+  const galleryManager = new GalleryManager(els, {
+    onOpenSettings: (fish) => fishEditor.openFishModal(fish),
+    onEditFish: (fish) => fishEditor.loadFishIntoCanvas(fish.id, fish.dataUrl)
+  });
   const fishEditor = new FishEditor(els, canvasManager, galleryManager, {
     onEdit: (id) => setEditingState(id),
     onNew: () => resetEditingState()
@@ -243,7 +252,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   };
 
-  els.clearBtn.onclick = () => { canvasManager.clearCanvas(); canvasManager.saveState(); };
+  els.clearBtn.onclick = () => { canvasManager.clearCanvas(); };
   els.newFishBtn.onclick = startNewFish;
   els.saveBtn.addEventListener('click', (e) => {
     e.preventDefault();

@@ -165,6 +165,8 @@
                                 title="Bulk Settings" disabled>settings</button>
                             <button id="bulk-export-selected" class="toolbar-icon-btn material-symbols-outlined"
                                 title="Export Selected" disabled>download</button>
+                            <button id="bulk-delete-selected" class="toolbar-icon-btn material-symbols-outlined danger"
+                                title="Delete Selected" disabled>delete</button>
                         </div>
                     </div>
                     <div id="fish-list" class="gallery-grid"></div>
@@ -473,6 +475,22 @@
                     </div>
                 </section>
             </div>
+        </div>
+    </div>
+
+    <div id="gallery-context-menu" class="context-menu">
+        <div class="context-menu-item" id="ctx-edit-fish">
+            <span class="material-symbols-outlined">brush</span> Edit Fish
+        </div>
+        <div class="context-menu-item" id="ctx-settings">
+            <span class="material-symbols-outlined">settings</span> Open Settings
+        </div>
+        <div class="context-menu-item" id="ctx-export">
+            <span class="material-symbols-outlined">download</span> Export PNG
+        </div>
+        <div class="context-menu-divider"></div>
+        <div class="context-menu-item danger" id="ctx-delete">
+            <span class="material-symbols-outlined">delete</span> Delete Fish
         </div>
     </div>
 
