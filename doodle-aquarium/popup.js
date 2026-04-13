@@ -677,6 +677,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (isPanning) { isPanning = false; els.canvasTransformWrapper.classList.remove('panning'); return; }
     if (isDrawing) {
+      const { x, y } = canvasManager.getCanvasPoint(e);
       if (toolManager.currentTool === 'brush' && currentStrokePoints.length > 1) {
         const dpr = window.devicePixelRatio || 1;
         canvasManager.ctx.save(); 
@@ -687,10 +688,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentStrokePoints = [];
         canvasManager.saveState(currentEditingFishId, 'Brush Stroke');
       } else if (toolManager.currentTool === 'eraser') {
-        // Guard against ghost eraser taps
-        if (lastX !== x || lastY !== y) {
-           canvasManager.saveState(currentEditingFishId, 'Eraser');
-        }
+        canvasManager.saveState(currentEditingFishId, 'Eraser');
       } else {
          // If brush was too short (single tap), clear active canvas anyway
          const dpr = window.devicePixelRatio || 1;
