@@ -192,22 +192,23 @@ export class ToolManager {
     }
   }
 
-  drawBrushReticle(point, overrideColor = null) {
+  drawBrushReticle(point, overrideColor = null, showFill = true, showEraserOutline = true) {
     this.elements.brushPreviewFill.classList.remove('eyedropper');
     const logicalSize = this.canvasManager.getLogicalBrushSize(this.elements.brushSize.value);
     const radius = logicalSize / 2;
 
     if (this.currentTool === 'brush') {
       const fctx = this.canvasManager.hoverFillCtx;
-      if (fctx) {
+      if (fctx && showFill) {
         fctx.beginPath();
         fctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
         fctx.fillStyle = overrideColor || this.currentDrawColor;
         fctx.fill();
       }
+      // Never draw outline (ring) for brush
     } else if (this.currentTool === 'eraser') {
       const octx = this.canvasManager.hoverOutlineCtx;
-      if (octx) {
+      if (octx && showEraserOutline) {
         octx.beginPath();
         octx.arc(point.x, point.y, Math.max(0, radius - 1), 0, Math.PI * 2);
         octx.strokeStyle = '#fff';

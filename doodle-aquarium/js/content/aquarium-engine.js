@@ -27,6 +27,13 @@ function updateAquarium(fishList) {
 
     const nextMirrored = Boolean(fishData.mirrored || fishData.direction === 'left');
     const nextFlipByVelocity = fishData.flipByVelocity !== false;
+
+    // Merge new physics properties onto active tracker directly 
+    fish.speedMultiplier = fishData.speedMultiplier;
+    fish.sizeMultiplier = fishData.sizeMultiplier;
+    fish.interactionType = fishData.interactionType;
+    fish.interactionStrength = fishData.interactionStrength;
+
     if (fish.mirrored !== nextMirrored || fish.flipByVelocity !== nextFlipByVelocity) {
       fish.mirrored = nextMirrored;
       fish.flipByVelocity = nextFlipByVelocity;
@@ -64,12 +71,13 @@ function spawnFish(fishData) {
     const bounds = getViewportBounds();
     const metrics = getRenderMetrics({ baseWidth, baseHeight });
 
-    const x = bounds.left + metrics.width/2 + Math.random() * Math.max(1, (bounds.width - metrics.width));
-    const y = bounds.top + metrics.height/2 + Math.random() * Math.max(1, (bounds.height - metrics.height));
+    const x = bounds.left + metrics.width / 2 + Math.random() * Math.max(1, (bounds.width - metrics.width));
+    const y = bounds.top + metrics.height / 2 + Math.random() * Math.max(1, (bounds.height - metrics.height));
     const baseSpeed = 1.5 + Math.random() * 2;
     const isMirrored = Boolean(fishData.mirrored || fishData.direction === 'left');
     const angle = isMirrored ? (Math.PI * 0.85 + Math.random() * Math.PI * 0.3) : (-Math.PI * 0.15 + Math.random() * Math.PI * 0.3);
-    const speed = baseSpeed * aquariumSettings.speedMultiplier;
+    const speedMultiplier = fishData.speedMultiplier ?? DEFAULT_SETTINGS.speedMultiplier;
+    const speed = baseSpeed * speedMultiplier;
 
     activeFish.push({
       id: fishData.id,
@@ -81,7 +89,11 @@ function spawnFish(fishData) {
       baseSpeedRaw: baseSpeed,
       seed: Math.random() * Math.PI * 2,
       mirrored: isMirrored,
-      flipByVelocity: fishData.flipByVelocity !== false
+      flipByVelocity: fishData.flipByVelocity !== false,
+      speedMultiplier: fishData.speedMultiplier ?? DEFAULT_SETTINGS.speedMultiplier,
+      sizeMultiplier: fishData.sizeMultiplier ?? DEFAULT_SETTINGS.sizeMultiplier,
+      interactionType: fishData.interactionType || DEFAULT_SETTINGS.interactionType,
+      interactionStrength: fishData.interactionStrength ?? DEFAULT_SETTINGS.interactionStrength
     });
 
     updateFishTransform(activeFish[activeFish.length - 1]);
@@ -95,16 +107,4 @@ function updateFishTransform(fish) {
   const velocityDirection = fish.vx < 0 ? -1 : 1;
   const direction = ((fish.flipByVelocity !== false) ? velocityDirection : 1) * (fish.mirrored ? -1 : 1);
   fish.element.style.transform = `translate(${fish.x}px, ${fish.y}px) translate(-50%, -50%) scale(${direction * metrics.renderScale}, ${metrics.renderScale})`;
-}
-
-function applySettingsToFish() {
-  for (let i = 0; i < activeFish.length; i++) {
-    const fish = activeFish[i];
-    const speed = Math.sqrt(fish.vx * fish.vx + fish.vy * fish.vy);
-    const targetSpeed = fish.baseSpeedRaw * aquariumSettings.speedMultiplier;
-    const scaleRatio = speed > 0 ? targetSpeed / speed : 1;
-    fish.vx *= scaleRatio;
-    fish.vy *= scaleRatio;
-    updateFishTransform(fish);
-  }
 }

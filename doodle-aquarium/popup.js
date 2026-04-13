@@ -1,5 +1,5 @@
-import { DEFAULT_SETTINGS } from './js/common/constants.js';
-import { normalizeSettings } from './js/common/settings.js';
+import { DEFAULT_SETTINGS, GLOBAL_UI_SETTINGS } from './js/common/constants.js';
+import { normalizeFishSettings, normalizeGlobalSettings } from './js/common/settings.js';
 import { CanvasManager } from './js/popup/canvas-manager.js';
 import { ToolManager } from './js/popup/tool-manager.js';
 import { GalleryManager } from './js/popup/gallery-manager.js';
@@ -34,6 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
     bulkActiveToggle: document.getElementById('bulk-active-toggle'),
     bulkFlipVelocity: document.getElementById('bulk-flip-velocity'),
     saveBulkBtn: document.getElementById('save-bulk-btn'),
+    bulkExportSelected: document.getElementById('bulk-export-selected'),
     closeBulkModal: document.getElementById('close-bulk-modal'),
     flipHBtn: document.getElementById('flip-h-btn'),
     flipVBtn: document.getElementById('flip-v-btn'),
@@ -46,13 +47,6 @@ document.addEventListener('DOMContentLoaded', () => {
     brushPreviewOutline: document.getElementById('brush-preview-outline'),
     brushOpacity: document.getElementById('brush-opacity'),
     brushOpacityDisplay: document.getElementById('brush-opacity-display'),
-    speedMultiplier: document.getElementById('speed-multiplier'),
-    sizeMultiplier: document.getElementById('size-multiplier'),
-    speedDisplay: document.getElementById('speed-display'),
-    sizeDisplay: document.getElementById('size-display'),
-    interactionType: document.getElementById('interaction-type'),
-    interactionStrength: document.getElementById('interaction-strength'),
-    strengthDisplay: document.getElementById('strength-display'),
     resetSettings: document.getElementById('reset-settings'),
     status: document.getElementById('status'),
     resetViewBtn: document.getElementById('reset-view-btn'),
@@ -72,6 +66,13 @@ document.addEventListener('DOMContentLoaded', () => {
     hoverOutlineCanvas: document.getElementById('hover-preview-outline'),
     newFishBtn: document.getElementById('new-fish-btn'),
     saveBtnText: document.getElementById('save-btn-text'),
+    globalSettingsBtn: document.getElementById('global-settings-btn'),
+    globalSettingsModal: document.getElementById('global-settings-modal'),
+    closeGlobalModal: document.getElementById('close-global-modal'),
+    globalShowEraserOutline: document.getElementById('global-show-eraser-outline'),
+    globalShowBrushFill: document.getElementById('global-show-brush-fill'),
+    globalShowBucketHover: document.getElementById('global-show-bucket-hover'),
+    globalShowEyedropper: document.getElementById('global-show-eyedropper'),
   };
 
   // State
@@ -116,54 +117,57 @@ document.addEventListener('DOMContentLoaded', () => {
   // Sync preview position when brush size changes (even if mouse doesn't move)
   els.brushSize.addEventListener('input', () => updatePreviewDisplay());
 
-  // Settings logic
-  const updateSettingsLabels = () => {
-    els.speedDisplay.textContent = Number(els.speedMultiplier.value).toFixed(1);
-    els.sizeDisplay.textContent = Number(els.sizeMultiplier.value).toFixed(1);
-    els.strengthDisplay.textContent = Number(els.interactionStrength.value).toFixed(1);
-  };
+  // Global UI Settings
+  let currentGlobalSettings = { ...GLOBAL_UI_SETTINGS };
 
-  const applyToForm = (settings) => {
+  const applyGlobalSettingsToForm = (settings) => {
     applyingSettings = true;
-    els.speedMultiplier.value = settings.speedMultiplier;
-    els.sizeMultiplier.value = settings.sizeMultiplier;
-    els.interactionType.value = settings.interactionType;
-    els.interactionStrength.value = settings.interactionStrength;
-    updateSettingsLabels();
+    els.globalShowEraserOutline.checked = settings.showEraserOutline;
+    els.globalShowBrushFill.checked = settings.showBrushFill;
+    els.globalShowBucketHover.checked = settings.showBucketHover;
+    els.globalShowEyedropper.checked = settings.showEyedropperPreview;
     applyingSettings = false;
   };
 
-  const persistSettings = (statusMessage = 'Settings saved.') => {
-    const settings = {
-      speedMultiplier: Number(els.speedMultiplier.value),
-      sizeMultiplier: Number(els.sizeMultiplier.value),
-      interactionType: els.interactionType.value,
-      interactionStrength: Number(els.interactionStrength.value)
+  const persistGlobalSettings = () => {
+    currentGlobalSettings = {
+      showEraserOutline: els.globalShowEraserOutline.checked,
+      showBrushFill: els.globalShowBrushFill.checked,
+      showBucketHover: els.globalShowBucketHover.checked,
+      showEyedropperPreview: els.globalShowEyedropper.checked
     };
-    chrome.storage.local.set({ doodleSettings: settings }, () => {
-      if (statusMessage) showNotification(statusMessage);
-    });
+    chrome.storage.local.set({ globalUISettings: currentGlobalSettings });
+    updatePreviewDisplay();
   };
 
-  const scheduleAutoSave = () => {
-    if (applyingSettings) return;
-    if (autoSaveTimer) clearTimeout(autoSaveTimer);
-    autoSaveTimer = setTimeout(() => persistSettings('Settings auto-saved.'), 200);
-  };
-
-  chrome.storage.local.get(['doodleSettings'], (result) => {
-    applyToForm(normalizeSettings(result.doodleSettings));
+  chrome.storage.local.get(['globalUISettings'], (res) => {
+    let settings = res.globalUISettings;
+    if (!settings) {
+      settings = GLOBAL_UI_SETTINGS;
+      chrome.storage.local.set({ globalUISettings: settings });
+    } else {
+      settings = normalizeGlobalSettings(settings);
+    }
+    currentGlobalSettings = settings;
+    applyGlobalSettingsToForm(settings);
   });
 
-  // Global UI events
-  els.resetSettings.onclick = () => {
-    applyToForm(DEFAULT_SETTINGS);
-    persistSettings('Settings reset.');
-  };
-  els.speedMultiplier.oninput = () => { updateSettingsLabels(); scheduleAutoSave(); };
-  els.sizeMultiplier.oninput = () => { updateSettingsLabels(); scheduleAutoSave(); };
-  els.interactionStrength.oninput = () => { updateSettingsLabels(); scheduleAutoSave(); };
-  els.interactionType.onchange = scheduleAutoSave;
+  els.globalShowEraserOutline.addEventListener('change', () => !applyingSettings && persistGlobalSettings());
+  els.globalShowBrushFill.addEventListener('change', () => !applyingSettings && persistGlobalSettings());
+  els.globalShowBucketHover.addEventListener('change', () => !applyingSettings && persistGlobalSettings());
+  els.globalShowEyedropper.addEventListener('change', () => !applyingSettings && persistGlobalSettings());
+
+  els.globalSettingsBtn.addEventListener('click', () => {
+    els.globalSettingsModal.classList.add('active');
+  });
+
+  els.closeGlobalModal.addEventListener('click', () => {
+    els.globalSettingsModal.classList.remove('active');
+  });
+
+  els.globalSettingsModal.addEventListener('click', (e) => {
+    if (e.target === els.globalSettingsModal) els.globalSettingsModal.classList.remove('active');
+  });
 
   const resetEditingState = () => {
     currentEditingFishId = null;
@@ -191,7 +195,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const saveFish = (forceNew = false) => {
     if (canvasManager.isCanvasBlank()) { showNotification("Please draw a fish first!"); return; }
-    
+
     const tempCanvas = document.createElement('canvas'); tempCanvas.width = 400; tempCanvas.height = 300;
     const tempCtx = tempCanvas.getContext('2d');
     const currentW = Number(els.canvas.style.width.replace('px', '')), currentH = Number(els.canvas.style.height.replace('px', ''));
@@ -202,7 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     chrome.storage.local.get(['doodleFishList'], (result) => {
       const fishArray = result.doodleFishList || [];
-      
+
       if (!forceNew && currentEditingFishId) {
         const idx = fishArray.findIndex(f => f.id === currentEditingFishId);
         if (idx !== -1) {
@@ -217,7 +221,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Create new
       const newId = Date.now().toString();
-      fishArray.push({ id: newId, dataUrl, mirrored: false, flipByVelocity: true, active: true });
+      fishArray.push({ id: newId, dataUrl, mirrored: false, flipByVelocity: true, active: true, ...DEFAULT_SETTINGS });
       chrome.storage.local.set({ doodleFishList: fishArray }, () => {
         setEditingState(newId);
         showNotification('New fish saved.');
@@ -237,7 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Global Keyboard Shortcuts
   window.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
-    
+
     // Prevent Chromium's native "Quick Focus" search from shifting focus 
     // to DOM buttons (which causes the engine to devour the very next mousedown to trigger a blur)
     e.preventDefault();
@@ -281,7 +285,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Drawing Orchestration
   const updatePreviewDisplay = (e = null) => {
     const dpr = window.devicePixelRatio || 1;
-    
+
     // Always track latest mouse position immediately
     if (e) lastMousePos = { clientX: e.clientX, clientY: e.clientY };
 
@@ -305,12 +309,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 4. Tool Specific Drawing
     if (toolManager.currentTool === 'eyedropper') {
+      if (!currentGlobalSettings.showEyedropperPreview) return;
       els.brushPreviewFill.style.display = 'block';
       els.brushPreviewOutline.style.display = 'block';
 
       const canvasRect = els.canvas.getBoundingClientRect();
       const isInsideCanvas = (
-        clientX >= canvasRect.left && clientX <= canvasRect.right && 
+        clientX >= canvasRect.left && clientX <= canvasRect.right &&
         clientY >= canvasRect.top && clientY <= canvasRect.bottom
       );
 
@@ -337,7 +342,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const hh = (els.brushPreviewFill.height / dpr) / 2;
       const oW = (els.brushPreviewOutline.width / dpr) / 2;
       const oH = (els.brushPreviewOutline.height / dpr) / 2;
-      
+
       const centerX = clientX - visualRect.left;
       const centerY = clientY - visualRect.top - hh - 20;
 
@@ -349,9 +354,11 @@ document.addEventListener('DOMContentLoaded', () => {
       els.brushPreviewOutline.style.top = `${centerY - oH}px`;
 
     } else if (toolManager.currentTool === 'fill') {
-      canvasManager.updateFillPreview(point.x, point.y, toolManager.currentDrawColor, toolManager.currentOpacity, (c) => toolManager.cssColorToHex(c));
+      if (currentGlobalSettings.showBucketHover) {
+        canvasManager.updateFillPreview(point.x, point.y, toolManager.currentDrawColor, toolManager.currentOpacity, (c) => toolManager.cssColorToHex(c));
+      }
     } else if (toolManager.currentTool === 'brush' || toolManager.currentTool === 'eraser') {
-      toolManager.drawBrushReticle(point);
+      toolManager.drawBrushReticle(point, null, currentGlobalSettings.showBrushFill, currentGlobalSettings.showEraserOutline);
     }
   };
 
@@ -381,7 +388,7 @@ document.addEventListener('DOMContentLoaded', () => {
       updatePreviewDisplay(e); // Force immediately sync to cure the first-click bug
       const point = canvasManager.getCanvasPoint(e);
       canvasManager.saveState();
-      
+
       if (toolManager.currentTool === 'eyedropper') {
         const dpr = window.devicePixelRatio || 1;
         const imgData = canvasManager.ctx.getImageData(point.x * dpr, point.y * dpr, 1, 1).data;
@@ -398,7 +405,7 @@ document.addEventListener('DOMContentLoaded', () => {
         canvasManager.floodFill(point.x * dpr, point.y * dpr, toolManager.cssColorToHex(toolManager.currentDrawColor) || toolManager.currentDrawColor, toolManager.currentOpacity);
       } else {
         isDrawing = true; lastX = point.x; lastY = point.y;
-        
+
         if (toolManager.currentTool === 'brush') {
           currentStrokePoints = [{ x: point.x, y: point.y }];
           const dpr = window.devicePixelRatio || 1;
@@ -416,7 +423,7 @@ document.addEventListener('DOMContentLoaded', () => {
           canvasManager.activeCtx.setTransform(1, 0, 0, 1, 0, 0);
           canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width, canvasManager.activeCanvas.height);
           canvasManager.activeCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-          
+
           canvasManager.drawInterpolatedStroke(lastX, lastY, lastX, lastY, 'eraser', canvasManager.getLogicalBrushSize(els.brushSize.value));
         }
       }
@@ -435,22 +442,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (isDrawing) {
       const { x, y } = canvasManager.getCanvasPoint(e);
-      
+
       if (toolManager.currentTool === 'brush') {
         currentStrokePoints.push({ x, y, isNewPath: isReentering });
         isReentering = false;
-        
+
         const dpr = window.devicePixelRatio || 1;
         canvasManager.activeCtx.setTransform(1, 0, 0, 1, 0, 0);
         canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width, canvasManager.activeCanvas.height);
         canvasManager.activeCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        
+
         canvasManager.activeCtx.beginPath();
         canvasManager.activeCtx.lineCap = 'round';
         canvasManager.activeCtx.lineJoin = 'round';
         canvasManager.activeCtx.strokeStyle = toolManager.currentDrawColor;
         canvasManager.activeCtx.lineWidth = canvasManager.getLogicalBrushSize(els.brushSize.value);
-        
+
         if (currentStrokePoints.length > 0) {
           canvasManager.activeCtx.moveTo(currentStrokePoints[0].x, currentStrokePoints[0].y);
           currentStrokePoints.forEach(pt => {
@@ -508,21 +515,7 @@ document.addEventListener('DOMContentLoaded', () => {
     canvasManager.updateViewTransform(); toolManager.updateBrushPreview(null, lastMousePos); updatePreviewDisplay(e);
   });
 
-  els.saveBtn.onclick = () => {
-    if (canvasManager.isCanvasBlank()) { alert("Please draw a fish first!"); return; }
-    const tempCanvas = document.createElement('canvas'); tempCanvas.width = 400; tempCanvas.height = 300;
-    const tempCtx = tempCanvas.getContext('2d');
-    const currentW = Number(els.canvas.style.width.replace('px', '')), currentH = Number(els.canvas.style.height.replace('px', ''));
-    const scale = Math.min(400 / currentW, 300 / currentH);
-    const sw = currentW * scale, sh = currentH * scale, sx = (400 - sw) / 2, sy = (300 - sh) / 2;
-    tempCtx.clearRect(0, 0, 400, 300); tempCtx.drawImage(canvasManager.canvas, sx, sy, sw, sh);
-    const dataUrl = tempCanvas.toDataURL('image/png');
-    chrome.storage.local.get(['doodleFishList'], (result) => {
-      const fishArray = result.doodleFishList || [];
-      fishArray.push({ id: Date.now().toString(), dataUrl, mirrored: false, flipByVelocity: true, active: true });
-      chrome.storage.local.set({ doodleFishList: fishArray }, () => { galleryManager.renderFishList(); canvasManager.clearCanvas(); });
-    });
-  };
+  // saveBtn logic is handled by the event listener and the saveFish function above.
 
   els.importFile.onchange = async (e) => {
     const files = Array.from(e.target.files || []); if (files.length === 0) return;
@@ -537,7 +530,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (importedDataUrls.length > 0) {
       chrome.storage.local.get(['doodleFishList'], (result) => {
         const fishArray = result.doodleFishList || [];
-        importedDataUrls.forEach((dataUrl, i) => fishArray.push({ id: `${Date.now()}-${i}`, dataUrl, mirrored: false, flipByVelocity: true, active: true }));
+        importedDataUrls.forEach((dataUrl, i) => fishArray.push({ id: `${Date.now()}-${i}`, dataUrl, mirrored: false, flipByVelocity: true, active: true, ...DEFAULT_SETTINGS }));
         chrome.storage.local.set({ doodleFishList: fishArray }, () => galleryManager.renderFishList());
       });
     }
@@ -557,5 +550,8 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('resize', resizeCanvas);
   resizeCanvas();
   toolManager.applyColorInput(els.colorText.value, true);
+  els.bulkExportSelected.addEventListener('click', () => {
+    galleryManager.exportSelectedIndividually();
+  });
   galleryManager.renderFishList();
 });

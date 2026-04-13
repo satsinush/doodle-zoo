@@ -20,6 +20,9 @@
         <span class="headline" style="font-weight: 800; color: var(--primary); font-size: 1.1rem;">Doodle
             Aquarium</span>
         <div class="header-actions">
+            <button id="global-settings-btn" class="icon-btn" title="Global Settings">
+                <span class="material-symbols-outlined">settings</span>
+            </button>
             <button id="open-window-btn" class="icon-btn" title="Open Full Window">
                 <span class="material-symbols-outlined">open_in_new</span>
             </button>
@@ -134,52 +137,28 @@
                     </label>
                 </div>
 
-                <details id="settings-panel">
-                    <summary>
-                        <div style="display:flex; align-items:center; gap: 12px;">
-                            <span class="material-symbols-outlined">settings</span>
-                            Settings
-                        </div>
-                        <span class="material-symbols-outlined">expand_more</span>
-                    </summary>
-                    <div class="details-content">
-                        <div class="field">
-                            <div class="field-header"><span>Fish Speed</span><span id="speed-display">0.5</span></div>
-                            <input id="speed-multiplier" type="range" min="0.1" max="3.0" step="0.1" value="0.5">
-                        </div>
-                        <div class="field">
-                            <div class="field-header"><span>Fish Size</span><span id="size-display">0.5</span></div>
-                            <input id="size-multiplier" type="range" min="0.1" max="3.0" step="0.1" value="0.5">
-                        </div>
-                        <div class="field">
-                            <div class="field-header"><span>Interaction Type</span></div>
-                            <select id="interaction-type">
-                                <option value="repel">Repel</option>
-                                <option value="attract">Attract</option>
-                            </select>
-                        </div>
-                        <div class="field">
-                            <div class="field-header"><span>Interaction Strength</span><span
-                                    id="strength-display">1.0</span></div>
-                            <input id="interaction-strength" type="range" min="0.0" max="5.0" step="0.1" value="1">
-                        </div>
-                        <button id="reset-settings" class="secondary-btn" style="width: 100%;">Reset Settings</button>
-                    </div>
-                </details>
+                <!-- Simulation Settings Deprecated from UI layout -->
 
                 <div class="settings-card tank-card">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; min-height: 24px;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; min-height: 24px;">
                         <h3 id="gallery-title" style="margin:0; font-size: 14px;">Tank Gallery</h3>
                         <div style="display: flex; align-items: center; gap: 12px;">
-                            <div style="display: flex; align-items: center; gap: 6px; cursor: pointer;" id="master-select-wrapper">
-                                <span style="font-size: 10px; font-weight: 800; color: var(--on-surface-variant); text-transform: uppercase; user-select: none;">Select All</span>
-                                <label class="checkbox-container small" style="margin: 0; padding-left: 18px; pointer-events: none;">
+                            <div style="display: flex; align-items: center; gap: 6px; cursor: pointer;"
+                                id="master-select-wrapper">
+                                <span
+                                    style="font-size: 10px; font-weight: 800; color: var(--on-surface-variant); text-transform: uppercase; user-select: none;">Select
+                                    All</span>
+                                <label class="checkbox-container small"
+                                    style="margin: 0; padding-left: 18px; pointer-events: none;">
                                     <input type="checkbox" id="master-select-checkbox">
                                     <span class="checkmark"></span>
                                 </label>
                             </div>
                             <button id="bulk-edit-settings" class="toolbar-icon-btn material-symbols-outlined"
                                 title="Bulk Settings" disabled>settings</button>
+                            <button id="bulk-export-selected" class="toolbar-icon-btn material-symbols-outlined"
+                                title="Export Selected" disabled>download</button>
                         </div>
                     </div>
                     <div id="fish-list" class="gallery-grid"></div>
@@ -207,9 +186,9 @@
                         <span class="label">Show Fish</span>
                         <span class="sub-label">Show or hide this fish in your tank</span>
                     </div>
-                    <label class="switch">
+                    <label class="checkbox-container">
                         <input type="checkbox" id="modal-active-toggle">
-                        <span class="slider"></span>
+                        <span class="checkmark"></span>
                     </label>
                 </div>
 
@@ -234,10 +213,54 @@
                         <span class="label">Auto-Flip</span>
                         <span class="sub-label">Flip based on swim direction</span>
                     </div>
-                    <label class="switch">
+                    <label class="checkbox-container">
                         <input type="checkbox" id="modal-lock-toggle">
-                        <span class="slider"></span>
+                        <span class="checkmark"></span>
                     </label>
+                </div>
+
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Fish Speed</span>
+                        <span class="sub-label">Swimming velocity multiplier</span>
+                    </div>
+                    <div class="slider-group">
+                        <input id="modal-speed-multiplier" type="range" min="0.0" max="3.0" step="0.1" value="0.5">
+                        <input type="number" class="display-value" id="modal-speed-display" value="0.5" step="0.1" min="0.0" max="3.0">
+                    </div>
+                </div>
+
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Fish Size</span>
+                        <span class="sub-label">Visual bounding box scale</span>
+                    </div>
+                    <div class="slider-group">
+                        <input id="modal-size-multiplier" type="range" min="0.1" max="3.0" step="0.1" value="0.5">
+                        <input type="number" class="display-value" id="modal-size-display" value="0.5" step="0.1" min="0.1" max="3.0">
+                    </div>
+                </div>
+
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Interaction Type</span>
+                        <span class="sub-label">Behavior toward mouse pointer</span>
+                    </div>
+                    <select id="modal-interaction-type">
+                        <option value="repel">Repel</option>
+                        <option value="attract">Attract</option>
+                    </select>
+                </div>
+
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Interaction Strength</span>
+                        <span class="sub-label">Force multiplier</span>
+                    </div>
+                    <div class="slider-group">
+                        <input id="modal-interaction-strength" type="range" min="0.0" max="5.0" step="0.1" value="1.0">
+                        <input type="number" class="display-value" id="modal-strength-display" value="1.0" step="0.1" min="0.0" max="5.0">
+                    </div>
                 </div>
             </div>
 
@@ -264,22 +287,74 @@
                 <h2 class="brand-font">Bulk Edit (<span id="bulk-count">0</span> fish)</h2>
                 <button id="close-bulk-modal" class="material-symbols-outlined icon-btn">close</button>
             </div>
-            <div class="field" style="margin-top: 1rem;">
-                <div class="checkbox-field">
+            <div class="modal-controls" style="margin-top: 1rem;">
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Show Fish</span>
+                        <span class="sub-label">Visually enable or disable</span>
+                    </div>
                     <label class="checkbox-container">
                         <input type="checkbox" id="bulk-active-toggle">
                         <span class="checkmark"></span>
-                        Show Fish
                     </label>
                 </div>
-            </div>
-            <div class="field">
-                <div class="checkbox-field">
+
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Auto-Flip</span>
+                        <span class="sub-label">Flip based on swim direction</span>
+                    </div>
                     <label class="checkbox-container">
                         <input type="checkbox" id="bulk-flip-velocity">
                         <span class="checkmark"></span>
-                        Auto-Flip
                     </label>
+                </div>
+
+                <hr style="border:none; border-top: 1px solid var(--outline-variant); margin: 0 0 1rem 0;">
+
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Fish Speed</span>
+                        <span class="sub-label">Swimming velocity multiplier</span>
+                    </div>
+                    <div class="slider-group">
+                        <input id="bulk-speed-multiplier" type="range" min="0.0" max="3.0" step="0.1" value="0.5">
+                        <input type="number" class="display-value" id="bulk-speed-display" placeholder="--" step="0.1" min="0.0" max="3.0">
+                    </div>
+                </div>
+
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Fish Size</span>
+                        <span class="sub-label">Visual bounding box scale</span>
+                    </div>
+                    <div class="slider-group">
+                        <input id="bulk-size-multiplier" type="range" min="0.1" max="3.0" step="0.1" value="0.5">
+                        <input type="number" class="display-value" id="bulk-size-display" placeholder="--" step="0.1" min="0.1" max="3.0">
+                    </div>
+                </div>
+
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Interaction Type</span>
+                        <span class="sub-label">Behavior toward mouse pointer</span>
+                    </div>
+                    <select id="bulk-interaction-type">
+                        <option value="">--</option>
+                        <option value="repel">Repel</option>
+                        <option value="attract">Attract</option>
+                    </select>
+                </div>
+
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Interaction Strength</span>
+                        <span class="sub-label">Force multiplier</span>
+                    </div>
+                    <div class="slider-group">
+                        <input id="bulk-interaction-strength" type="range" min="0.0" max="5.0" step="0.1" value="1.0">
+                        <input type="number" class="display-value" id="bulk-strength-display" placeholder="--" step="0.1" min="0.0" max="5.0">
+                    </div>
                 </div>
             </div>
             <div class="modal-footer" style="flex-direction: column; gap: 0.75rem; padding-top: 1.5rem;">
@@ -287,6 +362,58 @@
                 <button id="bulk-delete" class="secondary-btn delete" style="width: 100%;">
                     <span class="material-symbols-outlined">delete</span> Delete Selected
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Global Settings Modal -->
+    <div id="global-settings-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="brand-font">Global UI Settings</h2>
+                <button id="close-global-modal" class="material-symbols-outlined icon-btn">close</button>
+            </div>
+            <div class="modal-controls" style="margin-top: 1.5rem;">
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Show Eraser Outline</span>
+                        <span class="sub-label">Show erasure zone hovering</span>
+                    </div>
+                    <label class="checkbox-container">
+                        <input type="checkbox" id="global-show-eraser-outline">
+                        <span class="checkmark"></span>
+                    </label>
+                </div>
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Show Brush Fill</span>
+                        <span class="sub-label">Show visual color hovering</span>
+                    </div>
+                    <label class="checkbox-container">
+                        <input type="checkbox" id="global-show-brush-fill">
+                        <span class="checkmark"></span>
+                    </label>
+                </div>
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Show Bucket Hover</span>
+                        <span class="sub-label">Preview flood fills immediately</span>
+                    </div>
+                    <label class="checkbox-container">
+                        <input type="checkbox" id="global-show-bucket-hover">
+                        <span class="checkmark"></span>
+                    </label>
+                </div>
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Show Eyedropper Look</span>
+                        <span class="sub-label">Magnify color picking cursor</span>
+                    </div>
+                    <label class="checkbox-container">
+                        <input type="checkbox" id="global-show-eyedropper">
+                        <span class="checkmark"></span>
+                    </label>
+                </div>
             </div>
         </div>
     </div>

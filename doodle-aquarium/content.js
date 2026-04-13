@@ -5,16 +5,10 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
   if (changes.doodleFishList) {
     updateAquarium(changes.doodleFishList.newValue || []);
   }
-
-  if (changes.doodleSettings) {
-    aquariumSettings = normalizeSettings(changes.doodleSettings.newValue);
-    applySettingsToFish();
-  }
 });
 
 // Initial load
-chrome.storage.local.get(['doodleFishList', 'doodleSettings'], (result) => {
-  aquariumSettings = normalizeSettings(result.doodleSettings);
+chrome.storage.local.get(['doodleFishList'], (result) => {
   updateAquarium(result.doodleFishList || []);
 });
 
@@ -29,7 +23,13 @@ document.addEventListener('mouseleave', () => {
   mouseY = -1000;
 });
 
+function handleViewportChange() {
+  for (let i = 0; i < activeFish.length; i++) {
+    updateFishTransform(activeFish[i]);
+  }
+}
+
 if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', applySettingsToFish);
-  window.visualViewport.addEventListener('scroll', applySettingsToFish);
+  window.visualViewport.addEventListener('resize', handleViewportChange);
+  window.visualViewport.addEventListener('scroll', handleViewportChange);
 }

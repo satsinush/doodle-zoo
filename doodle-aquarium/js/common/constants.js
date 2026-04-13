@@ -4,3 +4,10 @@ export const DEFAULT_SETTINGS = {
   interactionType: 'repel',
   interactionStrength: 1
 };
+
+export const GLOBAL_UI_SETTINGS = {
+  showBrushFill: true,
+  showEraserOutline: true,
+  showBucketHover: false,
+  showEyedropperPreview: true
+};

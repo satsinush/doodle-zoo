@@ -11,7 +11,7 @@ function animate() {
   for (let i = 0; i < activeFish.length; i++) {
     const fish = activeFish[i];
     const metrics = getRenderMetrics(fish);
-    const speedMultiplier = aquariumSettings.speedMultiplier;
+    const speedMultiplier = fish.speedMultiplier ?? DEFAULT_SETTINGS.speedMultiplier;
     const propulsionStrength = fish.baseSpeedRaw * speedMultiplier * 0.2;
 
     const wiggle = Math.sin(time * 2 + fish.seed) * 0.1;
@@ -28,13 +28,16 @@ function animate() {
     const dy = fish.y - mouseY;
     let dist = Math.sqrt(dx * dx + dy * dy);
 
-    if (mouseX >= 0 && mouseY >= 0 && aquariumSettings.interactionStrength > 0) {
+    const interactionStrength = fish.interactionStrength ?? DEFAULT_SETTINGS.interactionStrength;
+    const interactionType = fish.interactionType || DEFAULT_SETTINGS.interactionType;
+
+    if (mouseX >= 0 && mouseY >= 0 && interactionStrength > 0) {
       if (dist === 0) dist = 0.1;
-      const baseForce = 2000.0 * aquariumSettings.interactionStrength;
+      const baseForce = 2000.0 * interactionStrength;
       const forceMagnitude = baseForce / (dist * dist + 1000);
 
       if (forceMagnitude > 0.01) {
-        const sign = aquariumSettings.interactionType === 'attract' ? -1 : 1;
+        const sign = interactionType === 'attract' ? -1 : 1;
         fish.vx += (dx / dist) * forceMagnitude * sign;
         fish.vy += (dy / dist) * forceMagnitude * sign;
       }

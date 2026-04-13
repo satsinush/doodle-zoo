@@ -21,7 +21,7 @@ function getViewportBounds() {
 
 function getRenderMetrics(fish) {
   const inverseZoom = 1 / getViewportScale();
-  const renderScale = inverseZoom * aquariumSettings.sizeMultiplier;
+  const renderScale = inverseZoom * (fish.sizeMultiplier ?? 0.5);
   return {
     renderScale,
     width: fish.baseWidth * renderScale,

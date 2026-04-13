@@ -1,9 +1,21 @@
+import { DEFAULT_SETTINGS } from '../common/constants.js';
 export class GalleryManager {
   constructor(elements, onOpenFishModal) {
     this.elements = elements;
     this.onOpenFishModal = onOpenFishModal;
     this.selectedFishIds = [];
     this.lastSelectedIndex = -1;
+    this._bulkTouches = {};
+
+    this.bulkDOM = {
+      speedMultiplier: document.getElementById('bulk-speed-multiplier'),
+      sizeMultiplier: document.getElementById('bulk-size-multiplier'),
+      interactionType: document.getElementById('bulk-interaction-type'),
+      interactionStrength: document.getElementById('bulk-interaction-strength'),
+      speedDisplay: document.getElementById('bulk-speed-display'),
+      sizeDisplay: document.getElementById('bulk-size-display'),
+      strengthDisplay: document.getElementById('bulk-strength-display')
+    };
 
     this.setupListeners();
   }
@@ -33,6 +45,40 @@ export class GalleryManager {
       }
     });
 
+    this.bulkDOM.speedMultiplier?.addEventListener('input', (e) => {
+      this.bulkDOM.speedDisplay.value = Number(e.target.value).toFixed(1);
+      this._bulkTouches.speed = true;
+    });
+    this.bulkDOM.speedDisplay?.addEventListener('change', (e) => {
+      let val = Math.max(0.0, Math.min(3.0, Number(e.target.value) || 0));
+      this.bulkDOM.speedMultiplier.value = val;
+      e.target.value = val.toFixed(1);
+      this._bulkTouches.speed = true;
+    });
+    this.bulkDOM.sizeMultiplier?.addEventListener('input', (e) => {
+      this.bulkDOM.sizeDisplay.value = Number(e.target.value).toFixed(1);
+      this._bulkTouches.size = true;
+    });
+    this.bulkDOM.sizeDisplay?.addEventListener('change', (e) => {
+      let val = Math.max(0.1, Math.min(3.0, Number(e.target.value) || 0));
+      this.bulkDOM.sizeMultiplier.value = val;
+      e.target.value = val.toFixed(1);
+      this._bulkTouches.size = true;
+    });
+    this.bulkDOM.interactionStrength?.addEventListener('input', (e) => {
+      this.bulkDOM.strengthDisplay.value = Number(e.target.value).toFixed(1);
+      this._bulkTouches.strength = true;
+    });
+    this.bulkDOM.strengthDisplay?.addEventListener('change', (e) => {
+      let val = Math.max(0.0, Math.min(5.0, Number(e.target.value) || 0));
+      this.bulkDOM.interactionStrength.value = val;
+      e.target.value = val.toFixed(1);
+      this._bulkTouches.strength = true;
+    });
+    this.bulkDOM.interactionType?.addEventListener('change', () => {
+      this._bulkTouches.type = true;
+    });
+
     this.elements.saveBulkBtn?.addEventListener('click', () => {
       const activeCheckbox = this.elements.bulkActiveToggle;
       const flipCheckbox = this.elements.bulkFlipVelocity;
@@ -48,6 +94,13 @@ export class GalleryManager {
           if (idx !== -1) {
             if (applyActive) fishArray[idx].active = activeVal;
             if (applyFlip) fishArray[idx].flipByVelocity = flipVal;
+            
+            if (this._bulkTouches.speed) fishArray[idx].speedMultiplier = Number(this.bulkDOM.speedMultiplier.value);
+            if (this._bulkTouches.size) fishArray[idx].sizeMultiplier = Number(this.bulkDOM.sizeMultiplier.value);
+            if (this._bulkTouches.strength) fishArray[idx].interactionStrength = Number(this.bulkDOM.interactionStrength.value);
+            if (this._bulkTouches.type && this.bulkDOM.interactionType.value) {
+              fishArray[idx].interactionType = this.bulkDOM.interactionType.value;
+            }
           }
         });
         chrome.storage.local.set({ doodleFishList: fishArray }, () => {
@@ -80,6 +133,14 @@ export class GalleryManager {
         img.src = fish.dataUrl;
         img.alt = 'Fish';
         item.appendChild(img);
+
+        const gearIcon = document.createElement('div');
+        gearIcon.className = 'settings-hover-icon';
+        const gearSpan = document.createElement('span');
+        gearSpan.className = 'material-symbols-outlined';
+        gearSpan.textContent = 'settings';
+        gearIcon.appendChild(gearSpan);
+        item.appendChild(gearIcon);
 
         const toggle = document.createElement('div');
         toggle.className = 'selection-toggle';
@@ -127,9 +188,12 @@ export class GalleryManager {
 
   updateBulkToolbar(fishArray) {
     const masterCheckbox = this.elements.masterSelectCheckbox;
+    const exportBtn = this.elements.bulkExportSelected;
     const gearBtn = this.elements.bulkEditSettings;
+
     if (this.selectedFishIds.length > 0) {
       if (gearBtn) gearBtn.disabled = false;
+      if (exportBtn) exportBtn.disabled = false;
       if (this.elements.bulkCount) this.elements.bulkCount.textContent = this.selectedFishIds.length;
       if (fishArray.length > 0) {
         if (this.selectedFishIds.length === fishArray.length) {
@@ -142,6 +206,8 @@ export class GalleryManager {
       }
     } else {
       if (gearBtn) gearBtn.disabled = true;
+      if (exportBtn) exportBtn.disabled = true;
+      if (this.elements.bulkCount) this.elements.bulkCount.textContent = '0';
       if (masterCheckbox) {
         masterCheckbox.checked = false;
         masterCheckbox.indeterminate = false;
@@ -154,6 +220,8 @@ export class GalleryManager {
       const fishArray = result.doodleFishList || [];
       const selectedFish = fishArray.filter(f => this.selectedFishIds.includes(f.id));
       if (selectedFish.length === 0) return;
+
+      this._bulkTouches = {};
 
       const flipCheckbox = this.elements.bulkFlipVelocity;
       const activeCheckbox = this.elements.bulkActiveToggle;
@@ -185,7 +253,62 @@ export class GalleryManager {
         flipCheckbox.indeterminate = true;
       }
 
+      if (selectedFish.every(f => f.speedMultiplier === selectedFish[0].speedMultiplier)) {
+        this.bulkDOM.speedMultiplier.value = selectedFish[0].speedMultiplier;
+        this.bulkDOM.speedDisplay.value = Number(selectedFish[0].speedMultiplier).toFixed(1);
+      } else {
+        this.bulkDOM.speedMultiplier.value = DEFAULT_SETTINGS.speedMultiplier;
+        this.bulkDOM.speedDisplay.value = '';
+      }
+
+      if (selectedFish.every(f => f.sizeMultiplier === selectedFish[0].sizeMultiplier)) {
+        this.bulkDOM.sizeMultiplier.value = selectedFish[0].sizeMultiplier;
+        this.bulkDOM.sizeDisplay.value = Number(selectedFish[0].sizeMultiplier).toFixed(1);
+      } else {
+        this.bulkDOM.sizeMultiplier.value = DEFAULT_SETTINGS.sizeMultiplier;
+        this.bulkDOM.sizeDisplay.value = '';
+      }
+
+      if (selectedFish.every(f => f.interactionStrength === selectedFish[0].interactionStrength)) {
+        this.bulkDOM.interactionStrength.value = selectedFish[0].interactionStrength;
+        this.bulkDOM.strengthDisplay.value = Number(selectedFish[0].interactionStrength).toFixed(1);
+      } else {
+        this.bulkDOM.interactionStrength.value = DEFAULT_SETTINGS.interactionStrength;
+        this.bulkDOM.strengthDisplay.value = '';
+      }
+
+      if (selectedFish.every(f => f.interactionType === selectedFish[0].interactionType)) {
+        this.bulkDOM.interactionType.value = selectedFish[0].interactionType;
+      } else {
+        this.bulkDOM.interactionType.value = "";
+      }
+
       this.elements.bulkModal?.classList.add('active');
+    });
+  }
+
+  exportSelectedIndividually() {
+    if (this.selectedFishIds.length === 0) return;
+
+    chrome.storage.local.get(['doodleFishList'], (result) => {
+      const fishArray = result.doodleFishList || [];
+      const selectedFish = fishArray.filter(f => this.selectedFishIds.includes(f.id));
+
+      if (selectedFish.length === 0) return;
+
+      selectedFish.forEach((fish, index) => {
+        // Use a slight timeout to stagger downloads and avoid browser blocking
+        setTimeout(() => {
+          const a = document.createElement('a');
+          a.href = fish.dataUrl;
+          a.download = `fish_${fish.id || index}.png`;
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => {
+            document.body.removeChild(a);
+          }, 0);
+        }, index * 150);
+      });
     });
   }
 }
