@@ -4,6 +4,11 @@ import { CanvasManager } from './js/popup/canvas-manager.js';
 import { ToolManager } from './js/popup/tool-manager.js';
 import { GalleryManager } from './js/popup/gallery-manager.js';
 import { FishEditor } from './js/popup/fish-editor.js';
+import { HistoryManager } from './js/popup/history-manager.js';
+
+function generateUID() {
+  return Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 9);
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   const urlParams = new URLSearchParams(window.location.search);
@@ -60,6 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
     modalEditBtn: document.getElementById('modal-edit-btn'),
     modalDeleteBtn: document.getElementById('modal-delete-btn'),
     modalExportBtn: document.getElementById('modal-export-btn'),
+    modalSaveBtn: document.getElementById('modal-save-btn'),
     toolGroup: document.getElementById('tool-group'),
     toolButtons: document.querySelectorAll('[data-tool]'),
     hoverFillCanvas: document.getElementById('hover-preview-fill'),
@@ -107,20 +113,58 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastPointerType = 'mouse';
 
   // Init Managers
+  const historyManager = new HistoryManager(els, {
+    onStackChange: () => {
+      // Any extra logic needed when history changes
+    }
+  });
+
   const canvasManager = new CanvasManager(els, {
     onRestoreComplete: () => {
       canvasManager.lastFillPoint = { x: -999, y: -999, color: null };
       updatePreviewDisplay();
     }
   });
+  canvasManager.history = historyManager;
+
   const galleryManager = new GalleryManager(els, {
     onOpenSettings: (fish) => fishEditor.openFishModal(fish),
-    onEditFish: (fish) => fishEditor.loadFishIntoCanvas(fish.id, fish.dataUrl)
+    onEditFish: (targetFish) => {
+      // Create a navigation link in history
+      const oldId = currentEditingFishId;
+      const oldUrl = canvasManager.canvas.toDataURL('image/png');
+      
+      historyManager.push({
+        type: 'navigate',
+        data: {
+          oldId,
+          newId: targetFish.id,
+          oldUrl,
+          newUrl: targetFish.dataUrl
+        },
+        description: 'Edit Fish'
+      });
+
+      fishEditor.loadFishIntoCanvas(targetFish.id, targetFish.dataUrl);
+    }
   });
+  galleryManager.history = historyManager;
+
   const fishEditor = new FishEditor(els, canvasManager, galleryManager, {
     onEdit: (id) => setEditingState(id),
     onNew: () => resetEditingState()
   });
+  fishEditor.history = historyManager;
+
+  // Expose for history manager access
+  window.appState = { 
+    canvasManager, 
+    galleryManager,
+    fishEditor,
+    currentEditingFishId: () => currentEditingFishId,
+    setEditingState: (id) => id ? setEditingState(id) : resetEditingState()
+  };
+
   const toolManager = new ToolManager(els, canvasManager, {
     onToolChange: (tool) => {
       currentStrokePoints = [];
@@ -208,9 +252,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 1600);
   };
 
+  // Reset UI for a fresh start
   const startNewFish = () => {
-    canvasManager.clearCanvas();
+    // Capture transition to new fish
+    const oldId = currentEditingFishId;
+    const oldUrl = canvasManager.canvas.toDataURL('image/png');
+
+    historyManager.push({
+      type: 'navigate',
+      data: {
+        oldId,
+        newId: null,
+        oldUrl,
+        newUrl: null
+      },
+      description: 'New Fish'
+    });
+
     resetEditingState();
+    canvasManager.clearCanvas();
+    canvasManager.updateSnapshot();
+    updatePreviewDisplay();
     galleryManager.renderFishList(null);
     showNotification('Started new fish.');
   };
@@ -232,6 +294,15 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!forceNew && currentEditingFishId) {
         const idx = fishArray.findIndex(f => f.id === currentEditingFishId);
         if (idx !== -1) {
+          const oldDataUrl = fishArray[idx].dataUrl;
+          if (oldDataUrl !== dataUrl) {
+            historyManager.push({
+              type: 'canvas',
+              id: currentEditingFishId,
+              data: { oldUrl: oldDataUrl, newUrl: dataUrl },
+              description: 'Brush Update'
+            });
+          }
           fishArray[idx].dataUrl = dataUrl;
           chrome.storage.local.set({ doodleFishList: fishArray }, () => {
             showNotification('Fish updated.');
@@ -242,8 +313,15 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // Create new
-      const newId = Date.now().toString();
+      const newId = generateUID();
       fishArray.push({ id: newId, dataUrl, mirrored: false, flipByVelocity: true, active: true, ...DEFAULT_SETTINGS });
+
+      historyManager.push({
+        type: 'create',
+        id: newId,
+        description: 'New Fish Created'
+      });
+
       chrome.storage.local.set({ doodleFishList: fishArray }, () => {
         setEditingState(newId);
         showNotification('New fish saved.');
@@ -252,7 +330,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   };
 
-  els.clearBtn.onclick = () => { canvasManager.clearCanvas(); };
+  els.clearBtn.onclick = () => { canvasManager.clearCanvas(currentEditingFishId); };
   els.newFishBtn.onclick = startNewFish;
   els.saveBtn.addEventListener('click', (e) => {
     e.preventDefault();
@@ -278,15 +356,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Commands
     if (isCtrl) {
-      if (!isShift && key === 'z') { e.preventDefault(); canvasManager.performUndo(); }
-      if (!isShift && key === 'y') { e.preventDefault(); canvasManager.performRedo(); }
+      if (!isShift && key === 'z') { e.preventDefault(); historyManager.undo(window.appState); }
+      if (!isShift && key === 'y') { e.preventDefault(); historyManager.redo(window.appState); }
       if (!isShift && key === 'n') { e.preventDefault(); startNewFish(); }
       if (key === 's') { e.preventDefault(); saveFish(isShift); }
     }
   });
 
-  els.flipHBtn.onclick = () => { canvasManager.saveState(); canvasManager.flipCanvas(true, false); };
-  els.flipVBtn.onclick = () => { canvasManager.saveState(); canvasManager.flipCanvas(false, true); };
+  els.undoBtn.onclick = () => historyManager.undo(window.appState);
+  els.redoBtn.onclick = () => historyManager.redo(window.appState);
+
+  els.flipHBtn.onclick = () => { canvasManager.flipCanvas(true, false); canvasManager.saveState(currentEditingFishId, 'Flip Horizontal'); };
+  els.flipVBtn.onclick = () => { canvasManager.flipCanvas(false, true); canvasManager.saveState(currentEditingFishId, 'Flip Vertical'); };
   els.resetViewBtn.onclick = () => {
     canvasManager.zoomLevel = 1.0;
     panX = 0;
@@ -404,10 +485,10 @@ document.addEventListener('DOMContentLoaded', () => {
     lastPointerType = e.pointerType;
     // Limit to 2 pointers to prevent issues with triple-touch gestures
     if (activePointers.size >= 2) return;
-    
+
     // Enable pointer capture to ensure we get events even if user moves outside the viewport
     try { els.canvasViewport.setPointerCapture(e.pointerId); } catch (_err) { }
-    
+
     activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
 
     // Handle Multi-Touch Gesture Initialization
@@ -421,11 +502,11 @@ document.addEventListener('DOMContentLoaded', () => {
       initialPinchZoom = canvasManager.zoomLevel;
       initialPinchPanX = canvasManager.panX;
       initialPinchPanY = canvasManager.panY;
-      initialPinchMidpoint = { 
-        x: (pts[0].clientX + pts[1].clientX) / 2, 
-        y: (pts[0].clientY + pts[1].clientY) / 2 
+      initialPinchMidpoint = {
+        x: (pts[0].clientX + pts[1].clientX) / 2,
+        y: (pts[0].clientY + pts[1].clientY) / 2
       };
-      
+
       // Clear active stroke if any
       const dpr = window.devicePixelRatio || 1;
       canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width / dpr, canvasManager.activeCanvas.height / dpr);
@@ -444,7 +525,7 @@ document.addEventListener('DOMContentLoaded', () => {
       isMouseInViewport = true;
       updatePreviewDisplay(e); // Force immediately sync to cure the first-click bug
       const point = canvasManager.getCanvasPoint(e);
-      canvasManager.saveState();
+      canvasManager.updateSnapshot();
 
       if (toolManager.currentTool === 'eyedropper') {
         const dpr = window.devicePixelRatio || 1;
@@ -460,6 +541,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (toolManager.currentTool === 'fill') {
         const dpr = window.devicePixelRatio || 1;
         canvasManager.floodFill(point.x * dpr, point.y * dpr, toolManager.cssColorToHex(toolManager.currentDrawColor) || toolManager.currentDrawColor, toolManager.currentOpacity);
+        canvasManager.saveState(currentEditingFishId, 'Flood Fill');
       } else {
         isDrawing = true; lastX = point.x; lastY = point.y;
 
@@ -503,9 +585,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const dx = pts[0].clientX - pts[1].clientX;
       const dy = pts[0].clientY - pts[1].clientY;
       const currentDistance = Math.hypot(dx, dy);
-      const currentMidpoint = { 
-        x: (pts[0].clientX + pts[1].clientX) / 2, 
-        y: (pts[0].clientY + pts[1].clientY) / 2 
+      const currentMidpoint = {
+        x: (pts[0].clientX + pts[1].clientX) / 2,
+        y: (pts[0].clientY + pts[1].clientY) / 2
       };
 
       if (initialPinchDistance > 0) {
@@ -517,7 +599,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // 2. Calculate and apply Pan shift
         const shiftX = currentMidpoint.x - initialPinchMidpoint.x;
         const shiftY = currentMidpoint.y - initialPinchMidpoint.y;
-        
+
         canvasManager.panX = initialPinchPanX + shiftX;
         canvasManager.panY = initialPinchPanY + shiftY;
         panX = canvasManager.panX;
@@ -581,7 +663,7 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('pointerup', (e) => {
     activePointers.delete(e.pointerId);
     try { els.canvasViewport.releasePointerCapture(e.pointerId); } catch (_err) { }
-    
+
     // Cleanup panning class if no longer multi-touching or mouse-panning
     if (activePointers.size < 2 && !isPanning) {
       els.canvasTransformWrapper.classList.remove('panning');
@@ -608,6 +690,9 @@ document.addEventListener('DOMContentLoaded', () => {
         canvasManager.ctx.drawImage(canvasManager.activeCanvas, 0, 0); canvasManager.ctx.restore();
         canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width / dpr, canvasManager.activeCanvas.height / dpr);
         currentStrokePoints = [];
+        canvasManager.saveState(currentEditingFishId, 'Brush Stroke');
+      } else if (toolManager.currentTool === 'eraser') {
+        canvasManager.saveState(currentEditingFishId, 'Eraser');
       }
       isDrawing = false; isReentering = false;
     }
@@ -661,7 +746,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (importedDataUrls.length > 0) {
       chrome.storage.local.get(['doodleFishList'], (result) => {
         const fishArray = result.doodleFishList || [];
-        importedDataUrls.forEach((dataUrl, i) => fishArray.push({ id: `${Date.now()}-${i}`, dataUrl, mirrored: false, flipByVelocity: true, active: true, ...DEFAULT_SETTINGS }));
+        importedDataUrls.forEach((dataUrl) => {
+          const newId = generateUID();
+          fishArray.push({ id: newId, dataUrl, mirrored: false, flipByVelocity: true, active: true, ...DEFAULT_SETTINGS });
+
+          historyManager.push({
+            type: 'create',
+            id: newId,
+            description: 'Imported Fish'
+          });
+        });
         chrome.storage.local.set({ doodleFishList: fishArray }, () => galleryManager.renderFishList(currentEditingFishId));
       });
     }
@@ -672,7 +766,7 @@ document.addEventListener('DOMContentLoaded', () => {
   else els.openWindowBtn.style.display = 'none';
 
   const resizeCanvas = () => {
-    const isS = isStandalone && window.innerWidth >= 750;
+    const isS = isStandalone && window.innerWidth >= 1000;
     const w = window.innerWidth - (isS ? 420 : 0) - (isS ? 40 : 32);
     const maxW = Math.round(isStandalone ? Math.min(w, 850) : Math.min(w, 800)), maxH = Math.round(maxW * 0.75);
     if (Math.round(els.canvas.getBoundingClientRect().width) !== maxW) canvasManager.setCanvasSize(maxW, maxH, true);

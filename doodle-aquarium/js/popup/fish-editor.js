@@ -16,8 +16,29 @@ export class FishEditor {
       sizeDisplay: document.getElementById('modal-size-display'),
       strengthDisplay: document.getElementById('modal-strength-display')
     };
-
+    this.history = null; // Will be set by popup.js
+    this.currentFishId = null;
     this.setupListeners();
+  }
+
+  syncSettingsUI(fish) {
+    if (!fish || fish.id !== this.currentFishId) return;
+
+    // Physic values
+    this.physicsDOM.speedMultiplier.value = fish.speedMultiplier;
+    this.physicsDOM.speedDisplay.value = fish.speedMultiplier.toFixed(1);
+
+    this.physicsDOM.sizeMultiplier.value = fish.sizeMultiplier;
+    this.physicsDOM.sizeDisplay.value = fish.sizeMultiplier.toFixed(1);
+
+    this.physicsDOM.interactionType.value = fish.interactionType;
+    
+    this.physicsDOM.interactionStrength.value = fish.interactionStrength;
+    this.physicsDOM.strengthDisplay.value = fish.interactionStrength.toFixed(1);
+
+    // Toggles
+    if (this.elements.modalLockToggle) this.elements.modalLockToggle.checked = fish.flipByVelocity;
+    if (this.elements.modalActiveToggle) this.elements.modalActiveToggle.checked = fish.active;
   }
 
   setupListeners() {
@@ -53,46 +74,76 @@ export class FishEditor {
         const fishArray = result.doodleFishList || [];
         const index = fishArray.findIndex(f => f.id === this.currentFishId);
         if (index !== -1) {
-          fishArray[index].speedMultiplier = Number(this.physicsDOM.speedMultiplier.value);
-          fishArray[index].sizeMultiplier = Number(this.physicsDOM.sizeMultiplier.value);
-          fishArray[index].interactionType = this.physicsDOM.interactionType.value;
-          fishArray[index].interactionStrength = Number(this.physicsDOM.interactionStrength.value);
-          chrome.storage.local.set({ doodleFishList: fishArray }, () => this.galleryManager.renderFishList(this.currentFishId));
+          const fish = fishArray[index];
+          const oldSettings = {
+            speedMultiplier: fish.speedMultiplier,
+            sizeMultiplier: fish.sizeMultiplier,
+            interactionType: fish.interactionType,
+            interactionStrength: fish.interactionStrength,
+            active: fish.active,
+            flipByVelocity: fish.flipByVelocity
+          };
+          
+          fish.speedMultiplier = Number(this.physicsDOM.speedMultiplier.value);
+          fish.sizeMultiplier = Number(this.physicsDOM.sizeMultiplier.value);
+          fish.interactionType = this.physicsDOM.interactionType.value;
+          fish.interactionStrength = Number(this.physicsDOM.interactionStrength.value);
+          fish.active = this.elements.modalActiveToggle.checked;
+          fish.flipByVelocity = this.elements.modalLockToggle.checked;
+          
+          const newSettings = {
+            speedMultiplier: fish.speedMultiplier,
+            sizeMultiplier: fish.sizeMultiplier,
+            interactionType: fish.interactionType,
+            interactionStrength: fish.interactionStrength,
+            active: fish.active,
+            flipByVelocity: fish.flipByVelocity
+          };
+
+          if (this.history && JSON.stringify(oldSettings) !== JSON.stringify(newSettings)) {
+            this.history.push({
+              type: 'settings',
+              id: this.currentFishId,
+              data: { id: this.currentFishId, oldSettings, newSettings },
+              description: 'Fish Settings Change'
+            });
+          }
+
+          chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+             const activeEditId = window.appState ? window.appState.currentEditingFishId() : null;
+             this.galleryManager.renderFishList(activeEditId);
+             this.closeFishModal();
+          });
         }
       });
     };
 
+    this.elements.modalSaveBtn?.addEventListener('click', () => persistPhysics());
+
     this.physicsDOM.speedMultiplier?.addEventListener('input', (e) => {
       this.physicsDOM.speedDisplay.value = Number(e.target.value).toFixed(1);
-      persistPhysics();
     });
     this.physicsDOM.speedDisplay?.addEventListener('change', (e) => {
       let val = Math.max(0.0, Math.min(3.0, Number(e.target.value) || 0));
       this.physicsDOM.speedMultiplier.value = val;
       e.target.value = val.toFixed(1);
-      persistPhysics();
     });
     this.physicsDOM.sizeMultiplier?.addEventListener('input', (e) => {
       this.physicsDOM.sizeDisplay.value = Number(e.target.value).toFixed(1);
-      persistPhysics();
     });
     this.physicsDOM.sizeDisplay?.addEventListener('change', (e) => {
       let val = Math.max(0.1, Math.min(3.0, Number(e.target.value) || 0));
       this.physicsDOM.sizeMultiplier.value = val;
       e.target.value = val.toFixed(1);
-      persistPhysics();
     });
     this.physicsDOM.interactionStrength?.addEventListener('input', (e) => {
       this.physicsDOM.strengthDisplay.value = Number(e.target.value).toFixed(1);
-      persistPhysics();
     });
     this.physicsDOM.strengthDisplay?.addEventListener('change', (e) => {
       let val = Math.max(0.0, Math.min(5.0, Number(e.target.value) || 0));
       this.physicsDOM.interactionStrength.value = val;
       e.target.value = val.toFixed(1);
-      persistPhysics();
     });
-    this.physicsDOM.interactionType?.addEventListener('change', persistPhysics);
   }
 
   openFishModal(fish) {
@@ -137,6 +188,7 @@ export class FishEditor {
       const dx = (cw - dw) / 2;
       const dy = (ch - dh) / 2;
       this.canvasManager.ctx.drawImage(imgObj, dx, dy, dw, dh);
+      this.canvasManager.updateSnapshot();
 
       if (this.callbacks.onEdit) this.callbacks.onEdit(id);
 
@@ -200,10 +252,22 @@ export class FishEditor {
   deleteFish(id) {
     chrome.storage.local.get(['doodleFishList'], (result) => {
       let fishArray = result.doodleFishList || [];
-      fishArray = fishArray.filter(f => f.id !== id);
-      chrome.storage.local.set({ doodleFishList: fishArray }, () => {
-        this.galleryManager.renderFishList(this.currentFishId);
-      });
+      const index = fishArray.findIndex(f => f.id === id);
+      if (index !== -1) {
+        const deletedFish = fishArray.splice(index, 1)[0];
+        
+        if (this.history) {
+          this.history.push({
+            type: 'delete',
+            data: { fish: deletedFish, index },
+            description: 'Fish Deleted'
+          });
+        }
+
+        chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+          this.galleryManager.renderFishList(this.currentFishId);
+        });
+      }
     });
   }
 

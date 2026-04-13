@@ -14,15 +14,12 @@ export class CanvasManager {
     this.hoverOutlineCtx = this.hoverOutlineCanvas?.getContext('2d');
     this.canvasTransformWrapper = elements.canvasTransformWrapper;
     this.canvasViewport = elements.canvasViewport;
-
-    this.undoStack = [];
-    this.redoStack = [];
-    this.undoBtn = elements.undoBtn;
-    this.redoBtn = elements.redoBtn;
-
+    this.history = null;
     this.zoomLevel = 1.0;
     this.panX = 0;
     this.panY = 0;
+    this.lastSnapshot = null;
+    this.isInternalChange = false;
 
     this.fillPreviewRequest = null;
     this.lastFillPoint = { x: -1, y: -1 };
@@ -31,8 +28,7 @@ export class CanvasManager {
   }
 
   setupListeners() {
-    this.undoBtn?.addEventListener('click', () => this.performUndo());
-    this.redoBtn?.addEventListener('click', () => this.performRedo());
+    // Buttons are now managed by HistoryManager
   }
 
   getLogicalBrushSize(brushSizeValue) {
@@ -42,18 +38,47 @@ export class CanvasManager {
     return Number(brushSizeValue) * (logicalH / 300);
   }
 
-  saveState() {
-    this.undoStack.push(this.canvas.toDataURL('image/png'));
-    this.redoStack = []; 
-    this.updateUndoRedoButtons();
+  updateSnapshot() {
+    this.lastSnapshot = this.canvas.toDataURL('image/png');
   }
 
-  updateUndoRedoButtons() {
-    if (this.undoBtn) this.undoBtn.disabled = this.undoStack.length === 0;
-    if (this.redoBtn) this.redoBtn.disabled = this.redoStack.length === 0;
+  saveState(fishId, description = 'Brush Stroke') {
+    if (!this.history) return;
+    
+    const newSnapshot = this.canvas.toDataURL('image/png');
+    
+    if (this.isInternalChange) {
+      this.lastSnapshot = newSnapshot;
+      return;
+    }
+
+    // Only save if something actually changed
+    if (this.lastSnapshot !== newSnapshot) {
+      this.history.push({
+        type: 'canvas',
+        id: fishId,
+        data: { oldUrl: this.lastSnapshot, newUrl: newSnapshot },
+        description: description
+      });
+      this.lastSnapshot = newSnapshot;
+    }
   }
 
   restoreState(dataUrl) {
+    this.isInternalChange = true;
+
+    // Handle null (clearing the canvas via history)
+    if (!dataUrl) {
+      this.ctx.save();
+      this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      this.ctx.restore();
+      this.lastSnapshot = null;
+      if (this.callbacks.onRestoreComplete) this.callbacks.onRestoreComplete();
+      this.isInternalChange = false;
+      return;
+    }
+
     const img = new Image();
     img.onload = () => {
       this.ctx.save();
@@ -61,28 +86,17 @@ export class CanvasManager {
       this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
       this.ctx.drawImage(img, 0, 0, this.canvas.width, this.canvas.height);
       this.ctx.restore();
+      
+      this.lastSnapshot = dataUrl; // Key fix for Redo baseline sync
+
       if (this.callbacks.onRestoreComplete) this.callbacks.onRestoreComplete();
+      this.isInternalChange = false;
     };
     img.src = dataUrl;
   }
 
-  performUndo() {
-    if (this.undoStack.length > 0) {
-      this.redoStack.push(this.canvas.toDataURL('image/png'));
-      const state = this.undoStack.pop();
-      this.restoreState(state);
-      this.updateUndoRedoButtons();
-    }
-  }
+  // performUndo and performRedo are now handled by HistoryManager logic in popup.js
 
-  performRedo() {
-    if (this.redoStack.length > 0) {
-      this.undoStack.push(this.canvas.toDataURL('image/png'));
-      const state = this.redoStack.pop();
-      this.restoreState(state);
-      this.updateUndoRedoButtons();
-    }
-  }
 
   configureContext() {
     this.ctx.lineJoin = 'round';
@@ -196,12 +210,14 @@ export class CanvasManager {
     return { x, y };
   }
 
-  clearCanvas() {
-    this.saveState();
+  clearCanvas(fishId = null) {
     this.ctx.save();
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     this.ctx.restore();
+    
+    // Push state after clear
+    this.saveState(fishId, 'Clear Canvas');
   }
 
   drawStamp(x, y, diameter) {
