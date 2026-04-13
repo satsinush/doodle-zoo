@@ -277,7 +277,7 @@ export class GalleryManager {
       const itemsToDelete = [];
       
       this.selectedFishIds.forEach(id => {
-        const idx = fishArray.findIndex(f => f.id === id);
+        const idx = fishArray.findIndex(f => f && f.id === id);
         if (idx !== -1) {
           itemsToDelete.push({ fish: fishArray[idx], index: idx });
         }
@@ -291,7 +291,7 @@ export class GalleryManager {
         });
       }
 
-      fishArray = fishArray.filter(f => !this.selectedFishIds.includes(f.id));
+      fishArray = fishArray.filter(f => f && !this.selectedFishIds.includes(f.id));
       chrome.storage.local.set({ doodleFishList: fishArray }, () => {
         this.selectedFishIds = [];
         this.renderFishList();
@@ -421,9 +421,9 @@ export class GalleryManager {
     if (editingId !== undefined) this.currentEditingFishId = editingId;
     
     chrome.storage.local.get(['doodleFishList'], (result) => {
-      const fishArray = result.doodleFishList || [];
+      const fishArray = (result.doodleFishList || []).filter(f => f);
       this.elements.fishList.innerHTML = '';
-      this.selectedFishIds = this.selectedFishIds.filter(id => fishArray.some(f => f.id === id));
+      this.selectedFishIds = this.selectedFishIds.filter(id => fishArray.some(f => f && f.id === id));
       this.updateBulkToolbar(fishArray);
 
       if (fishArray.length === 0) {
@@ -432,6 +432,7 @@ export class GalleryManager {
       }
 
       fishArray.forEach((fish, index) => {
+        if (!fish) return;
         const isSelected = this.selectedFishIds.includes(fish.id);
         const item = document.createElement('div');
         item.className = `gallery-item ${fish.active ? '' : 'inactive'} ${isSelected ? 'selected' : ''}`;

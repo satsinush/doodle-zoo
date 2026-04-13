@@ -5,6 +5,7 @@ import { ToolManager } from './js/popup/tool-manager.js';
 import { GalleryManager } from './js/popup/gallery-manager.js';
 import { FishEditor } from './js/popup/fish-editor.js';
 import { HistoryManager } from './js/popup/history-manager.js';
+import { NotificationManager } from './js/popup/notification-manager.js';
 
 function generateUID() {
   return Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 9);
@@ -163,6 +164,9 @@ document.addEventListener('DOMContentLoaded', () => {
     onNew: () => resetEditingState()
   });
   fishEditor.history = historyManager;
+
+  const notificationManager = new NotificationManager(document.getElementById('toast-container'));
+  historyManager.setNotificationManager(notificationManager);
 
   // Expose for history manager access
   window.appState = { 
@@ -748,17 +752,25 @@ document.addEventListener('DOMContentLoaded', () => {
     if (importedDataUrls.length > 0) {
       chrome.storage.local.get(['doodleFishList'], (result) => {
         const fishArray = result.doodleFishList || [];
+        const newFishItems = [];
+
         importedDataUrls.forEach((dataUrl) => {
           const newId = generateUID();
-          fishArray.push({ id: newId, dataUrl, mirrored: false, flipByVelocity: true, active: true, ...DEFAULT_SETTINGS });
-
-          historyManager.push({
-            type: 'create',
-            id: newId,
-            description: 'Imported Fish'
-          });
+          const fishData = { id: newId, dataUrl, mirrored: false, flipByVelocity: true, active: true, ...DEFAULT_SETTINGS };
+          fishArray.push(fishData);
+          newFishItems.push(fishData);
         });
-        chrome.storage.local.set({ doodleFishList: fishArray }, () => galleryManager.renderFishList(currentEditingFishId));
+
+        historyManager.push({
+          type: 'bulk_create',
+          data: { fishArray: newFishItems },
+          description: `Imported ${newFishItems.length} Fish`
+        });
+
+        chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+          galleryManager.renderFishList(currentEditingFishId);
+          notificationManager.show(`Imported ${newFishItems.length} fish`, 'library_add');
+        });
       });
     }
     e.target.value = '';
