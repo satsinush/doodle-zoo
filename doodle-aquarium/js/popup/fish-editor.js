@@ -55,7 +55,14 @@ export class FishEditor {
 
     this.elements.modalEditBtn?.addEventListener('click', () => {
       this.closeFishModal();
-      this.loadFishIntoCanvas(this.currentFishId, this.elements.modalFishPreview.src);
+      if (this.callbacks.onNavigate) {
+          // Pass the fish object to trigger full navigation history
+          chrome.storage.local.get(['doodleFishList'], (res) => {
+              const list = res.doodleFishList || [];
+              const fish = list.find(f => f.id === this.currentFishId);
+              if (fish) this.callbacks.onNavigate(fish);
+          });
+      }
     });
 
     this.elements.modalDeleteBtn?.addEventListener('click', () => {
@@ -175,7 +182,11 @@ export class FishEditor {
   }
 
   loadFishIntoCanvas(id, dataUrl) {
-    this.canvasManager.saveState();
+    if (!dataUrl) {
+        this.canvasManager.restoreState(null);
+        if (this.callbacks.onEdit) this.callbacks.onEdit(id);
+        return;
+    }
     const imgObj = new Image();
     imgObj.onload = () => {
       const dpr = window.devicePixelRatio || 1;

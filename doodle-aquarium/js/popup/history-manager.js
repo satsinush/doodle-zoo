@@ -11,6 +11,7 @@ export class HistoryManager {
         this.undoBtn = elements.undoBtn;
         this.redoBtn = elements.redoBtn;
         this.toastContainer = document.getElementById('toast-container');
+        this.updateUI(); // Ensure buttons are in correct state on load
     }
 
     push(item) {
@@ -67,18 +68,6 @@ export class HistoryManager {
 
                 if (app.canvasManager && (id == (typeof app.currentEditingFishId === 'function' ? app.currentEditingFishId() : app.currentEditingFishId))) {
                     app.canvasManager.restoreState(targetUrl);
-                }
-
-                // Update storage - only if we have a valid ID
-                if (id) {
-                    await new Promise(resolve => {
-                        chrome.storage.local.get(['doodleFishList'], (res) => {
-                            const list = res.doodleFishList || [];
-                            const fish = list.find(f => f.id === id);
-                            if (fish) fish.dataUrl = targetUrl;
-                            chrome.storage.local.set({ doodleFishList: list }, resolve);
-                        });
-                    });
                 }
 
                 return item;
@@ -141,7 +130,7 @@ export class HistoryManager {
                             const list = res.doodleFishList || [];
                             const deletedIndex = list.findIndex(f => f.id === data.fish.id);
                             if (deletedIndex !== -1) {
-                                list.splice(deletedIndex, 1);
+                                 list.splice(deletedIndex, 1);
                             }
                             chrome.storage.local.set({ doodleFishList: list }, resolve);
                         });
@@ -149,20 +138,47 @@ export class HistoryManager {
                 }
                 return item;
             }
+
+            case 'save_commit': {
+                // data: { id, oldUrl, newUrl } - Only update storage/gallery, NOT canvas
+                const targetUrl = isUndo ? data.oldUrl : data.newUrl;
+                await new Promise(resolve => {
+                    chrome.storage.local.get(['doodleFishList'], (res) => {
+                        const list = res.doodleFishList || [];
+                        const fish = list.find(f => f.id === id);
+                        if (fish) {
+                            fish.dataUrl = targetUrl;
+                        }
+                        chrome.storage.local.set({ doodleFishList: list }, resolve);
+                    });
+                });
+                return item;
+            }
+
             case 'create': {
-                // data: fishId
-                // Undo create -> Delete it
+                // data: { id, fishData }
+                // Undo create -> Delete it from gallery, but keep pixels on canvas
+                // We set currentEditingFishId to null if we undo create
                 if (isUndo) {
                     await new Promise(resolve => {
                         chrome.storage.local.get(['doodleFishList'], (res) => {
                             const list = res.doodleFishList || [];
-                            const deletedIndex = list.findIndex(f => f.id === id);
-                            if (deletedIndex !== -1) {
-                                list.splice(deletedIndex, 1);
-                            }
+                            const idx = list.findIndex(f => f.id === id);
+                            if (idx !== -1) list.splice(idx, 1);
                             chrome.storage.local.set({ doodleFishList: list }, resolve);
                         });
                     });
+                    if (app.setEditingState) app.setEditingState(null);
+                } else {
+                    // Redo create -> Restore to gallery
+                    await new Promise(resolve => {
+                        chrome.storage.local.get(['doodleFishList'], (res) => {
+                            const list = res.doodleFishList || [];
+                            list.push(data.fishData);
+                            chrome.storage.local.set({ doodleFishList: list }, resolve);
+                        });
+                    });
+                    if (app.setEditingState) app.setEditingState(id);
                 }
                 return item;
             }
@@ -177,6 +193,20 @@ export class HistoryManager {
                 }
                 if (app.canvasManager) {
                     app.canvasManager.restoreState(targetUrl);
+                }
+                return item;
+            }
+
+            case 'global_settings': {
+                // data: { oldSettings, newSettings }
+                const targetSettings = isUndo ? data.oldSettings : data.newSettings;
+                
+                await new Promise(resolve => {
+                    chrome.storage.local.set({ globalUISettings: targetSettings }, resolve);
+                });
+
+                if (app.applyGlobalSettingsToForm) {
+                    app.applyGlobalSettingsToForm(targetSettings);
                 }
                 return item;
             }
