@@ -193,6 +193,25 @@ export class ToolManager {
 
     try {
       const imgData = this.canvasManager.ctx.getImageData(grabX, grabY, pixelRange, pixelRange);
+      
+      // Explicitly sanitize pixels that are out of legal canvas bounds to prevent weird artifacts
+      const canvasW = this.canvasManager.canvas.width;
+      const canvasH = this.canvasManager.canvas.height;
+      
+      for (let dy = 0; dy < pixelRange; dy++) {
+        for (let dx = 0; dx < pixelRange; dx++) {
+          const curX = grabX + dx;
+          const curY = grabY + dy;
+          if (curX < 0 || curX >= canvasW || curY < 0 || curY >= canvasH) {
+            const idx = (dy * pixelRange + dx) * 4;
+            imgData.data[idx] = 0;
+            imgData.data[idx+1] = 0;
+            imgData.data[idx+2] = 0;
+            imgData.data[idx+3] = 0;
+          }
+        }
+      }
+
       const tempC = document.createElement('canvas');
       tempC.width = pixelRange;
       tempC.height = pixelRange;
@@ -235,7 +254,8 @@ export class ToolManager {
       const octx = this.canvasManager.hoverOutlineCtx;
       if (octx && showEraserOutline) {
         octx.beginPath();
-        octx.arc(point.x, point.y, Math.max(0, radius - 1), 0, Math.PI * 2);
+        // Ensure the eraser ring is always visible even at 1px size (radius 0.5)
+        octx.arc(point.x, point.y, Math.max(1.5, radius), 0, Math.PI * 2);
         octx.strokeStyle = '#fff';
         octx.lineWidth = 2.0;
         octx.stroke();
