@@ -73,6 +73,9 @@ document.addEventListener('DOMContentLoaded', () => {
     globalShowBrushFill: document.getElementById('global-show-brush-fill'),
     globalShowBucketHover: document.getElementById('global-show-bucket-hover'),
     globalShowEyedropper: document.getElementById('global-show-eyedropper'),
+    helpBtn: document.getElementById('help-btn'),
+    helpModal: document.getElementById('help-modal'),
+    closeHelpModal: document.getElementById('close-help-modal'),
   };
 
   // State
@@ -280,6 +283,8 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   els.bulkEditSettings.onclick = () => galleryManager.openBulkModal();
   els.closeBulkModal.onclick = () => els.bulkModal.classList.remove('active');
+  els.helpBtn.onclick = () => els.helpModal.classList.add('active');
+  els.closeHelpModal.onclick = () => els.helpModal.classList.remove('active');
 
   // Drawing Orchestration
   const updatePreviewDisplay = (e = null) => {

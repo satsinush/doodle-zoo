@@ -20,6 +20,9 @@
         <span class="headline" style="font-weight: 800; color: var(--primary); font-size: 1.1rem;">Doodle
             Aquarium</span>
         <div class="header-actions">
+            <button id="help-btn" class="icon-btn" title="Help Guide">
+                <span class="material-symbols-outlined">help</span>
+            </button>
             <button id="global-settings-btn" class="icon-btn" title="Global Settings">
                 <span class="material-symbols-outlined">settings</span>
             </button>
@@ -420,6 +423,50 @@
                         <span class="checkmark"></span>
                     </label>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div id="help-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="brand-font">Help & Shortcuts</h2>
+                <button id="close-help-modal" class="material-symbols-outlined icon-btn">close</button>
+            </div>
+
+            <div class="modal-body">
+                <section class="help-section">
+                    <h3 class="label">Instructions</h3>
+                    <p class="sub-label">Draw your fish on the canvas using the brush, eraser, and bucket tools. Click
+                        <b>Save</b> to add them to your aquarium. Use the <b>Gallery</b> to toggle which fish are
+                        currently swimming.</p>
+                </section>
+
+                <section class="help-section">
+                    <h3 class="label">Navigation</h3>
+                    <ul class="shortcut-list">
+                        <li><span>Pan View</span> <kbd>Right Click</kbd> or <kbd>Middle Click</kbd></li>
+                        <li><span>Zoom View</span> <kbd>Scroll Wheel</kbd></li>
+                        <li><span>Quick Pan X/Y</span> <kbd>Shift/Ctrl</kbd> + <kbd>Scroll</kbd></li>
+                    </ul>
+                </section>
+
+                <section class="help-section">
+                    <h3 class="label">Keyboard Shortcuts</h3>
+                    <div class="shortcut-grid">
+                        <div class="shortcut-item"><span>Brush</span> <kbd>B</kbd></div>
+                        <div class="shortcut-item"><span>Eraser</span> <kbd>E</kbd></div>
+                        <div class="shortcut-item"><span>Fill Bucket</span> <kbd>F</kbd></div>
+                        <div class="shortcut-item"><span>Eyedropper</span> <kbd>D</kbd></div>
+
+                        <div class="shortcut-item"><span>Undo</span> <kbd>Ctrl</kbd>+<kbd>Z</kbd></div>
+                        <div class="shortcut-item"><span>Redo</span> <kbd>Ctrl</kbd>+<kbd>Y</kbd></div>
+                        <div class="shortcut-item"><span>Save</span> <kbd>Ctrl</kbd>+<kbd>S</kbd></div>
+                        <div class="shortcut-item"><span>Save as New</span> <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd></div>
+                        <div class="shortcut-item"><span>New Fish</span> <kbd>Ctrl</kbd>+<kbd>N</kbd></div>
+                    </div>
+                </section>
             </div>
         </div>
     </div>
