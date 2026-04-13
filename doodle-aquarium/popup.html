@@ -1,109 +1,479 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+
 <head>
-  <title>Doodle Aquarium</title>
-  <link rel="stylesheet" type="text/css" href="popup.css">
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Doodle Aquarium | Tidal Studio</title>
+
+    <link
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800&family=Inter:wght@400;500;600&display=swap"
+        rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+        rel="stylesheet" />
+    <link rel="stylesheet" type="text/css" href="popup.css">
 </head>
+
 <body>
-  <div class="app-shell">
-    <header class="header">
-      <h1>Doodle Aquarium</h1>
-      <div class="header-actions">
-        <button id="open-window-btn" class="secondary-btn" type="button">Open Full Window</button>
-      </div>
+
+    <header>
+        <span class="headline" style="font-weight: 800; color: var(--primary); font-size: 1.1rem;">Doodle
+            Aquarium</span>
+        <div class="header-actions">
+            <button id="help-btn" class="icon-btn" title="Help Guide">
+                <span class="material-symbols-outlined">help</span>
+            </button>
+            <button id="global-settings-btn" class="icon-btn" title="Global Settings">
+                <span class="material-symbols-outlined">settings</span>
+            </button>
+            <button id="open-window-btn" class="icon-btn" title="Open Full Window">
+                <span class="material-symbols-outlined">open_in_new</span>
+            </button>
+        </div>
     </header>
 
-    <div class="canvas-container">
-      <canvas id="direction-guide" aria-hidden="true"></canvas>
-      <canvas id="drawing-canvas"></canvas>
-      <canvas id="brush-preview" width="40" height="40" style="position: absolute; pointer-events: none; display: none; z-index: 10;"></canvas>
+    <main>
+        <div class="editor-layout">
+            <!-- Canvas Area -->
+            <div class="canvas-area">
+                <div class="canvas-container">
+                    <div class="canvas-viewport">
+                        <div id="canvas-transform-wrapper">
+                            <div id="canvas-surface">
+                                <canvas id="direction-guide"></canvas>
+                                <canvas id="drawing-canvas"></canvas>
+                                <canvas id="active-stroke-canvas"></canvas>
+                                <canvas id="hover-preview-fill"></canvas>
+                                <canvas id="hover-preview-outline"></canvas>
+                            </div>
+                        </div>
+                        <canvas id="brush-preview-outline" width="40" height="40"></canvas>
+                        <canvas id="brush-preview-fill" width="40" height="40"></canvas>
+                    </div>
+                    <button id="reset-view-btn" class="material-symbols-outlined"
+                        title="Reset View">center_focus_strong</button>
+                </div>
+            </div>
+
+            <!-- Sidebar / Controls -->
+            <div class="sidebar">
+                <div class="toolbar">
+                    <div class="btn-group">
+                        <button id="undo-btn" class="icon-btn" title="Undo" disabled>
+                            <span class="material-symbols-outlined">undo</span>
+                        </button>
+                        <button id="redo-btn" class="icon-btn" title="Redo" disabled>
+                            <span class="material-symbols-outlined">redo</span>
+                        </button>
+                        <div class="divider"></div>
+                        <button id="flip-h-btn" class="icon-btn" title="Flip Horizontal">
+                            <span class="material-symbols-outlined">flip</span>
+                        </button>
+                        <button id="flip-v-btn" class="icon-btn" title="Flip Vertical"
+                            style="transform: rotate(90deg);">
+                            <span class="material-symbols-outlined">flip</span>
+                        </button>
+                        <div class="divider"></div>
+                        <button id="clear-btn" class="icon-btn" title="Clear Canvas">
+                            <span class="material-symbols-outlined">delete_sweep</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Core Settings with Vertical Tools -->
+                <div class="settings-row">
+                    <div class="vertical-tools" id="tool-group">
+                        <button class="icon-btn active" data-tool="brush" title="Brush">
+                            <span class="material-symbols-outlined">brush</span>
+                        </button>
+                        <button class="icon-btn" data-tool="eraser" title="Eraser">
+                            <span class="material-symbols-outlined">ink_eraser</span>
+                        </button>
+                        <button class="icon-btn" data-tool="fill" title="Fill Bucket">
+                            <span class="material-symbols-outlined">format_color_fill</span>
+                        </button>
+                        <button class="icon-btn" data-tool="eyedropper" title="Eyedropper">
+                            <span class="material-symbols-outlined">colorize</span>
+                        </button>
+                    </div>
+
+                    <div class="settings-card brush-card">
+                        <label class="label-tiny">Brush Settings</label>
+                        <div class="color-row">
+                            <input type="color" id="color-picker" value="#000000">
+                            <input type="text" id="color-text" value="#000000">
+                        </div>
+                        <div style="margin-top: 0.75rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <label class="label-tiny" style="margin: 0;">Opacity</label>
+                                <span id="brush-opacity-display"
+                                    style="font-size: 10px; font-weight: 800; color: var(--primary);">100%</span>
+                            </div>
+                            <input type="range" id="brush-opacity" min="0" max="100" value="100">
+                        </div>
+                        <div style="margin-top: 0.75rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <label class="label-tiny" style="margin: 0;">Size</label>
+                                <span id="brush-size-display"
+                                    style="font-size: 10px; font-weight: 800; color: var(--primary);">10px</span>
+                            </div>
+                            <input type="range" id="brush-size" min="1" max="100" value="10">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="action-buttons horizontal">
+                    <button id="save-btn" class="btn-primary">
+                        <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">save</span>
+                        <span id="save-btn-text">Save</span>
+                    </button>
+
+                    <button id="new-fish-btn" class="secondary-btn">
+                        <span class="material-symbols-outlined">add_circle</span>
+                        New
+                    </button>
+
+                    <label class="secondary-btn">
+                        <span class="material-symbols-outlined">upload_file</span>
+                        Import
+                        <input type="file" id="import-file" accept="image/*" multiple style="display: none;">
+                    </label>
+                </div>
+
+                <!-- Simulation Settings Deprecated from UI layout -->
+
+                <div class="settings-card tank-card">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; min-height: 24px;">
+                        <h3 id="gallery-title" style="margin:0; font-size: 14px;">Tank Gallery</h3>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div style="display: flex; align-items: center; gap: 6px; cursor: pointer;"
+                                id="master-select-wrapper">
+                                <span
+                                    style="font-size: 10px; font-weight: 800; color: var(--on-surface-variant); text-transform: uppercase; user-select: none;">Select
+                                    All</span>
+                                <label class="checkbox-container small"
+                                    style="margin: 0; padding-left: 18px; pointer-events: none;">
+                                    <input type="checkbox" id="master-select-checkbox">
+                                    <span class="checkmark"></span>
+                                </label>
+                            </div>
+                            <button id="bulk-edit-settings" class="toolbar-icon-btn material-symbols-outlined"
+                                title="Bulk Settings" disabled>settings</button>
+                            <button id="bulk-export-selected" class="toolbar-icon-btn material-symbols-outlined"
+                                title="Export Selected" disabled>download</button>
+                        </div>
+                    </div>
+                    <div id="fish-list" class="gallery-grid"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <p id="status" role="alert"></p>
+
+    <div id="fish-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="brand-font">Fish Settings</h2>
+                <button id="close-modal" class="material-symbols-outlined icon-btn">close</button>
+            </div>
+
+            <div id="modal-preview-container">
+                <img id="modal-fish-preview" src="" alt="Fish Preview">
+            </div>
+
+            <div class="modal-controls">
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Show Fish</span>
+                        <span class="sub-label">Show or hide this fish in your tank</span>
+                    </div>
+                    <label class="checkbox-container">
+                        <input type="checkbox" id="modal-active-toggle">
+                        <span class="checkmark"></span>
+                    </label>
+                </div>
+
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Flip Image</span>
+                        <span class="sub-label">Permanently flip the fish artwork</span>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button id="modal-flip-h-btn" class="secondary-btn icon-only" title="Flip Horizontal">
+                            <span class="material-symbols-outlined">flip</span>
+                        </button>
+                        <button id="modal-flip-v-btn" class="secondary-btn icon-only" title="Flip Vertical"
+                            style="transform: rotate(90deg);">
+                            <span class="material-symbols-outlined">flip</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Auto-Flip</span>
+                        <span class="sub-label">Flip based on swim direction</span>
+                    </div>
+                    <label class="checkbox-container">
+                        <input type="checkbox" id="modal-lock-toggle">
+                        <span class="checkmark"></span>
+                    </label>
+                </div>
+
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Fish Speed</span>
+                        <span class="sub-label">Swimming velocity multiplier</span>
+                    </div>
+                    <div class="slider-group">
+                        <input id="modal-speed-multiplier" type="range" min="0.0" max="3.0" step="0.1" value="0.5">
+                        <input type="number" class="display-value" id="modal-speed-display" value="0.5" step="0.1"
+                            min="0.0" max="3.0">
+                    </div>
+                </div>
+
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Fish Size</span>
+                        <span class="sub-label">Visual bounding box scale</span>
+                    </div>
+                    <div class="slider-group">
+                        <input id="modal-size-multiplier" type="range" min="0.1" max="3.0" step="0.1" value="0.5">
+                        <input type="number" class="display-value" id="modal-size-display" value="0.5" step="0.1"
+                            min="0.1" max="3.0">
+                    </div>
+                </div>
+
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Interaction Type</span>
+                        <span class="sub-label">Behavior toward mouse pointer</span>
+                    </div>
+                    <select id="modal-interaction-type">
+                        <option value="repel">Repel</option>
+                        <option value="attract">Attract</option>
+                    </select>
+                </div>
+
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Interaction Strength</span>
+                        <span class="sub-label">Force multiplier</span>
+                    </div>
+                    <div class="slider-group">
+                        <input id="modal-interaction-strength" type="range" min="0.0" max="5.0" step="0.1" value="1.0">
+                        <input type="number" class="display-value" id="modal-strength-display" value="1.0" step="0.1"
+                            min="0.0" max="5.0">
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer" style="flex-direction: column; gap: 0.75rem;">
+                <div style="display: flex; gap: 0.75rem; width: 100%;">
+                    <button id="modal-edit-btn" class="secondary-btn" style="flex: 1;">
+                        <span class="material-symbols-outlined">edit</span> Edit
+                    </button>
+                    <button id="modal-export-btn" class="secondary-btn" style="flex: 1;">
+                        <span class="material-symbols-outlined">download</span> Export
+                    </button>
+                </div>
+                <button id="modal-delete-btn" class="secondary-btn delete" style="width: 100%;">
+                    <span class="material-symbols-outlined">delete</span> Delete Fish
+                </button>
+            </div>
+        </div>
     </div>
 
-    <div class="controls">
-      <div class="field tools-row">
-        <label>Tool</label>
-        <div class="tool-options">
-          <label><input type="radio" name="tool" value="brush" checked> Brush</label>
-          <label><input type="radio" name="tool" value="fill"> Fill Bucket</label>
-          <label><input type="radio" name="tool" value="eraser"> Eraser</label>
-        </div>
-      </div>
+    <!-- Bulk Edit Modal -->
+    <div id="bulk-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="brand-font">Bulk Edit (<span id="bulk-count">0</span> fish)</h2>
+                <button id="close-bulk-modal" class="material-symbols-outlined icon-btn">close</button>
+            </div>
+            <div class="modal-controls" style="margin-top: 1rem;">
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Show Fish</span>
+                        <span class="sub-label">Visually enable or disable</span>
+                    </div>
+                    <label class="checkbox-container">
+                        <input type="checkbox" id="bulk-active-toggle">
+                        <span class="checkmark"></span>
+                    </label>
+                </div>
 
-      <div class="field">
-        <label for="color-picker">Color</label>
-        <div class="color-row">
-          <input type="color" id="color-picker" value="#000000" aria-label="Pick color">
-          <input type="text" id="color-text" value="#000000" placeholder="Any CSS color" aria-label="Custom color">
-        </div>
-      </div>
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Auto-Flip</span>
+                        <span class="sub-label">Flip based on swim direction</span>
+                    </div>
+                    <label class="checkbox-container">
+                        <input type="checkbox" id="bulk-flip-velocity">
+                        <span class="checkmark"></span>
+                    </label>
+                </div>
 
-      <div class="field">
-        <label for="brush-size">Brush Size</label>
-        <div style="display: flex; align-items: center; gap: 12px;">
-          <input type="range" id="brush-size" min="1" max="100" value="5">
-        </div>
-      </div>
+                <hr style="border:none; border-top: 1px solid var(--outline-variant); margin: 0 0 1rem 0;">
 
-      <div class="buttons-row">
-        <button id="undo-btn" class="secondary-btn" type="button" disabled>Undo</button>
-        <button id="redo-btn" class="secondary-btn" type="button" disabled>Redo</button>
-        <button id="clear-btn" class="secondary-btn" type="button">Clear</button>
-        <label class="secondary-btn" style="cursor: pointer;">
-          Import
-          <input type="file" id="import-file" accept="image/*" multiple style="display: none;">
-        </label>
-        <button id="save-btn" type="button">Save Fish</button>
-      </div>
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Fish Speed</span>
+                        <span class="sub-label">Swimming velocity multiplier</span>
+                    </div>
+                    <div class="slider-group">
+                        <input id="bulk-speed-multiplier" type="range" min="0.0" max="3.0" step="0.1" value="0.5">
+                        <input type="number" class="display-value" id="bulk-speed-display" placeholder="--" step="0.1"
+                            min="0.0" max="3.0">
+                    </div>
+                </div>
+
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Fish Size</span>
+                        <span class="sub-label">Visual bounding box scale</span>
+                    </div>
+                    <div class="slider-group">
+                        <input id="bulk-size-multiplier" type="range" min="0.1" max="3.0" step="0.1" value="0.5">
+                        <input type="number" class="display-value" id="bulk-size-display" placeholder="--" step="0.1"
+                            min="0.1" max="3.0">
+                    </div>
+                </div>
+
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Interaction Type</span>
+                        <span class="sub-label">Behavior toward mouse pointer</span>
+                    </div>
+                    <select id="bulk-interaction-type">
+                        <option value="">--</option>
+                        <option value="repel">Repel</option>
+                        <option value="attract">Attract</option>
+                    </select>
+                </div>
+
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Interaction Strength</span>
+                        <span class="sub-label">Force multiplier</span>
+                    </div>
+                    <div class="slider-group">
+                        <input id="bulk-interaction-strength" type="range" min="0.0" max="5.0" step="0.1" value="1.0">
+                        <input type="number" class="display-value" id="bulk-strength-display" placeholder="--"
+                            step="0.1" min="0.0" max="5.0">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="flex-direction: column; gap: 0.75rem; padding-top: 1.5rem;">
+                <button id="save-bulk-btn" class="btn-primary" style="width: 100%;">Apply to All</button>
+                <button id="bulk-delete" class="secondary-btn delete" style="width: 100%;">
+                    <span class="material-symbols-outlined">delete</span> Delete Selected
+                </button>
+            </div>
+        </div>
     </div>
 
-    <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 24px; margin-bottom: 8px;">
-      <h2>My Fish</h2>
-      <div style="display: flex; gap: 8px;">
-        <button id="select-all-btn" class="secondary-btn" style="padding: 4px 8px; font-size: 11px;">Show All</button>
-        <button id="deselect-all-btn" class="secondary-btn" style="padding: 4px 8px; font-size: 11px;">Hide All</button>
-      </div>
-    </div>
-    <div id="fish-list">
-      <!-- Fish items will be added here -->
+    <!-- Global Settings Modal -->
+    <div id="global-settings-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="brand-font">Settings</h2>
+                <button id="close-global-modal" class="material-symbols-outlined icon-btn">close</button>
+            </div>
+            <div class="modal-controls" style="margin-top: 1.5rem;">
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Show Eraser Outline</span>
+                        <span class="sub-label">Show erasure zone hovering</span>
+                    </div>
+                    <label class="checkbox-container">
+                        <input type="checkbox" id="global-show-eraser-outline">
+                        <span class="checkmark"></span>
+                    </label>
+                </div>
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Show Brush Fill</span>
+                        <span class="sub-label">Show visual color hovering</span>
+                    </div>
+                    <label class="checkbox-container">
+                        <input type="checkbox" id="global-show-brush-fill">
+                        <span class="checkmark"></span>
+                    </label>
+                </div>
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Show Bucket Hover</span>
+                        <span class="sub-label">Preview flood fills immediately</span>
+                    </div>
+                    <label class="checkbox-container">
+                        <input type="checkbox" id="global-show-bucket-hover">
+                        <span class="checkmark"></span>
+                    </label>
+                </div>
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Show Eyedropper Look</span>
+                        <span class="sub-label">Magnify color picking cursor</span>
+                    </div>
+                    <label class="checkbox-container">
+                        <input type="checkbox" id="global-show-eyedropper">
+                        <span class="checkmark"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <div id="settings-panel" style="border-top: 1px solid #ddd; margin-top: 16px; padding-top: 16px;">
-      <h2>Settings</h2>
-      <div class="field">
-        <label for="speed-multiplier">Fish Speed</label>
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <input id="speed-multiplier" type="range" min="0.1" max="3.0" step="0.1" value="0.5">
-          <input id="speed-value" type="number" min="0.1" max="3.0" step="0.1" value="0.5" style="width: 60px;">
-        </div>
-      </div>
-      <div class="field">
-        <label for="size-multiplier">Fish Size</label>
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <input id="size-multiplier" type="range" min="0.1" max="3.0" step="0.1" value="0.5">
-          <input id="size-value" type="number" min="0.1" max="3.0" step="0.1" value="0.5" style="width: 60px;">
-        </div>
-      </div>
-      <div class="field">
-        <label for="interaction-type">Cursor Interaction</label>
-        <select id="interaction-type" style="padding: 4px; border-radius: 4px; border: 1px solid var(--border);">
-          <option value="repel">Repel</option>
-          <option value="attract">Attract</option>
-        </select>
-      </div>
-      <div class="field">
-        <label for="interaction-strength">Interaction Strength</label>
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <input id="interaction-strength" type="range" min="0.0" max="5.0" step="0.1" value="1">
-          <input id="strength-value" type="number" min="0.0" max="5.0" step="0.1" value="1.0" style="width: 60px;">
-        </div>
-      </div>
-      <div class="buttons-row">
-        <button id="reset-settings" class="secondary-btn" type="button">Reset</button>
-      </div>
-      <p id="status" class="status" aria-live="polite" style="color: green; font-size: 13px; margin-top: 8px;"></p>
-    </div>
-  </div>
+    <!-- Help Modal -->
+    <div id="help-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="brand-font">Help & Shortcuts</h2>
+                <button id="close-help-modal" class="material-symbols-outlined icon-btn">close</button>
+            </div>
 
-  <script src="popup.js"></script>
+            <div class="modal-body">
+                <section class="help-section">
+                    <h3 class="label">Instructions</h3>
+                    <p class="sub-label">Draw your fish on the canvas using the brush, eraser, and bucket tools. Click
+                        <b>Save</b> to add them to your aquarium. Use the <b>Gallery</b> to edit options for each fish.
+                        Select multiple fish to apply changes to all of them at once.
+                    </p>
+                </section>
+
+                <section class="help-section">
+                    <h3 class="label">Navigation</h3>
+                    <ul class="shortcut-list">
+                        <li><span>Pan View</span> <kbd>Right Click</kbd> or <kbd>Middle Click</kbd></li>
+                        <li><span>Zoom View</span> <kbd>Scroll Wheel</kbd></li>
+                        <li><span>Quick Pan X/Y</span> <kbd>Shift/Ctrl</kbd> + <kbd>Scroll</kbd></li>
+                    </ul>
+                </section>
+
+                <section class="help-section">
+                    <h3 class="label">Keyboard Shortcuts</h3>
+                    <div class="shortcut-grid">
+                        <div class="shortcut-item"><span>Brush</span> <kbd>B</kbd></div>
+                        <div class="shortcut-item"><span>Eraser</span> <kbd>E</kbd></div>
+                        <div class="shortcut-item"><span>Fill Bucket</span> <kbd>F</kbd></div>
+                        <div class="shortcut-item"><span>Eyedropper</span> <kbd>D</kbd></div>
+
+                        <div class="shortcut-item"><span>Undo</span> <kbd>Ctrl</kbd>+<kbd>Z</kbd></div>
+                        <div class="shortcut-item"><span>Redo</span> <kbd>Ctrl</kbd>+<kbd>Y</kbd></div>
+                        <div class="shortcut-item"><span>Save</span> <kbd>Ctrl</kbd>+<kbd>S</kbd></div>
+                        <div class="shortcut-item"><span>Save as New</span>
+                            <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd></div>
+                        <div class="shortcut-item"><span>New Fish</span> <kbd>Ctrl</kbd>+<kbd>N</kbd></div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="popup.js"></script>
 </body>
+
 </html>

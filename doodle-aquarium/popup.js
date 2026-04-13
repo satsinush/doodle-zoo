@@ -1,987 +1,679 @@
+import { DEFAULT_SETTINGS, GLOBAL_UI_SETTINGS } from './js/common/constants.js';
+import { normalizeFishSettings, normalizeGlobalSettings } from './js/common/settings.js';
+import { CanvasManager } from './js/popup/canvas-manager.js';
+import { ToolManager } from './js/popup/tool-manager.js';
+import { GalleryManager } from './js/popup/gallery-manager.js';
+import { FishEditor } from './js/popup/fish-editor.js';
+
 document.addEventListener('DOMContentLoaded', () => {
   const urlParams = new URLSearchParams(window.location.search);
   const isStandalone = urlParams.get('mode') === 'window';
+  if (isStandalone) document.body.classList.add('standalone');
 
-  if (isStandalone) {
-    document.body.classList.add('standalone');
-  }
-
-  const canvas = document.getElementById('drawing-canvas');
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  const guideCanvas = document.getElementById('direction-guide');
-  const guideCtx = guideCanvas.getContext('2d');
-
-  const colorPicker = document.getElementById('color-picker');
-  const colorText = document.getElementById('color-text');
-  const brushSize = document.getElementById('brush-size');
-  const brushPreview = document.getElementById('brush-preview');
-  const brushPreviewCtx = brushPreview.getContext('2d');
-  const toolRadios = document.querySelectorAll('input[name="tool"]');
-  const undoBtn = document.getElementById('undo-btn');
-  const redoBtn = document.getElementById('redo-btn');
-  const clearBtn = document.getElementById('clear-btn');
-  const saveBtn = document.getElementById('save-btn');
-  const importFile = document.getElementById('import-file');
-  const openWindowBtn = document.getElementById('open-window-btn');
-  const fishList = document.getElementById('fish-list');
-  const selectAllBtn = document.getElementById('select-all-btn');
-  const deselectAllBtn = document.getElementById('deselect-all-btn');
-
-  const settingsPanel = document.getElementById('settings-panel');
-  const speedInput = document.getElementById('speed-multiplier');
-  const sizeInput = document.getElementById('size-multiplier');
-  const speedValue = document.getElementById('speed-value');
-  const sizeValue = document.getElementById('size-value');
-  const interactionType = document.getElementById('interaction-type');
-  const strengthInput = document.getElementById('interaction-strength');
-  const strengthValue = document.getElementById('strength-value');
-  const resetSettingsBtn = document.getElementById('reset-settings');
-  const statusEl = document.getElementById('status');
-
-  const DEFAULT_SETTINGS = {
-    speedMultiplier: 0.5,
-    sizeMultiplier: 0.5,
-    interactionType: 'repel',
-    interactionStrength: 1
+  // DOM Elements
+  const els = {
+    canvas: document.getElementById('drawing-canvas'),
+    guideCanvas: document.getElementById('direction-guide'),
+    activeCanvas: document.getElementById('active-stroke-canvas'),
+    canvasTransformWrapper: document.getElementById('canvas-transform-wrapper'),
+    canvasViewport: document.querySelector('.canvas-viewport'),
+    undoBtn: document.getElementById('undo-btn'),
+    redoBtn: document.getElementById('redo-btn'),
+    clearBtn: document.getElementById('clear-btn'),
+    saveBtn: document.getElementById('save-btn'),
+    importFile: document.getElementById('import-file'),
+    openWindowBtn: document.getElementById('open-window-btn'),
+    fishList: document.getElementById('fish-list'),
+    bulkToolbar: document.getElementById('bulk-toolbar'),
+    bulkCount: document.getElementById('bulk-count'),
+    bulkModal: document.getElementById('bulk-modal'),
+    masterSelectCheckbox: document.getElementById('master-select-checkbox'),
+    masterSelectWrapper: document.getElementById('master-select-wrapper'),
+    bulkDelete: document.getElementById('bulk-delete'),
+    bulkEditSettings: document.getElementById('bulk-edit-settings'),
+    bulkActiveToggle: document.getElementById('bulk-active-toggle'),
+    bulkFlipVelocity: document.getElementById('bulk-flip-velocity'),
+    saveBulkBtn: document.getElementById('save-bulk-btn'),
+    bulkExportSelected: document.getElementById('bulk-export-selected'),
+    closeBulkModal: document.getElementById('close-bulk-modal'),
+    flipHBtn: document.getElementById('flip-h-btn'),
+    flipVBtn: document.getElementById('flip-v-btn'),
+    colorPicker: document.getElementById('color-picker'),
+    colorText: document.getElementById('color-text'),
+    brushSize: document.getElementById('brush-size'),
+    brushSizeDisplay: document.getElementById('brush-size-display'),
+    brushPreviewContainer: document.getElementById('brush-preview-container'),
+    brushPreviewFill: document.getElementById('brush-preview-fill'),
+    brushPreviewOutline: document.getElementById('brush-preview-outline'),
+    brushOpacity: document.getElementById('brush-opacity'),
+    brushOpacityDisplay: document.getElementById('brush-opacity-display'),
+    resetSettings: document.getElementById('reset-settings'),
+    status: document.getElementById('status'),
+    resetViewBtn: document.getElementById('reset-view-btn'),
+    fishModal: document.getElementById('fish-modal'),
+    modalFishPreview: document.getElementById('modal-fish-preview'),
+    modalCloseBtn: document.getElementById('close-modal'),
+    modalFlipHBtn: document.getElementById('modal-flip-h-btn'),
+    modalFlipVBtn: document.getElementById('modal-flip-v-btn'),
+    modalLockToggle: document.getElementById('modal-lock-toggle'),
+    modalActiveToggle: document.getElementById('modal-active-toggle'),
+    modalEditBtn: document.getElementById('modal-edit-btn'),
+    modalDeleteBtn: document.getElementById('modal-delete-btn'),
+    modalExportBtn: document.getElementById('modal-export-btn'),
+    toolGroup: document.getElementById('tool-group'),
+    toolButtons: document.querySelectorAll('[data-tool]'),
+    hoverFillCanvas: document.getElementById('hover-preview-fill'),
+    hoverOutlineCanvas: document.getElementById('hover-preview-outline'),
+    newFishBtn: document.getElementById('new-fish-btn'),
+    saveBtnText: document.getElementById('save-btn-text'),
+    globalSettingsBtn: document.getElementById('global-settings-btn'),
+    globalSettingsModal: document.getElementById('global-settings-modal'),
+    closeGlobalModal: document.getElementById('close-global-modal'),
+    globalShowEraserOutline: document.getElementById('global-show-eraser-outline'),
+    globalShowBrushFill: document.getElementById('global-show-brush-fill'),
+    globalShowBucketHover: document.getElementById('global-show-bucket-hover'),
+    globalShowEyedropper: document.getElementById('global-show-eyedropper'),
+    helpBtn: document.getElementById('help-btn'),
+    helpModal: document.getElementById('help-modal'),
+    closeHelpModal: document.getElementById('close-help-modal'),
   };
 
+  // State
   let isDrawing = false;
   let lastX = 0;
   let lastY = 0;
-  let currentDrawColor = '#000000';
-  let currentTool = 'brush';
+  let isMouseInViewport = false;
   let autoSaveTimer = null;
   let applyingSettings = false;
+  let isReentering = false;
+  let currentStrokePoints = [];
+  let isPanning = false;
+  let lastMousePos = { clientX: 0, clientY: 0 };
+  let panX = 0;
+  let panY = 0;
+  let currentEditingFishId = null;
+  let activePointers = new Map();
+  let initialPinchDistance = 0;
+  let initialPinchZoom = 1;
+  let initialPinchPanX = 0;
+  let initialPinchPanY = 0;
+  let initialPinchMidpoint = { x: 0, y: 0 };
+  let lastPointerType = 'mouse';
 
-  let undoStack = [];
-  let redoStack = [];
-
-  function saveState() {
-    undoStack.push(canvas.toDataURL('image/png'));
-    redoStack = []; // Clear redo stack on new action
-    updateUndoRedoButtons();
-  }
-
-  function updateUndoRedoButtons() {
-    undoBtn.disabled = undoStack.length === 0;
-    redoBtn.disabled = redoStack.length === 0;
-  }
-
-  function restoreState(dataUrl) {
-    const img = new Image();
-    img.onload = () => {
-      ctx.save();
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      ctx.restore();
-    };
-    img.src = dataUrl;
-  }
-
-  undoBtn.addEventListener('click', () => {
-    if (undoStack.length > 0) {
-      redoStack.push(canvas.toDataURL('image/png'));
-      const state = undoStack.pop();
-      restoreState(state);
-      updateUndoRedoButtons();
+  // Init Managers
+  const canvasManager = new CanvasManager(els, {
+    onRestoreComplete: () => {
+      canvasManager.lastFillPoint = { x: -999, y: -999, color: null };
+      updatePreviewDisplay();
     }
   });
-
-  redoBtn.addEventListener('click', () => {
-    if (redoStack.length > 0) {
-      undoStack.push(canvas.toDataURL('image/png'));
-      const state = redoStack.pop();
-      restoreState(state);
-      updateUndoRedoButtons();
-    }
+  const galleryManager = new GalleryManager(els, (fish) => fishEditor.openFishModal(fish));
+  const fishEditor = new FishEditor(els, canvasManager, galleryManager, {
+    onEdit: (id) => setEditingState(id),
+    onNew: () => resetEditingState()
   });
-
-  toolRadios.forEach(radio => {
-    radio.addEventListener('change', (e) => {
-      currentTool = e.target.value;
-      updateBrushPreview();
-    });
-  });
-
-  brushSize.addEventListener('input', () => {
-    updateBrushPreview();
-  });
-
-  function hexToRgba(hex) {
-    let c;
-    if(/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)){
-        c= hex.substring(1).split('');
-        if(c.length== 3){
-            c= [c[0], c[0], c[1], c[1], c[2], c[2]];
-        }
-        c= '0x'+c.join('');
-        return [(c>>16)&255, (c>>8)&255, c&255, 255];
-    }
-    return [0, 0, 0, 255];
-  }
-
-  function floodFill(startX, startY, fillColorHex) {
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const data = imageData.data;
-    const width = canvas.width;
-    const height = canvas.height;
-
-    // Pixel coordinates in actual canvas space
-    const sx = Math.floor(startX);
-    const sy = Math.floor(startY);
-
-    if (sx < 0 || sx >= width || sy < 0 || sy >= height) return;
-
-    const startIndex = (sy * width + sx) * 4;
-    const startR = data[startIndex];
-    const startG = data[startIndex + 1];
-    const startB = data[startIndex + 2];
-    const startA = data[startIndex + 3];
-
-    const fillRgba = hexToRgba(fillColorHex);
-
-    // If colors are the same, don't fill
-    if (startR === fillRgba[0] && startG === fillRgba[1] && startB === fillRgba[2] && startA === fillRgba[3]) {
-      return;
-    }
-
-    // Add color tolerance to fill into anti-aliased gaps
-    const tolerance = 20;
-
-    const matchStartColor = (index) => {
-      const r = data[index];
-      const g = data[index + 1];
-      const b = data[index + 2];
-      const a = data[index + 3];
-
-      // Compare RGB and A with tolerance
-      return Math.abs(r - startR) <= tolerance &&
-             Math.abs(g - startG) <= tolerance &&
-             Math.abs(b - startB) <= tolerance &&
-             Math.abs(a - startA) <= tolerance;
-    };
-
-    const fillMask = new Uint8Array(width * height);
-
-    const setMask = (index) => {
-      fillMask[index / 4] = 1;
-    };
-
-    const pixelStack = [[sx, sy]];
-
-    while (pixelStack.length > 0) {
-      const newPos = pixelStack.pop();
-      const x = newPos[0];
-      let y = newPos[1];
-
-      let pixelPos = (y * width + x) * 4;
-      while (y-- >= 0 && matchStartColor(pixelPos) && !fillMask[pixelPos / 4]) {
-        pixelPos -= width * 4;
-      }
-      pixelPos += width * 4;
-      ++y;
-
-      let reachLeft = false;
-      let reachRight = false;
-
-      while (y++ < height - 1 && matchStartColor(pixelPos) && !fillMask[pixelPos / 4]) {
-        setMask(pixelPos);
-
-        if (x > 0) {
-          if (matchStartColor(pixelPos - 4) && !fillMask[(pixelPos - 4) / 4]) {
-            if (!reachLeft) {
-              pixelStack.push([x - 1, y]);
-              reachLeft = true;
-            }
-          } else if (reachLeft) {
-            reachLeft = false;
-          }
-        }
-
-        if (x < width - 1) {
-          if (matchStartColor(pixelPos + 4) && !fillMask[(pixelPos + 4) / 4]) {
-            if (!reachRight) {
-              pixelStack.push([x + 1, y]);
-              reachRight = true;
-            }
-          } else if (reachRight) {
-            reachRight = false;
-          }
-        }
-
-        pixelPos += width * 4;
-      }
-    }
-
-    // Dilate the mask by 1 pixel to overlap with thin antialiased borders
-    let dilatedMask = new Uint8Array(fillMask);
-    const nextMask = new Uint8Array(dilatedMask);
-    for (let dy = 0; dy < height; dy++) {
-      for (let dx = 0; dx < width; dx++) {
-        let i = dy * width + dx;
-        if (dilatedMask[i]) {
-          if (dx > 0) nextMask[i - 1] = 1;
-          if (dx < width - 1) nextMask[i + 1] = 1;
-          if (dy > 0) nextMask[i - width] = 1;
-          if (dy < height - 1) nextMask[i + width] = 1;
-        }
-      }
-    }
-    dilatedMask = nextMask;
-
-    for (let i = 0; i < dilatedMask.length; i++) {
-      if (dilatedMask[i]) {
-        const ptr = i * 4;
-        data[ptr] = fillRgba[0];
-        data[ptr + 1] = fillRgba[1];
-        data[ptr + 2] = fillRgba[2];
-        data[ptr + 3] = 255;
-      }
-    }
-
-    ctx.putImageData(imageData, 0, 0);
-  }
-
-  // Keep drawing coordinates in CSS pixels while rendering crisply on high DPI screens.
-  function configureContext() {
-    ctx.lineJoin = 'round';
-    ctx.lineCap = 'round';
-    ctx.imageSmoothingEnabled = true;
-    guideCtx.imageSmoothingEnabled = true;
-  }
-
-  function drawDirectionGuide(width, height, dpr) {
-    guideCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    guideCtx.clearRect(0, 0, width, height);
-    guideCtx.save();
-    guideCtx.translate(width / 2, height / 2);
-    guideCtx.strokeStyle = 'rgba(123, 133, 145, 0.14)';
-    guideCtx.lineWidth = Math.max(8, Math.min(width, height) * 0.1);
-    guideCtx.lineCap = 'round';
-    guideCtx.lineJoin = 'round';
-
-    const arrowLength = Math.min(width, height) * 0.75;
-    const halfLength = arrowLength / 2;
-    const headSize = arrowLength * 0.30;
-
-    guideCtx.beginPath();
-    guideCtx.moveTo(-halfLength, 0);
-    guideCtx.lineTo(halfLength, 0);
-    guideCtx.moveTo(halfLength - headSize, -headSize * 0.75);
-    guideCtx.lineTo(halfLength, 0);
-    guideCtx.lineTo(halfLength - headSize, headSize * 0.75);
-    guideCtx.stroke();
-    guideCtx.restore();
-  }
-
-  function clearCanvas() {
-    saveState();
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.restore();
-  }
-
-  function setCanvasSize(cssWidth, cssHeight, preserveDrawing) {
-    const width = Math.max(1, Math.floor(cssWidth));
-    const height = Math.max(1, Math.floor(cssHeight));
-    const dpr = window.devicePixelRatio || 1;
-    const snapshot = preserveDrawing ? canvas.toDataURL('image/png') : null;
-
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
-    canvas.width = Math.floor(width * dpr);
-    canvas.height = Math.floor(height * dpr);
-
-    guideCanvas.style.width = `${width}px`;
-    guideCanvas.style.height = `${height}px`;
-    guideCanvas.width = Math.floor(width * dpr);
-    guideCanvas.height = Math.floor(height * dpr);
-
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    guideCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    configureContext();
-
-    drawDirectionGuide(width, height, dpr);
-
-    if (snapshot) {
-      const redraw = new Image();
-      redraw.onload = () => {
-        ctx.drawImage(redraw, 0, 0, width, height);
-      };
-      redraw.src = snapshot;
-    }
-  }
-
-  function getCanvasPoint(event) {
-    const rect = canvas.getBoundingClientRect();
-    const x = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
-    const y = Math.max(0, Math.min(rect.height, event.clientY - rect.top));
-    return { x, y };
-  }
-
-  function drawStamp(x, y, diameter) {
-    const radius = Math.max(0.5, diameter / 2);
-    ctx.beginPath();
-    ctx.arc(x, y, radius, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  function drawInterpolatedStroke(fromX, fromY, toX, toY) {
-    const diameter = Number(brushSize.value);
-    const dx = toX - fromX;
-    const dy = toY - fromY;
-    const distance = Math.hypot(dx, dy);
-    const spacing = Math.max(1, diameter * 0.2);
-    const steps = Math.max(1, Math.ceil(distance / spacing));
-
-    if (currentTool === 'eraser') {
-      ctx.globalCompositeOperation = 'destination-out';
-      ctx.fillStyle = '#000'; // Color doesn't matter for destination-out, it just removes alpha
-    } else {
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.fillStyle = currentDrawColor;
-    }
-
-    for (let i = 1; i <= steps; i++) {
-      const t = i / steps;
-      const x = fromX + dx * t;
-      const y = fromY + dy * t;
-      drawStamp(x, y, diameter);
-    }
-
-    ctx.globalCompositeOperation = 'source-over'; // restore
-  }
-
-  function resizeCanvasForViewport() {
-    // Dynamic canvas based on window innerWidth. Max width matches extension max popup width.
-    const w = window.innerWidth - 32;
-    const maxW = Math.min(w, 800);
-    // Use an approx 4:3 ratio based on width
-    const maxH = maxW * 0.75;
-
-    const rect = canvas.getBoundingClientRect();
-    if (Math.round(rect.width) !== maxW || Math.round(rect.height) !== maxH) {
-      setCanvasSize(maxW, maxH, true);
-    }
-  }
-
-  function normalizeCssColor(value) {
-    const probe = document.createElement('span');
-    probe.style.color = '';
-    probe.style.color = value;
-    return probe.style.color || null;
-  }
-
-  function cssColorToHex(value) {
-    const offscreen = document.createElement('canvas').getContext('2d');
-    offscreen.fillStyle = '#000000';
-    offscreen.fillStyle = value;
-    const parsed = offscreen.fillStyle;
-
-    if (/^#[0-9a-f]{6}$/i.test(parsed)) {
-      return parsed;
-    }
-
-    const match = parsed.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
-    if (!match) {
-      return null;
-    }
-
-    const toHex = (n) => Number(n).toString(16).padStart(2, '0');
-    return `#${toHex(match[1])}${toHex(match[2])}${toHex(match[3])}`;
-  }
-
-  function applyColorInput(value, silent = false) {
-    const normalized = normalizeCssColor(value);
-    if (!normalized) {
-      colorText.classList.add('invalid');
-      if (!silent) {
-        alert('Invalid color. Use any valid CSS color (hex, rgb, hsl, or named color).');
-      }
-      return false;
-    }
-
-    colorText.classList.remove('invalid');
-    currentDrawColor = value.trim();
-
-    const hex = cssColorToHex(currentDrawColor);
-    if (hex) {
-      colorPicker.value = hex;
-    }
-
-    colorText.value = currentDrawColor;
-    updateBrushPreview();
-    return true;
-  }
-
-  function updateBrushPreview() {
-    const size = Number(brushSize.value);
-    const radius = Math.max(0.5, size / 2);
-
-    // Ensure the preview canvas bounds cover the full brush size plus padding for the stroke
-    const boxSize = Math.max(4, Math.ceil(size)) + 2;
-    brushPreview.width = boxSize;
-    brushPreview.height = boxSize;
-    brushPreview.style.width = `${boxSize}px`;
-    brushPreview.style.height = `${boxSize}px`;
-
-    brushPreviewCtx.clearRect(0, 0, boxSize, boxSize);
-
-    if (currentTool === 'fill') {
-      // Hide preview for fill bucket
-      brushPreview.style.display = 'none';
-      return;
-    }
-
-    const center = boxSize / 2;
-
-    if (currentTool === 'eraser') {
-      brushPreviewCtx.beginPath();
-      brushPreviewCtx.arc(center, center, radius, 0, Math.PI * 2);
-      brushPreviewCtx.fillStyle = '#ffffff';
-      brushPreviewCtx.fill();
-      brushPreviewCtx.strokeStyle = '#000000';
-      brushPreviewCtx.lineWidth = 1;
-      brushPreviewCtx.stroke();
-    } else {
-      brushPreviewCtx.beginPath();
-      brushPreviewCtx.arc(center, center, radius, 0, Math.PI * 2);
-      brushPreviewCtx.fillStyle = currentDrawColor;
-      brushPreviewCtx.fill();
-    }
-  }
-
-  function setupWindowButtons() {
-    if (isStandalone) {
-      openWindowBtn.style.display = 'none';
-    } else {
-      openWindowBtn.addEventListener('click', () => {
-        window.open(chrome.runtime.getURL('popup.html?mode=window'), '_blank');
-      });
-    }
-
-    function updateLabels() {
-      speedValue.value = Number(speedInput.value).toFixed(1);
-      sizeValue.value = Number(sizeInput.value).toFixed(1);
-      strengthValue.value = Number(strengthInput.value).toFixed(1);
-    }
-
-    function updateSliders() {
-      speedInput.value = Number(speedValue.value).toFixed(1);
-      sizeInput.value = Number(sizeValue.value).toFixed(1);
-      strengthInput.value = Number(strengthValue.value).toFixed(1);
-    }
-
-    function normalizeSettings(raw) {
-      if (!raw || typeof raw !== 'object') {
-        return { ...DEFAULT_SETTINGS };
-      }
-      const speed = Number(raw.speedMultiplier);
-      const size = Number(raw.sizeMultiplier);
-      const strength = Number(raw.interactionStrength);
-      return {
-        speedMultiplier: Number.isFinite(speed) && speed > 0 ? speed : DEFAULT_SETTINGS.speedMultiplier,
-        sizeMultiplier: Number.isFinite(size) && size > 0 ? size : DEFAULT_SETTINGS.sizeMultiplier,
-        interactionType: raw.interactionType === 'attract' ? 'attract' : 'repel',
-        interactionStrength: Number.isFinite(strength) && strength >= 0 ? strength : DEFAULT_SETTINGS.interactionStrength
-      };
-    }
-
-    function setStatus(message) {
-      statusEl.textContent = message;
-      if (message) {
-        setTimeout(() => {
-          statusEl.textContent = '';
-        }, 1600);
-      }
-    }
-
-    function applyToForm(settings) {
-      applyingSettings = true;
-      speedInput.value = settings.speedMultiplier;
-      sizeInput.value = settings.sizeMultiplier;
-      interactionType.value = settings.interactionType;
-      strengthInput.value = settings.interactionStrength;
-      updateLabels();
-      applyingSettings = false;
-    }
-
-    function persistSettings(statusMessage = 'Settings saved.') {
-      const settings = {
-        speedMultiplier: Number(speedInput.value),
-        sizeMultiplier: Number(sizeInput.value),
-        interactionType: interactionType.value,
-        interactionStrength: Number(strengthInput.value)
-      };
-      chrome.storage.local.set({ doodleSettings: settings }, () => {
-        setStatus(statusMessage);
-      });
-    }
-
-    function scheduleAutoSave() {
-      if (applyingSettings) {
-        return;
-      }
-
-      if (autoSaveTimer) {
-        clearTimeout(autoSaveTimer);
-      }
-
-      autoSaveTimer = setTimeout(() => {
-        persistSettings('Settings auto-saved.');
-      }, 200);
-    }
-
-    resetSettingsBtn.addEventListener('click', () => {
-      applyToForm(DEFAULT_SETTINGS);
-      persistSettings('Settings reset.');
-    });
-
-    speedInput.addEventListener('input', () => {
-      updateLabels();
-      scheduleAutoSave();
-    });
-    sizeInput.addEventListener('input', () => {
-      updateLabels();
-      scheduleAutoSave();
-    });
-    strengthInput.addEventListener('input', () => {
-      updateLabels();
-      scheduleAutoSave();
-    });
-    speedValue.addEventListener('input', () => {
-      updateSliders();
-      scheduleAutoSave();
-    });
-    sizeValue.addEventListener('input', () => {
-      updateSliders();
-      scheduleAutoSave();
-    });
-    strengthValue.addEventListener('input', () => {
-      updateSliders();
-      scheduleAutoSave();
-    });
-    interactionType.addEventListener('change', scheduleAutoSave);
-
-    chrome.storage.local.get(['doodleSettings'], (result) => {
-      applyToForm(normalizeSettings(result.doodleSettings));
-    });
-  }
-
-  function draw(e) {
-    if (!isDrawing) return;
-
-    const { x, y } = getCanvasPoint(e);
-    drawInterpolatedStroke(lastX, lastY, x, y);
-
-    lastX = x;
-    lastY = y;
-  }
-
-  canvas.addEventListener('mousedown', (e) => {
-    saveState();
-    const point = getCanvasPoint(e);
-
-    if (currentTool === 'fill') {
-      // Need to map point to actual canvas coordinates based on DPR
+  const toolManager = new ToolManager(els, canvasManager, {
+    onToolChange: (tool) => {
+      currentStrokePoints = [];
       const dpr = window.devicePixelRatio || 1;
-      floodFill(point.x * dpr, point.y * dpr, cssColorToHex(currentDrawColor) || currentDrawColor);
+      canvasManager.activeCtx.setTransform(1, 0, 0, 1, 0, 0);
+      canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width, canvasManager.activeCanvas.height);
+      canvasManager.activeCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      canvasManager.lastFillPoint = { x: -999, y: -999, color: null };
+      updatePreviewDisplay();
+    }
+  });
+
+  // Sync preview position when brush size changes (even if mouse doesn't move)
+  els.brushSize.addEventListener('input', () => updatePreviewDisplay());
+
+  // Global UI Settings
+  let currentGlobalSettings = { ...GLOBAL_UI_SETTINGS };
+
+  const applyGlobalSettingsToForm = (settings) => {
+    applyingSettings = true;
+    els.globalShowEraserOutline.checked = settings.showEraserOutline;
+    els.globalShowBrushFill.checked = settings.showBrushFill;
+    els.globalShowBucketHover.checked = settings.showBucketHover;
+    els.globalShowEyedropper.checked = settings.showEyedropperPreview;
+    applyingSettings = false;
+  };
+
+  const persistGlobalSettings = () => {
+    currentGlobalSettings = {
+      showEraserOutline: els.globalShowEraserOutline.checked,
+      showBrushFill: els.globalShowBrushFill.checked,
+      showBucketHover: els.globalShowBucketHover.checked,
+      showEyedropperPreview: els.globalShowEyedropper.checked
+    };
+    chrome.storage.local.set({ globalUISettings: currentGlobalSettings });
+    updatePreviewDisplay();
+  };
+
+  chrome.storage.local.get(['globalUISettings'], (res) => {
+    let settings = res.globalUISettings;
+    if (!settings) {
+      settings = GLOBAL_UI_SETTINGS;
+      chrome.storage.local.set({ globalUISettings: settings });
     } else {
-      isDrawing = true;
-      lastX = point.x;
-      lastY = point.y;
-
-      if (currentTool === 'eraser') {
-        ctx.globalCompositeOperation = 'destination-out';
-        ctx.fillStyle = '#000';
-      } else {
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.fillStyle = currentDrawColor;
-      }
-      drawStamp(lastX, lastY, Number(brushSize.value));
-      ctx.globalCompositeOperation = 'source-over';
+      settings = normalizeGlobalSettings(settings);
     }
+    currentGlobalSettings = settings;
+    applyGlobalSettingsToForm(settings);
   });
 
-  canvas.addEventListener('mousemove', (e) => {
-    draw(e);
+  els.globalShowEraserOutline.addEventListener('change', () => !applyingSettings && persistGlobalSettings());
+  els.globalShowBrushFill.addEventListener('change', () => !applyingSettings && persistGlobalSettings());
+  els.globalShowBucketHover.addEventListener('change', () => !applyingSettings && persistGlobalSettings());
+  els.globalShowEyedropper.addEventListener('change', () => !applyingSettings && persistGlobalSettings());
 
-    if (currentTool !== 'fill') {
-      brushPreview.style.display = 'block';
-      const rect = canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      const size = Number(brushSize.value);
-      brushPreview.style.left = `${x - size / 2}px`;
-      brushPreview.style.top = `${y - size / 2}px`;
-    }
+  els.globalSettingsBtn.addEventListener('click', () => {
+    els.globalSettingsModal.classList.add('active');
   });
 
-  canvas.addEventListener('mouseenter', (e) => {
-    if (currentTool !== 'fill') brushPreview.style.display = 'block';
+  els.closeGlobalModal.addEventListener('click', () => {
+    els.globalSettingsModal.classList.remove('active');
   });
 
-  canvas.addEventListener('mouseup', () => isDrawing = false);
-  canvas.addEventListener('mouseout', () => {
-    isDrawing = false;
-    brushPreview.style.display = 'none';
+  els.globalSettingsModal.addEventListener('click', (e) => {
+    if (e.target === els.globalSettingsModal) els.globalSettingsModal.classList.remove('active');
   });
 
-  clearBtn.addEventListener('click', () => {
-    clearCanvas();
-  });
+  const resetEditingState = () => {
+    currentEditingFishId = null;
+    galleryManager.renderFishList(null);
+  };
 
-  colorPicker.addEventListener('input', () => {
-    applyColorInput(colorPicker.value, true);
-  });
+  const setEditingState = (id) => {
+    currentEditingFishId = id;
+    galleryManager.renderFishList(id);
+  };
 
-  colorText.addEventListener('change', () => {
-    applyColorInput(colorText.value);
-  });
+  let statusTimer = null;
+  const showNotification = (msg) => {
+    els.status.textContent = msg;
+    els.status.classList.add('show');
+    if (statusTimer) clearTimeout(statusTimer);
+    statusTimer = setTimeout(() => {
+      els.status.classList.remove('show');
+    }, 1600);
+  };
 
-  colorText.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      applyColorInput(colorText.value);
-    }
-  });
+  const startNewFish = () => {
+    canvasManager.clearCanvas();
+    resetEditingState();
+    galleryManager.renderFishList(null);
+    showNotification('Started new fish.');
+  };
 
-  // Check if canvas is empty
-  function isCanvasBlank() {
-    const pixelBuffer = new Uint32Array(
-      ctx.getImageData(0, 0, canvas.width, canvas.height).data.buffer
-    );
-    return !pixelBuffer.some(color => color !== 0);
-  }
+  const saveFish = (forceNew = false) => {
 
-  function fileToDataUrl(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
-      reader.readAsDataURL(file);
-    });
-  }
 
-  function normalizeFishImage(dataUrl) {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => {
-        const scale = Math.min(400 / img.width, 300 / img.height);
-        const finalW = img.width * scale;
-        const finalH = img.height * scale;
-
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = 400;
-        tempCanvas.height = 300;
-        const tempCtx = tempCanvas.getContext('2d');
-        const x = (400 - finalW) / 2;
-        const y = (300 - finalH) / 2;
-        tempCtx.drawImage(img, x, y, finalW, finalH);
-
-        resolve(tempCanvas.toDataURL('image/png'));
-      };
-      img.onerror = () => reject(new Error('Invalid image file'));
-      img.src = dataUrl;
-    });
-  }
-
-  importFile.addEventListener('change', async (e) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-
-    const importedDataUrls = [];
-
-    for (const file of files) {
-      try {
-        const sourceDataUrl = await fileToDataUrl(file);
-        const normalizedDataUrl = await normalizeFishImage(sourceDataUrl);
-        importedDataUrls.push(normalizedDataUrl);
-      } catch (_error) {
-        // Skip invalid files and continue importing remaining images.
-      }
-    }
-
-    if (importedDataUrls.length > 0) {
-      chrome.storage.local.get(['doodleFishList'], (result) => {
-        const fishArray = result.doodleFishList || [];
-
-        importedDataUrls.forEach((dataUrl, index) => {
-          fishArray.push({
-            id: `${Date.now()}-${index}`,
-            dataUrl,
-            mirrored: false,
-            flipByVelocity: true,
-            active: true
-          });
-        });
-
-        chrome.storage.local.set({ doodleFishList: fishArray }, () => {
-          renderFishList();
-        });
-      });
-    }
-
-    e.target.value = ''; // Reset so the same file(s) can be imported again
-  });
-
-  saveBtn.addEventListener('click', () => {
-    if (isCanvasBlank()) {
-      alert("Please draw a fish first!");
-      return;
-    }
-
-    // Draw the dynamic canvas scaled into a fixed 400x300 bounding box
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = 400;
-    tempCanvas.height = 300;
+    const tempCanvas = document.createElement('canvas'); tempCanvas.width = 400; tempCanvas.height = 300;
     const tempCtx = tempCanvas.getContext('2d');
-
-    // Scale canvas to fit 400x300 preserving aspect ratio, no cropping
-    const scale = Math.min(400 / canvas.style.width.replace('px', ''), 300 / canvas.style.height.replace('px', ''));
-    const sw = canvas.style.width.replace('px', '') * scale;
-    const sh = canvas.style.height.replace('px', '') * scale;
-    const sx = (400 - sw) / 2;
-    const sy = (300 - sh) / 2;
-
-    tempCtx.drawImage(canvas, sx, sy, sw, sh);
-
+    const currentW = Number(els.canvas.style.width.replace('px', '')), currentH = Number(els.canvas.style.height.replace('px', ''));
+    const scale = Math.min(400 / currentW, 300 / currentH);
+    const sw = currentW * scale, sh = currentH * scale, sx = (400 - sw) / 2, sy = (300 - sh) / 2;
+    tempCtx.clearRect(0, 0, 400, 300); tempCtx.drawImage(canvasManager.canvas, sx, sy, sw, sh);
     const dataUrl = tempCanvas.toDataURL('image/png');
 
     chrome.storage.local.get(['doodleFishList'], (result) => {
       const fishArray = result.doodleFishList || [];
-      const newFish = {
-        id: Date.now().toString(),
-        dataUrl: dataUrl,
-        mirrored: false,
-        flipByVelocity: true,
-        active: true
-      };
 
-      fishArray.push(newFish);
+      if (!forceNew && currentEditingFishId) {
+        const idx = fishArray.findIndex(f => f.id === currentEditingFishId);
+        if (idx !== -1) {
+          fishArray[idx].dataUrl = dataUrl;
+          chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+            showNotification('Fish updated.');
+            galleryManager.renderFishList(currentEditingFishId);
+          });
+          return;
+        }
+      }
 
+      // Create new
+      const newId = Date.now().toString();
+      fishArray.push({ id: newId, dataUrl, mirrored: false, flipByVelocity: true, active: true, ...DEFAULT_SETTINGS });
       chrome.storage.local.set({ doodleFishList: fishArray }, () => {
-        renderFishList();
-        clearCanvas();
+        setEditingState(newId);
+        showNotification('New fish saved.');
+        galleryManager.renderFishList(currentEditingFishId);
       });
     });
+  };
+
+  els.clearBtn.onclick = () => { canvasManager.clearCanvas(); canvasManager.saveState(); };
+  els.newFishBtn.onclick = startNewFish;
+  els.saveBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    saveFish(false);
   });
 
-  function renderFishList() {
-    chrome.storage.local.get(['doodleFishList'], (result) => {
-      const fishArray = result.doodleFishList || [];
-      fishList.innerHTML = '';
+  // Global Keyboard Shortcuts
+  window.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
 
-      if (fishArray.length === 0) {
-        fishList.innerHTML = '<p style="text-align:center; color:#666;">No fish drawn yet.</p>';
+    const isCtrl = e.ctrlKey || e.metaKey;
+    const isShift = e.shiftKey;
+    const key = e.key.toLowerCase();
+
+    // Tools
+    if (!isCtrl && !isShift) {
+      if (key === 'b') { toolManager.setTool('brush'); updatePreviewDisplay(); }
+      if (key === 'e') { toolManager.setTool('eraser'); updatePreviewDisplay(); }
+      if (key === 'f') { toolManager.setTool('fill'); updatePreviewDisplay(); }
+      if (key === 'd') { toolManager.setTool('eyedropper'); updatePreviewDisplay(); }
+    }
+
+    // Commands
+    if (isCtrl) {
+      if (!isShift && key === 'z') { e.preventDefault(); canvasManager.performUndo(); }
+      if (!isShift && key === 'y') { e.preventDefault(); canvasManager.performRedo(); }
+      if (!isShift && key === 'n') { e.preventDefault(); startNewFish(); }
+      if (key === 's') { e.preventDefault(); saveFish(isShift); }
+    }
+  });
+
+  els.flipHBtn.onclick = () => { canvasManager.saveState(); canvasManager.flipCanvas(true, false); };
+  els.flipVBtn.onclick = () => { canvasManager.saveState(); canvasManager.flipCanvas(false, true); };
+  els.resetViewBtn.onclick = () => {
+    canvasManager.zoomLevel = 1.0;
+    panX = 0;
+    panY = 0;
+    canvasManager.panX = 0;
+    canvasManager.panY = 0;
+    canvasManager.updateViewTransform();
+    toolManager.updateBrushPreview();
+    updatePreviewDisplay();
+  };
+  els.bulkEditSettings.onclick = () => galleryManager.openBulkModal();
+  els.closeBulkModal.onclick = () => els.bulkModal.classList.remove('active');
+  els.helpBtn.onclick = () => els.helpModal.classList.add('active');
+  els.closeHelpModal.onclick = () => els.helpModal.classList.remove('active');
+
+  // Drawing Orchestration
+  const updatePreviewDisplay = (e = null) => {
+    const dpr = window.devicePixelRatio || 1;
+
+    // Always track latest mouse position immediately
+    if (e) lastMousePos = { clientX: e.clientX, clientY: e.clientY };
+
+    // 1. Mandatory Cleanup Run - clean up active layer if not drawing
+    canvasManager.clearHover();
+    if (!isDrawing && toolManager.currentTool !== 'fill') {
+      canvasManager.activeCtx.setTransform(1, 0, 0, 1, 0, 0);
+      canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width, canvasManager.activeCanvas.height);
+      canvasManager.activeCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    els.brushPreviewFill.style.display = 'none';
+    els.brushPreviewOutline.style.display = 'none';
+
+    // 2. Early Exits (Out of viewport, no mouse tracking, or currently navigating)
+    if (isPanning || activePointers.size > 1) {
+      els.brushPreviewFill.style.display = 'none';
+      els.brushPreviewOutline.style.display = 'none';
+      return;
+    }
+    if (!lastMousePos || lastMousePos.clientX === undefined || !isMouseInViewport) return;
+
+    // 3. Logic Setup
+    const clientX = lastMousePos.clientX;
+    const clientY = lastMousePos.clientY;
+    const point = canvasManager.getCanvasPoint(lastMousePos);
+
+    // 4. Tool Specific Drawing
+    if (toolManager.currentTool === 'eyedropper') {
+      if (!currentGlobalSettings.showEyedropperPreview) return;
+      els.brushPreviewFill.style.display = 'block';
+      els.brushPreviewOutline.style.display = 'block';
+
+      const canvasRect = els.canvas.getBoundingClientRect();
+      const isInsideCanvas = (
+        clientX >= canvasRect.left && clientX <= canvasRect.right &&
+        clientY >= canvasRect.top && clientY <= canvasRect.bottom
+      );
+
+      let pointColor = 'rgba(255, 255, 255, 0.2)';
+      if (!isPanning && isInsideCanvas) {
+        const imgData = canvasManager.ctx.getImageData(point.x * dpr, point.y * dpr, 1, 1).data;
+        if (imgData[3] > 0) {
+          const hex8 = toolManager.rgbaToHex8(imgData[0], imgData[1], imgData[2], imgData[3] / 255);
+          toolManager.applyColorInput(hex8, true, true);
+          pointColor = `rgba(${imgData[0]}, ${imgData[1]}, ${imgData[2]}, ${imgData[3] / 255})`;
+        } else if (toolManager.preHoverColor) {
+          toolManager.applyColorInput(toolManager.preHoverColor, true, true);
+          pointColor = 'rgba(255, 255, 255, 0.5)';
+        }
+      } else if (toolManager.preHoverColor) {
+        toolManager.applyColorInput(toolManager.preHoverColor, true, true);
+      }
+
+      toolManager.drawEyedropperLens(point, pointColor);
+
+      // DOM positioning
+      const visualRect = els.canvasViewport.getBoundingClientRect();
+      const hw = (els.brushPreviewFill.width / dpr) / 2;
+      const hh = (els.brushPreviewFill.height / dpr) / 2;
+      const oW = (els.brushPreviewOutline.width / dpr) / 2;
+      const oH = (els.brushPreviewOutline.height / dpr) / 2;
+
+      const centerX = clientX - visualRect.left;
+      const centerY = clientY - visualRect.top - hh - 20;
+
+      els.brushPreviewFill.style.transform = '';
+      els.brushPreviewOutline.style.transform = '';
+      els.brushPreviewFill.style.left = `${centerX - hw}px`;
+      els.brushPreviewFill.style.top = `${centerY - hh}px`;
+      els.brushPreviewOutline.style.left = `${centerX - oW}px`;
+      els.brushPreviewOutline.style.top = `${centerY - oH}px`;
+
+    } else if (toolManager.currentTool === 'fill') {
+      if (currentGlobalSettings.showBucketHover) {
+        canvasManager.updateFillPreview(point.x, point.y, toolManager.currentDrawColor, toolManager.currentOpacity, (c) => toolManager.cssColorToHex(c));
+      }
+    } else if (toolManager.currentTool === 'brush' || toolManager.currentTool === 'eraser') {
+      toolManager.drawBrushReticle(point, null, currentGlobalSettings.showBrushFill, currentGlobalSettings.showEraserOutline);
+    }
+  };
+
+  els.canvasViewport.oncontextmenu = (e) => e.preventDefault();
+  els.canvasViewport.addEventListener('mouseenter', () => { isMouseInViewport = true; if (isDrawing) isReentering = true; });
+  els.canvasViewport.addEventListener('mouseleave', () => {
+    isMouseInViewport = false;
+    if (!isDrawing) canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width / (window.devicePixelRatio || 1), canvasManager.activeCanvas.height / (window.devicePixelRatio || 1));
+    if (toolManager.currentTool === 'eyedropper' && toolManager.preHoverColor) {
+      toolManager.applyColorInput(toolManager.preHoverColor, true, true);
+    }
+    els.brushPreviewFill.style.display = 'none';
+    els.brushPreviewOutline.style.display = 'none';
+    canvasManager.clearHover();
+  });
+
+  els.canvasViewport.addEventListener('pointerdown', (e) => {
+    lastPointerType = e.pointerType;
+    // Limit to 2 pointers to prevent issues with triple-touch gestures
+    if (activePointers.size >= 2) return;
+    
+    // Enable pointer capture to ensure we get events even if user moves outside the viewport
+    try { els.canvasViewport.setPointerCapture(e.pointerId); } catch (_err) { }
+    
+    activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+
+    // Handle Multi-Touch Gesture Initialization
+    if (activePointers.size === 2) {
+      isDrawing = false;
+      isPanning = false;
+      const pts = Array.from(activePointers.values());
+      const dx = pts[0].clientX - pts[1].clientX;
+      const dy = pts[0].clientY - pts[1].clientY;
+      initialPinchDistance = Math.hypot(dx, dy);
+      initialPinchZoom = canvasManager.zoomLevel;
+      initialPinchPanX = canvasManager.panX;
+      initialPinchPanY = canvasManager.panY;
+      initialPinchMidpoint = { 
+        x: (pts[0].clientX + pts[1].clientX) / 2, 
+        y: (pts[0].clientY + pts[1].clientY) / 2 
+      };
+      
+      // Clear active stroke if any
+      const dpr = window.devicePixelRatio || 1;
+      canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width / dpr, canvasManager.activeCanvas.height / dpr);
+      currentStrokePoints = [];
+      return;
+    }
+
+    if (e.button === 1 || e.button === 2) {
+      isPanning = true;
+      lastMousePos = { clientX: e.clientX, clientY: e.clientY };
+      els.canvasTransformWrapper.classList.add('panning');
+      e.preventDefault();
+      return;
+    }
+    if (e.button === 0) {
+      isMouseInViewport = true;
+      updatePreviewDisplay(e); // Force immediately sync to cure the first-click bug
+      const point = canvasManager.getCanvasPoint(e);
+      canvasManager.saveState();
+
+      if (toolManager.currentTool === 'eyedropper') {
+        const dpr = window.devicePixelRatio || 1;
+        const imgData = canvasManager.ctx.getImageData(point.x * dpr, point.y * dpr, 1, 1).data;
+        if (imgData[3] > 0) {
+          const hex8 = toolManager.rgbaToHex8(imgData[0], imgData[1], imgData[2], imgData[3] / 255);
+          toolManager.applyColorInput(hex8);
+          toolManager.preHoverColor = hex8; // New base color to revert to if we keep the dropper active
+          updatePreviewDisplay();
+        }
         return;
       }
+      if (toolManager.currentTool === 'fill') {
+        const dpr = window.devicePixelRatio || 1;
+        canvasManager.floodFill(point.x * dpr, point.y * dpr, toolManager.cssColorToHex(toolManager.currentDrawColor) || toolManager.currentDrawColor, toolManager.currentOpacity);
+      } else {
+        isDrawing = true; lastX = point.x; lastY = point.y;
 
-      const table = document.createElement('table');
-      table.className = 'fish-table';
-      table.innerHTML = `
-        <thead>
-          <tr>
-            <th>Preview</th>
-            <th>Active</th>
-            <th>Mirror</th>
-            <th>Face Dir</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-      `;
+        if (toolManager.currentTool === 'brush') {
+          currentStrokePoints = [{ x: point.x, y: point.y }];
+          const dpr = window.devicePixelRatio || 1;
+          canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width / dpr, canvasManager.activeCanvas.height / dpr);
+          canvasManager.activeCtx.beginPath();
+          canvasManager.activeCtx.lineCap = 'round';
+          canvasManager.activeCtx.lineJoin = 'round';
+          canvasManager.activeCtx.strokeStyle = toolManager.currentDrawColor;
+          canvasManager.activeCtx.lineWidth = canvasManager.getLogicalBrushSize(els.brushSize.value);
+          canvasManager.activeCtx.moveTo(point.x, point.y);
+          canvasManager.activeCtx.lineTo(point.x, point.y);
+          canvasManager.activeCtx.stroke();
+        } else if (toolManager.currentTool === 'eraser') {
+          const dpr = window.devicePixelRatio || 1;
+          canvasManager.activeCtx.setTransform(1, 0, 0, 1, 0, 0);
+          canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width, canvasManager.activeCanvas.height);
+          canvasManager.activeCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      const tbody = document.createElement('tbody');
-
-      fishArray.forEach(fish => {
-        const row = document.createElement('tr');
-
-        const imgContainer = document.createElement('div');
-        imgContainer.className = 'fish-img-container';
-        const img = document.createElement('img');
-        img.src = fish.dataUrl;
-        imgContainer.appendChild(img);
-
-        const previewCell = document.createElement('td');
-        previewCell.appendChild(imgContainer);
-
-        const mirrorCheckbox = document.createElement('input');
-        mirrorCheckbox.type = 'checkbox';
-        mirrorCheckbox.checked = Boolean(fish.mirrored);
-        mirrorCheckbox.title = 'Mirror fish';
-        mirrorCheckbox.addEventListener('change', () => {
-          toggleFishMirror(fish.id, mirrorCheckbox.checked);
-        });
-
-        const mirrorCell = document.createElement('td');
-        mirrorCell.className = 'center-cell';
-        mirrorCell.appendChild(mirrorCheckbox);
-
-        const faceDirectionCheckbox = document.createElement('input');
-        faceDirectionCheckbox.type = 'checkbox';
-        faceDirectionCheckbox.checked = fish.flipByVelocity !== false;
-        faceDirectionCheckbox.title = 'Flip based on movement direction';
-        faceDirectionCheckbox.addEventListener('change', () => {
-          toggleFishFlipByVelocity(fish.id, faceDirectionCheckbox.checked);
-        });
-
-        const faceDirectionCell = document.createElement('td');
-        faceDirectionCell.className = 'center-cell';
-        faceDirectionCell.appendChild(faceDirectionCheckbox);
-
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.checked = fish.active;
-        checkbox.title = "In Aquarium";
-        checkbox.addEventListener('change', () => {
-          toggleFishActive(fish.id, checkbox.checked);
-        });
-
-        const activeCell = document.createElement('td');
-        activeCell.className = 'center-cell';
-        activeCell.appendChild(checkbox);
-
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'delete-btn';
-        deleteBtn.textContent = 'Delete';
-        deleteBtn.addEventListener('click', () => {
-          deleteFish(fish.id);
-        });
-
-        const editBtn = document.createElement('button');
-        editBtn.className = 'secondary-btn';
-        editBtn.textContent = 'Edit';
-        editBtn.style.marginLeft = '4px';
-        editBtn.addEventListener('click', () => {
-          saveState();
-          const imgObj = new Image();
-          imgObj.onload = () => {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // Need to match CSS width/height from the dynamic scaling
-            const cw = Number(canvas.style.width.replace('px', ''));
-            const ch = Number(canvas.style.height.replace('px', ''));
-            const scaleX = cw / 400;
-            const scaleY = ch / 300;
-            const scale = Math.min(scaleX, scaleY);
-
-            const w = imgObj.width * scale;
-            const h = imgObj.height * scale;
-            const x = (cw - w) / 2;
-            const y = (ch - h) / 2;
-            ctx.drawImage(imgObj, x, y, w, h);
-          };
-          imgObj.src = fish.dataUrl;
-        });
-
-        const dlBtn = document.createElement('button');
-        dlBtn.className = 'secondary-btn';
-        dlBtn.textContent = 'Export';
-        dlBtn.style.marginLeft = '4px';
-        dlBtn.addEventListener('click', () => {
-          const a = document.createElement('a');
-          a.href = fish.dataUrl;
-          a.download = `fish-${fish.id}.png`;
-          a.click();
-        });
-
-        const rowActions = document.createElement('div');
-        rowActions.className = 'fish-row-actions';
-        rowActions.appendChild(editBtn);
-        rowActions.appendChild(dlBtn);
-        rowActions.appendChild(deleteBtn);
-
-        const actionsCell = document.createElement('td');
-        actionsCell.appendChild(rowActions);
-
-        row.appendChild(previewCell);
-        row.appendChild(activeCell);
-        row.appendChild(mirrorCell);
-        row.appendChild(faceDirectionCell);
-        row.appendChild(actionsCell);
-        tbody.appendChild(row);
-      });
-
-      table.appendChild(tbody);
-      fishList.appendChild(table);
-    });
-  }
-
-  function toggleFishActive(id, isActive) {
-    chrome.storage.local.get(['doodleFishList'], (result) => {
-      const fishArray = result.doodleFishList || [];
-      const fishIndex = fishArray.findIndex(f => f.id === id);
-      if (fishIndex !== -1) {
-        fishArray[fishIndex].active = isActive;
-        chrome.storage.local.set({ doodleFishList: fishArray });
+          canvasManager.drawInterpolatedStroke(lastX, lastY, lastX, lastY, 'eraser', canvasManager.getLogicalBrushSize(els.brushSize.value));
+        }
       }
-    });
-  }
-
-  function toggleFishMirror(id, isMirrored) {
-    chrome.storage.local.get(['doodleFishList'], (result) => {
-      const fishArray = result.doodleFishList || [];
-      const fishIndex = fishArray.findIndex(f => f.id === id);
-      if (fishIndex !== -1) {
-        fishArray[fishIndex].mirrored = isMirrored;
-        chrome.storage.local.set({ doodleFishList: fishArray }, () => {
-          renderFishList();
-        });
-      }
-    });
-  }
-
-  function toggleFishFlipByVelocity(id, isEnabled) {
-    chrome.storage.local.get(['doodleFishList'], (result) => {
-      const fishArray = result.doodleFishList || [];
-      const fishIndex = fishArray.findIndex(f => f.id === id);
-      if (fishIndex !== -1) {
-        fishArray[fishIndex].flipByVelocity = isEnabled;
-        chrome.storage.local.set({ doodleFishList: fishArray }, () => {
-          renderFishList();
-        });
-      }
-    });
-  }
-
-  function deleteFish(id) {
-    chrome.storage.local.get(['doodleFishList'], (result) => {
-      let fishArray = result.doodleFishList || [];
-      fishArray = fishArray.filter(f => f.id !== id);
-      chrome.storage.local.set({ doodleFishList: fishArray }, () => {
-        renderFishList();
-      });
-    });
-  }
-
-  selectAllBtn.addEventListener('click', () => {
-    chrome.storage.local.get(['doodleFishList'], (result) => {
-      const fishArray = result.doodleFishList || [];
-      fishArray.forEach(f => f.active = true);
-      chrome.storage.local.set({ doodleFishList: fishArray }, () => {
-        renderFishList();
-      });
-    });
+    }
+    updatePreviewDisplay(e);
   });
 
-  deselectAllBtn.addEventListener('click', () => {
-    chrome.storage.local.get(['doodleFishList'], (result) => {
-      const fishArray = result.doodleFishList || [];
-      fishArray.forEach(f => f.active = false);
-      chrome.storage.local.set({ doodleFishList: fishArray }, () => {
-        renderFishList();
-      });
-    });
+  els.canvasViewport.addEventListener('pointermove', (e) => {
+    lastPointerType = e.pointerType;
+    isMouseInViewport = true;
+    // Only track move data for pointers that are currently 'down' (drawing or panning)
+    if (activePointers.has(e.pointerId)) {
+      activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+    }
+
+    // Handle Multi-Touch Gestures (Pinch & Pan)
+    if (activePointers.size === 2) {
+      els.canvasTransformWrapper.classList.add('panning');
+      const pts = Array.from(activePointers.values());
+      const dx = pts[0].clientX - pts[1].clientX;
+      const dy = pts[0].clientY - pts[1].clientY;
+      const currentDistance = Math.hypot(dx, dy);
+      const currentMidpoint = { 
+        x: (pts[0].clientX + pts[1].clientX) / 2, 
+        y: (pts[0].clientY + pts[1].clientY) / 2 
+      };
+
+      if (initialPinchDistance > 0) {
+        // 1. Calculate and apply Zoom level
+        const zoomFactor = currentDistance / initialPinchDistance;
+        const newZoom = Math.max(0.1, Math.min(15, initialPinchZoom * zoomFactor));
+        canvasManager.zoomLevel = newZoom;
+
+        // 2. Calculate and apply Pan shift
+        const shiftX = currentMidpoint.x - initialPinchMidpoint.x;
+        const shiftY = currentMidpoint.y - initialPinchMidpoint.y;
+        
+        canvasManager.panX = initialPinchPanX + shiftX;
+        canvasManager.panY = initialPinchPanY + shiftY;
+        panX = canvasManager.panX;
+        panY = canvasManager.panY;
+
+        canvasManager.updateViewTransform();
+        toolManager.updateBrushPreview();
+        updatePreviewDisplay();
+      }
+      return;
+    }
+
+    if (isPanning) {
+      panX += (e.clientX - lastMousePos.clientX); panY += (e.clientY - lastMousePos.clientY);
+      lastMousePos = { clientX: e.clientX, clientY: e.clientY };
+      canvasManager.panX = panX; canvasManager.panY = panY;
+      canvasManager.updateViewTransform();
+      updatePreviewDisplay(e);
+      return;
+    }
+    if (isDrawing) {
+      const { x, y } = canvasManager.getCanvasPoint(e);
+
+      if (toolManager.currentTool === 'brush') {
+        currentStrokePoints.push({ x, y, isNewPath: isReentering });
+        isReentering = false;
+
+        const dpr = window.devicePixelRatio || 1;
+        canvasManager.activeCtx.setTransform(1, 0, 0, 1, 0, 0);
+        canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width, canvasManager.activeCanvas.height);
+        canvasManager.activeCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        canvasManager.activeCtx.beginPath();
+        canvasManager.activeCtx.lineCap = 'round';
+        canvasManager.activeCtx.lineJoin = 'round';
+        canvasManager.activeCtx.strokeStyle = toolManager.currentDrawColor;
+        canvasManager.activeCtx.lineWidth = canvasManager.getLogicalBrushSize(els.brushSize.value);
+
+        if (currentStrokePoints.length > 0) {
+          canvasManager.activeCtx.moveTo(currentStrokePoints[0].x, currentStrokePoints[0].y);
+          currentStrokePoints.forEach(pt => {
+            if (pt.isNewPath) canvasManager.activeCtx.moveTo(pt.x, pt.y);
+            else canvasManager.activeCtx.lineTo(pt.x, pt.y);
+          });
+        }
+        canvasManager.activeCtx.stroke();
+      } else if (toolManager.currentTool === 'eraser') {
+        if (isReentering) {
+          lastX = x;
+          lastY = y;
+          isReentering = false;
+        }
+        canvasManager.drawInterpolatedStroke(lastX, lastY, x, y, 'eraser', canvasManager.getLogicalBrushSize(els.brushSize.value));
+      }
+      lastX = x; lastY = y;
+    }
+    lastMousePos = { clientX: e.clientX, clientY: e.clientY };
+    updatePreviewDisplay(e);
   });
 
-  setupWindowButtons();
-  applyColorInput(colorText.value, true);
-  configureContext();
-  resizeCanvasForViewport();
-  window.addEventListener('resize', resizeCanvasForViewport);
+  window.addEventListener('pointerup', (e) => {
+    activePointers.delete(e.pointerId);
+    try { els.canvasViewport.releasePointerCapture(e.pointerId); } catch (_err) { }
+    
+    // Cleanup panning class if no longer multi-touching or mouse-panning
+    if (activePointers.size < 2 && !isPanning) {
+      els.canvasTransformWrapper.classList.remove('panning');
+    }
 
-  // Initial render
-  renderFishList();
+    // If we transition from 2 to 1 finger, we should reset the dragging state
+    // so we don't 'jump' based on the old mouse position
+    if (activePointers.size === 1) {
+      const remaining = activePointers.values().next().value;
+      lastMousePos = { clientX: remaining.clientX, clientY: remaining.clientY };
+    }
+
+    // Touch devices don't hover, so hide preview on lift. 
+    // Stylus/Mouse do hover, so we preserve their visibility.
+    if (e.pointerType === 'touch') {
+      isMouseInViewport = false;
+      updatePreviewDisplay();
+    }
+    if (isPanning) { isPanning = false; els.canvasTransformWrapper.classList.remove('panning'); return; }
+    if (isDrawing) {
+      if (toolManager.currentTool === 'brush' && currentStrokePoints.length > 0) {
+        const dpr = window.devicePixelRatio || 1;
+        canvasManager.ctx.save(); canvasManager.ctx.setTransform(1, 0, 0, 1, 0, 0);
+        canvasManager.ctx.drawImage(canvasManager.activeCanvas, 0, 0); canvasManager.ctx.restore();
+        canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width / dpr, canvasManager.activeCanvas.height / dpr);
+        currentStrokePoints = [];
+      }
+      isDrawing = false; isReentering = false;
+    }
+  });
+
+  window.addEventListener('pointercancel', (e) => {
+    activePointers.delete(e.pointerId);
+    try { els.canvasViewport.releasePointerCapture(e.pointerId); } catch (_err) { }
+    isPanning = false;
+    isDrawing = false;
+    isReentering = false;
+    currentStrokePoints = [];
+    els.canvasTransformWrapper.classList.remove('panning');
+    const dpr = window.devicePixelRatio || 1;
+    canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width / dpr, canvasManager.activeCanvas.height / dpr);
+  });
+
+  els.canvasViewport.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    if (e.ctrlKey || e.metaKey) {
+      panY -= e.deltaY * 0.33;
+      canvasManager.panY = panY;
+    } else if (e.shiftKey) {
+      panX -= e.deltaY * 0.33;
+      canvasManager.panX = panX;
+    } else {
+      const factor = Math.pow(1.1, -e.deltaY / 100);
+      const newZoom = Math.max(0.2, Math.min(10, canvasManager.zoomLevel * factor));
+      const viewportRect = els.canvasTransformWrapper.parentElement.getBoundingClientRect();
+      const mouseX = e.clientX - viewportRect.left, mouseY = e.clientY - viewportRect.top;
+      const anchorX = (mouseX - canvasManager.panX) / canvasManager.zoomLevel, anchorY = (mouseY - canvasManager.panY) / canvasManager.zoomLevel;
+      canvasManager.zoomLevel = newZoom;
+      canvasManager.panX = mouseX - anchorX * newZoom; canvasManager.panY = mouseY - anchorY * newZoom;
+      panX = canvasManager.panX; panY = canvasManager.panY;
+    }
+    canvasManager.updateViewTransform(); toolManager.updateBrushPreview(null, lastMousePos); updatePreviewDisplay(e);
+  });
+
+  // saveBtn logic is handled by the event listener and the saveFish function above.
+
+  els.importFile.onchange = async (e) => {
+    const files = Array.from(e.target.files || []); if (files.length === 0) return;
+    const importedDataUrls = [];
+    for (const file of files) {
+      try {
+        const sourceDataUrl = await FishEditor.fileToDataUrl(file);
+        const normalizedDataUrl = await FishEditor.normalizeFishImage(sourceDataUrl);
+        importedDataUrls.push(normalizedDataUrl);
+      } catch (_e) { }
+    }
+    if (importedDataUrls.length > 0) {
+      chrome.storage.local.get(['doodleFishList'], (result) => {
+        const fishArray = result.doodleFishList || [];
+        importedDataUrls.forEach((dataUrl, i) => fishArray.push({ id: `${Date.now()}-${i}`, dataUrl, mirrored: false, flipByVelocity: true, active: true, ...DEFAULT_SETTINGS }));
+        chrome.storage.local.set({ doodleFishList: fishArray }, () => galleryManager.renderFishList(currentEditingFishId));
+      });
+    }
+    e.target.value = '';
+  };
+
+  if (!isStandalone) els.openWindowBtn.onclick = () => window.open(chrome.runtime.getURL('popup.html?mode=window'), '_blank');
+  else els.openWindowBtn.style.display = 'none';
+
+  const resizeCanvas = () => {
+    const isS = isStandalone && window.innerWidth >= 750;
+    const w = window.innerWidth - (isS ? 420 : 0) - (isS ? 40 : 32);
+    const maxW = Math.round(isStandalone ? Math.min(w, 850) : Math.min(w, 800)), maxH = Math.round(maxW * 0.75);
+    if (Math.round(els.canvas.getBoundingClientRect().width) !== maxW) canvasManager.setCanvasSize(maxW, maxH, true);
+  };
+
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+  toolManager.applyColorInput(els.colorText.value, true);
+  els.bulkExportSelected.addEventListener('click', () => {
+    galleryManager.exportSelectedIndividually();
+  });
+  galleryManager.renderFishList(currentEditingFishId);
 });

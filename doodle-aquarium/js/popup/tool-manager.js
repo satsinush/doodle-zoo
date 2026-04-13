@@ -1,0 +1,246 @@
+export class ToolManager {
+  constructor(elements, canvasManager, callbacks = {}) {
+    this.elements = elements;
+    this.canvasManager = canvasManager;
+    this.callbacks = callbacks;
+
+    this.currentTool = 'brush';
+    this.currentOpacity = Number(this.elements.brushOpacity.value) / 100 || 1.0;
+    this.currentDrawColor = '#000000'; 
+    this.preHoverColor = null;
+
+    // Default opacity/etc already handled by setupListeners/elements
+    this.setupListeners();
+    // Force initialize color UI
+    this.applyColorInput(this.elements.colorPicker.value, true);
+  }
+
+  setupListeners() {
+    this.elements.toolButtons.forEach(btn => {
+      btn.addEventListener('click', () => this.setTool(btn.dataset.tool));
+    });
+
+    this.elements.brushSize.addEventListener('input', () => {
+      this.elements.brushSizeDisplay.textContent = `${this.elements.brushSize.value}px`;
+      this.updateBrushPreview();
+    });
+
+    this.elements.brushOpacity.addEventListener('input', () => {
+      this.currentOpacity = Number(this.elements.brushOpacity.value) / 100;
+      this.elements.brushOpacityDisplay.textContent = `${this.elements.brushOpacity.value}%`;
+      this.applyColorInput(this.elements.colorPicker.value, true);
+    });
+
+    this.elements.colorPicker.addEventListener('input', () => {
+      this.applyColorInput(this.elements.colorPicker.value, true);
+    });
+
+    this.elements.colorText.addEventListener('change', () => {
+      this.applyColorInput(this.elements.colorText.value);
+    });
+
+    this.elements.colorText.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        this.applyColorInput(this.elements.colorText.value);
+      }
+    });
+  }
+
+  setTool(tool) {
+    if (this.currentTool === tool && !this.preHoverColor) return; // Guard against keys being held down
+    
+    if (this.currentTool === 'eyedropper' && this.preHoverColor && tool !== 'eyedropper') {
+      this.applyColorInput(this.preHoverColor, true);
+      this.preHoverColor = null;
+    }
+
+    this.elements.toolButtons.forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
+    this.currentTool = tool;
+
+    // Explicitly notify the app to reset drawing states if needed
+    if (this.callbacks.onToolChange) {
+      this.callbacks.onToolChange(tool);
+    }
+
+    if (this.currentTool === 'eyedropper') {
+      const hex = this.cssColorToHex(this.currentDrawColor) || '#000000';
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      this.preHoverColor = this.rgbaToHex8(r, g, b, this.currentOpacity);
+    }
+  }
+
+  normalizeCssColor(value) {
+    const probe = document.createElement('span');
+    probe.style.color = '';
+    probe.style.color = value;
+    return probe.style.color || null;
+  }
+
+  cssColorToHex(value) {
+    const offscreen = document.createElement('canvas').getContext('2d');
+    offscreen.fillStyle = '#000000';
+    offscreen.fillStyle = value;
+    const parsed = offscreen.fillStyle;
+    if (/^#[0-9a-f]{6}$/i.test(parsed)) return parsed;
+    const match = parsed.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+    if (!match) return null;
+    const toHex = (n) => Number(n).toString(16).padStart(2, '0');
+    return `#${toHex(match[1])}${toHex(match[2])}${toHex(match[3])}`;
+  }
+
+  rgbaToHex8(r, g, b, a) {
+    const hex = (n) => Math.round(n).toString(16).padStart(2, '0').toUpperCase();
+    const alpha = Math.round(a * 255);
+    return `#${hex(r)}${hex(g)}${hex(b)}${hex(alpha)}`;
+  }
+
+  applyColorInput(value, silent = false, isHover = false) {
+    const normalized = this.normalizeCssColor(value);
+    if (!normalized) {
+      this.elements.colorText.classList.add('invalid');
+      if (!silent) alert('Invalid color.');
+      return false;
+    }
+
+    this.elements.colorText.classList.remove('invalid');
+    const hex6 = this.cssColorToHex(value);
+    if (hex6) this.elements.colorPicker.value = hex6;
+
+    let alpha = this.currentOpacity;
+    const rgbaMatch = value.match(/rgba?\(.*,\s*([\d\.]+)\)/);
+    if (rgbaMatch) {
+      alpha = parseFloat(rgbaMatch[1]);
+    } else if (value.startsWith('#') && value.length === 9) {
+      alpha = parseInt(value.slice(7, 9), 16) / 255;
+    }
+
+    if (!silent && alpha !== this.currentOpacity) {
+      this.currentOpacity = alpha;
+      this.elements.brushOpacity.value = Math.round(alpha * 100);
+      this.elements.brushOpacityDisplay.textContent = `${this.elements.brushOpacity.value}%`;
+    }
+
+    if (hex6) {
+      const r = parseInt(hex6.slice(1, 3), 16);
+      const g = parseInt(hex6.slice(3, 5), 16);
+      const b = parseInt(hex6.slice(5, 7), 16);
+      const displayAlpha = isHover ? alpha : this.currentOpacity;
+      this.currentDrawColor = `rgba(${r}, ${g}, ${b}, ${displayAlpha})`;
+      this.elements.colorText.value = this.rgbaToHex8(r, g, b, displayAlpha);
+
+      if (!isHover) {
+        this.currentOpacity = alpha;
+        this.currentDrawColor = `rgba(${r}, ${g}, ${b}, ${this.currentOpacity})`;
+      }
+    } else {
+      this.currentDrawColor = value;
+      this.elements.colorText.value = value.toUpperCase();
+    }
+
+    if (this.callbacks.onColorChange) this.callbacks.onColorChange();
+    return true;
+  }
+
+  drawEyedropperLens(point, pointColor) {
+    const dpr = window.devicePixelRatio || 1;
+    const zoomSize = 108;
+    const outlineSize = 114;
+    const pixelRange = 9;
+
+    this.elements.brushPreviewFill.width = zoomSize * dpr;
+    this.elements.brushPreviewFill.height = zoomSize * dpr;
+    this.elements.brushPreviewOutline.width = outlineSize * dpr;
+    this.elements.brushPreviewOutline.height = outlineSize * dpr;
+    this.elements.brushPreviewFill.style.width = `${zoomSize}px`;
+    this.elements.brushPreviewFill.style.height = `${zoomSize}px`;
+    this.elements.brushPreviewOutline.style.width = `${outlineSize}px`;
+    this.elements.brushPreviewOutline.style.height = `${outlineSize}px`;
+
+    this.elements.brushPreviewFill.classList.add('eyedropper');
+
+    const grabX = Math.floor(point.x * dpr) - Math.floor(pixelRange / 2);
+    const grabY = Math.floor(point.y * dpr) - Math.floor(pixelRange / 2);
+    const fillCtx = this.elements.brushPreviewFill.getContext('2d');
+    const outlineCtx = this.elements.brushPreviewOutline.getContext('2d');
+
+    try {
+      const imgData = this.canvasManager.ctx.getImageData(grabX, grabY, pixelRange, pixelRange);
+      const tempC = document.createElement('canvas');
+      tempC.width = pixelRange;
+      tempC.height = pixelRange;
+      tempC.getContext('2d').putImageData(imgData, 0, 0);
+
+      fillCtx.imageSmoothingEnabled = false;
+      fillCtx.clearRect(0, 0, zoomSize * dpr, zoomSize * dpr);
+      fillCtx.drawImage(tempC, 0, 0, zoomSize * dpr, zoomSize * dpr);
+
+      outlineCtx.clearRect(0, 0, outlineSize * dpr, outlineSize * dpr);
+      outlineCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      outlineCtx.strokeStyle = '#fff';
+
+      // Inverted inner reticle (logical units)
+      const rectSize = zoomSize / pixelRange;
+      outlineCtx.lineWidth = 1.0;
+      outlineCtx.strokeRect(outlineSize / 2 - rectSize / 2, outlineSize / 2 - rectSize / 2, rectSize, rectSize);
+      outlineCtx.setTransform(1, 0, 0, 1, 0, 0);
+    } catch (e) {
+      fillCtx.fillStyle = '#ccc';
+      fillCtx.fillRect(0, 0, zoomSize * dpr, zoomSize * dpr);
+    }
+  }
+
+  drawBrushReticle(point, overrideColor = null, showFill = true, showEraserOutline = true) {
+    this.elements.brushPreviewFill.classList.remove('eyedropper');
+    const logicalSize = this.canvasManager.getLogicalBrushSize(this.elements.brushSize.value);
+    const radius = logicalSize / 2;
+
+    if (this.currentTool === 'brush') {
+      const fctx = this.canvasManager.hoverFillCtx;
+      if (fctx && showFill) {
+        fctx.beginPath();
+        fctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+        fctx.fillStyle = overrideColor || this.currentDrawColor;
+        fctx.fill();
+      }
+      // Never draw outline (ring) for brush
+    } else if (this.currentTool === 'eraser') {
+      const octx = this.canvasManager.hoverOutlineCtx;
+      if (octx && showEraserOutline) {
+        octx.beginPath();
+        octx.arc(point.x, point.y, Math.max(0, radius - 1), 0, Math.PI * 2);
+        octx.strokeStyle = '#fff';
+        octx.lineWidth = 2.0;
+        octx.stroke();
+      }
+    }
+  }
+
+  updateBrushPreview(e = null, lastClientPos = null) {
+    const point = e ? this.canvasManager.getCanvasPoint(e) : (lastClientPos ? this.canvasManager.getCanvasPoint(lastClientPos) : null);
+    if (!point || point.x < -500 || point.y < -500) return;
+
+    this.canvasManager.clearHover();
+
+    const showEraser = document.getElementById('global-show-eraser-outline')?.checked ?? true;
+    const showBrush = document.getElementById('global-show-brush-fill')?.checked ?? true;
+    const showDropper = document.getElementById('global-show-eyedropper')?.checked ?? true;
+
+    if (this.currentTool === 'eyedropper') {
+      if (showDropper) {
+        this.elements.brushPreviewFill.style.display = 'block';
+        this.elements.brushPreviewOutline.style.display = 'block';
+        this.drawEyedropperLens(point);
+      } else {
+        this.elements.brushPreviewFill.style.display = 'none';
+        this.elements.brushPreviewOutline.style.display = 'none';
+      }
+    } else {
+      this.elements.brushPreviewFill.style.display = 'none';
+      this.elements.brushPreviewOutline.style.display = 'none';
+      this.drawBrushReticle(point, null, showBrush, showEraser);
+    }
+  }
+}

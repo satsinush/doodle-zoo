@@ -1,0 +1,258 @@
+import { DEFAULT_SETTINGS, GLOBAL_UI_SETTINGS } from '../common/constants.js';
+
+export class FishEditor {
+  constructor(elements, canvasManager, galleryManager, callbacks = {}) {
+    this.elements = elements;
+    this.canvasManager = canvasManager;
+    this.galleryManager = galleryManager;
+    this.callbacks = callbacks;
+    
+    this.physicsDOM = {
+      speedMultiplier: document.getElementById('modal-speed-multiplier'),
+      sizeMultiplier: document.getElementById('modal-size-multiplier'),
+      interactionType: document.getElementById('modal-interaction-type'),
+      interactionStrength: document.getElementById('modal-interaction-strength'),
+      speedDisplay: document.getElementById('modal-speed-display'),
+      sizeDisplay: document.getElementById('modal-size-display'),
+      strengthDisplay: document.getElementById('modal-strength-display')
+    };
+
+    this.setupListeners();
+  }
+
+  setupListeners() {
+    this.elements.modalCloseBtn?.addEventListener('click', () => this.closeFishModal());
+    this.elements.fishModal?.addEventListener('click', (e) => {
+      if (e.target === this.elements.fishModal) this.closeFishModal();
+    });
+
+    this.elements.modalFlipHBtn?.addEventListener('click', () => this.flipFishImageData(this.currentFishId, true, false));
+    this.elements.modalFlipVBtn?.addEventListener('click', () => this.flipFishImageData(this.currentFishId, false, true));
+
+    this.elements.modalLockToggle?.addEventListener('click', () => this.toggleFishFlipByVelocity(this.currentFishId, this.elements.modalLockToggle.checked));
+    this.elements.modalActiveToggle?.addEventListener('click', () => this.toggleFishActive(this.currentFishId, this.elements.modalActiveToggle.checked));
+
+    this.elements.modalEditBtn?.addEventListener('click', () => {
+      this.closeFishModal();
+      this.loadFishIntoCanvas(this.currentFishId, this.elements.modalFishPreview.src);
+    });
+
+    this.elements.modalDeleteBtn?.addEventListener('click', () => {
+      if (confirm('Delete this fish?')) {
+        this.closeFishModal();
+        this.deleteFish(this.currentFishId);
+      }
+    });
+
+    this.elements.modalExportBtn?.addEventListener('click', () => {
+      this.exportFish({ dataUrl: this.elements.modalFishPreview.src });
+    });
+
+    const persistPhysics = () => {
+      chrome.storage.local.get(['doodleFishList'], (result) => {
+        const fishArray = result.doodleFishList || [];
+        const index = fishArray.findIndex(f => f.id === this.currentFishId);
+        if (index !== -1) {
+          fishArray[index].speedMultiplier = Number(this.physicsDOM.speedMultiplier.value);
+          fishArray[index].sizeMultiplier = Number(this.physicsDOM.sizeMultiplier.value);
+          fishArray[index].interactionType = this.physicsDOM.interactionType.value;
+          fishArray[index].interactionStrength = Number(this.physicsDOM.interactionStrength.value);
+          chrome.storage.local.set({ doodleFishList: fishArray }, () => this.galleryManager.renderFishList(this.currentFishId));
+        }
+      });
+    };
+
+    this.physicsDOM.speedMultiplier?.addEventListener('input', (e) => {
+      this.physicsDOM.speedDisplay.value = Number(e.target.value).toFixed(1);
+      persistPhysics();
+    });
+    this.physicsDOM.speedDisplay?.addEventListener('change', (e) => {
+      let val = Math.max(0.0, Math.min(3.0, Number(e.target.value) || 0));
+      this.physicsDOM.speedMultiplier.value = val;
+      e.target.value = val.toFixed(1);
+      persistPhysics();
+    });
+    this.physicsDOM.sizeMultiplier?.addEventListener('input', (e) => {
+      this.physicsDOM.sizeDisplay.value = Number(e.target.value).toFixed(1);
+      persistPhysics();
+    });
+    this.physicsDOM.sizeDisplay?.addEventListener('change', (e) => {
+      let val = Math.max(0.1, Math.min(3.0, Number(e.target.value) || 0));
+      this.physicsDOM.sizeMultiplier.value = val;
+      e.target.value = val.toFixed(1);
+      persistPhysics();
+    });
+    this.physicsDOM.interactionStrength?.addEventListener('input', (e) => {
+      this.physicsDOM.strengthDisplay.value = Number(e.target.value).toFixed(1);
+      persistPhysics();
+    });
+    this.physicsDOM.strengthDisplay?.addEventListener('change', (e) => {
+      let val = Math.max(0.0, Math.min(5.0, Number(e.target.value) || 0));
+      this.physicsDOM.interactionStrength.value = val;
+      e.target.value = val.toFixed(1);
+      persistPhysics();
+    });
+    this.physicsDOM.interactionType?.addEventListener('change', persistPhysics);
+  }
+
+  openFishModal(fish) {
+    this.currentFishId = fish.id;
+    document.body.style.overflow = 'hidden';
+    this.elements.modalFishPreview.src = fish.dataUrl;
+    this.elements.modalActiveToggle.checked = fish.active !== false;
+    this.elements.modalLockToggle.checked = fish.flipByVelocity !== false;
+    this.elements.modalFishPreview.style.transform = '';
+
+    // Apply defaults if they imported old models that lack them
+    const physics = { ...DEFAULT_SETTINGS, ...fish };
+    this.physicsDOM.speedMultiplier.value = physics.speedMultiplier;
+    this.physicsDOM.sizeMultiplier.value = physics.sizeMultiplier;
+    this.physicsDOM.interactionType.value = physics.interactionType;
+    this.physicsDOM.interactionStrength.value = physics.interactionStrength;
+
+    this.physicsDOM.speedDisplay.value = Number(physics.speedMultiplier).toFixed(1);
+    this.physicsDOM.sizeDisplay.value = Number(physics.sizeMultiplier).toFixed(1);
+    this.physicsDOM.strengthDisplay.value = Number(physics.interactionStrength).toFixed(1);
+
+    this.elements.fishModal.classList.add('active');
+  }
+
+  closeFishModal() {
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+    this.elements.fishModal.classList.remove('active');
+  }
+
+  loadFishIntoCanvas(id, dataUrl) {
+    this.canvasManager.saveState();
+    const imgObj = new Image();
+    imgObj.onload = () => {
+      const dpr = window.devicePixelRatio || 1;
+      const cw = this.canvasManager.canvas.width / dpr;
+      const ch = this.canvasManager.canvas.height / dpr;
+      this.canvasManager.ctx.clearRect(0, 0, cw, ch);
+      const boxScale = Math.min(cw / 400, ch / 300);
+      const dw = 400 * boxScale;
+      const dh = 300 * boxScale;
+      const dx = (cw - dw) / 2;
+      const dy = (ch - dh) / 2;
+      this.canvasManager.ctx.drawImage(imgObj, dx, dy, dw, dh);
+
+      if (this.callbacks.onEdit) this.callbacks.onEdit(id);
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+    imgObj.src = dataUrl;
+  }
+
+  toggleFishActive(id, isActive) {
+    chrome.storage.local.get(['doodleFishList'], (result) => {
+      const fishArray = result.doodleFishList || [];
+      const fishIndex = fishArray.findIndex(f => f.id === id);
+      if (fishIndex !== -1) {
+        fishArray[fishIndex].active = isActive;
+        chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+          this.galleryManager.renderFishList(this.currentFishId);
+        });
+      }
+    });
+  }
+
+  toggleFishFlipByVelocity(id, isEnabled) {
+    chrome.storage.local.get(['doodleFishList'], (result) => {
+      const fishArray = result.doodleFishList || [];
+      const fishIndex = fishArray.findIndex(f => f.id === id);
+      if (fishIndex !== -1) {
+        fishArray[fishIndex].flipByVelocity = isEnabled;
+        chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+          this.galleryManager.renderFishList(this.currentFishId);
+        });
+      }
+    });
+  }
+
+  flipFishImageData(id, horizontal, vertical) {
+    chrome.storage.local.get(['doodleFishList'], (result) => {
+      const fishArray = result.doodleFishList || [];
+      const fishIndex = fishArray.findIndex(f => f.id === id);
+      if (fishIndex === -1) return;
+
+      const img = new Image();
+      img.onload = () => {
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = 400;
+        tempCanvas.height = 300;
+        const tempCtx = tempCanvas.getContext('2d');
+        if (horizontal) { tempCtx.translate(400, 0); tempCtx.scale(-1, 1); }
+        if (vertical) { tempCtx.translate(0, 300); tempCtx.scale(1, -1); }
+        tempCtx.drawImage(img, 0, 0, 400, 300);
+        const newDataUrl = tempCanvas.toDataURL('image/png');
+        fishArray[fishIndex].dataUrl = newDataUrl;
+        chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+          this.elements.modalFishPreview.src = newDataUrl;
+          this.galleryManager.renderFishList(this.currentFishId);
+        });
+      };
+      img.src = fishArray[fishIndex].dataUrl;
+    });
+  }
+
+  deleteFish(id) {
+    chrome.storage.local.get(['doodleFishList'], (result) => {
+      let fishArray = result.doodleFishList || [];
+      fishArray = fishArray.filter(f => f.id !== id);
+      chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+        this.galleryManager.renderFishList(this.currentFishId);
+      });
+    });
+  }
+
+  exportFish(fish) {
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = 400;
+    tempCanvas.height = 300;
+    const tempCtx = tempCanvas.getContext('2d');
+    const img = new Image();
+    img.onload = () => {
+      tempCtx.drawImage(img, 0, 0, 400, 300);
+      const dataUrl = tempCanvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = `doodle-fish-${Date.now()}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    };
+    img.src = fish.dataUrl;
+  }
+
+  static async fileToDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  static async normalizeFishImage(dataUrl) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(400 / img.width, 300 / img.height);
+        const finalW = img.width * scale;
+        const finalH = img.height * scale;
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = 400;
+        tempCanvas.height = 300;
+        const tempCtx = tempCanvas.getContext('2d');
+        const x = (400 - finalW) / 2;
+        const y = (300 - finalH) / 2;
+        tempCtx.drawImage(img, x, y, finalW, finalH);
+        resolve(tempCanvas.toDataURL('image/png'));
+      };
+      img.onerror = () => reject(new Error('Invalid image file'));
+      img.src = dataUrl;
+    });
+  }
+}
