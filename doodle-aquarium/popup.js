@@ -58,8 +58,6 @@ document.addEventListener('DOMContentLoaded', () => {
     fishModal: document.getElementById('fish-modal'),
     modalFishPreview: document.getElementById('modal-fish-preview'),
     modalCloseBtn: document.getElementById('close-modal'),
-    modalFlipHBtn: document.getElementById('modal-flip-h-btn'),
-    modalFlipVBtn: document.getElementById('modal-flip-v-btn'),
     modalLockToggle: document.getElementById('modal-lock-toggle'),
     modalActiveToggle: document.getElementById('modal-active-toggle'),
     modalEditBtn: document.getElementById('modal-edit-btn'),
@@ -291,18 +289,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const idx = fishArray.findIndex(f => f.id === currentEditingFishId);
         if (idx !== -1) {
           const oldDataUrl = fishArray[idx].dataUrl;
-          if (oldDataUrl !== dataUrl) {
+          const isChanged = oldDataUrl !== dataUrl;
+          if (isChanged) {
             historyManager.push({
               type: 'save_commit',
               id: currentEditingFishId,
               data: { oldUrl: oldDataUrl, newUrl: dataUrl }
             });
+
+            fishArray[idx].dataUrl = dataUrl;
+            chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+              historyManager.showToast('Fish updated.');
+              galleryManager.renderFishList(currentEditingFishId);
+            });
           }
-          fishArray[idx].dataUrl = dataUrl;
-          chrome.storage.local.set({ doodleFishList: fishArray }, () => {
-            historyManager.showToast('Fish updated.');
-            galleryManager.renderFishList(currentEditingFishId);
-          });
           return;
         }
       }
@@ -314,12 +314,12 @@ document.addEventListener('DOMContentLoaded', () => {
       historyManager.push({
         type: 'create',
         id: newId,
-        data: { fishData: newFishData }
+        data: { fishData: newFishData },
+        description: 'Save New Fish'
       });
 
       chrome.storage.local.set({ doodleFishList: fishArray }, () => {
         setEditingState(newId);
-        historyManager.showToast('New fish saved.');
         galleryManager.renderFishList(currentEditingFishId);
       });
     });
@@ -355,6 +355,14 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!isShift && key === 'y') { e.preventDefault(); historyManager.redo(window.appState); }
       if (!isShift && key === 'n') { e.preventDefault(); startNewFish(); }
       if (key === 's') { e.preventDefault(); saveFish(isShift); }
+      if (key === 'a') {
+        const activeEl = document.activeElement;
+        const isInput = activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable;
+        if (!isInput) {
+          e.preventDefault();
+          galleryManager.selectAll();
+        }
+      }
     }
   });
 

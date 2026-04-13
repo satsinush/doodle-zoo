@@ -526,6 +526,12 @@ button {
     color: var(--on-primary);
 }
 
+.icon-btn:disabled {
+    opacity: 0.3;
+    pointer-events: none;
+    filter: grayscale(1);
+}
+
 .divider {
     height: 1.25rem;
     width: 1px;

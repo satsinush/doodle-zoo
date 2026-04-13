@@ -206,6 +206,14 @@ export class GalleryManager {
     });
   }
 
+  selectAll() {
+    chrome.storage.local.get(['doodleFishList'], (result) => {
+      const fishArray = (result.doodleFishList || []).filter(f => f);
+      this.selectedFishIds = fishArray.map(f => f.id);
+      this.renderFishList();
+    });
+  }
+
   handleAutoScroll() {
     if (this._autoScrollSpeed !== 0) {
       this.scrollContainer.scrollBy(0, this._autoScrollSpeed);

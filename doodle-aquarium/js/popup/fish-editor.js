@@ -47,12 +47,6 @@ export class FishEditor {
       if (e.target === this.elements.fishModal) this.closeFishModal();
     });
 
-    this.elements.modalFlipHBtn?.addEventListener('click', () => this.flipFishImageData(this.currentFishId, true, false));
-    this.elements.modalFlipVBtn?.addEventListener('click', () => this.flipFishImageData(this.currentFishId, false, true));
-
-    this.elements.modalLockToggle?.addEventListener('click', () => this.toggleFishFlipByVelocity(this.currentFishId, this.elements.modalLockToggle.checked));
-    this.elements.modalActiveToggle?.addEventListener('click', () => this.toggleFishActive(this.currentFishId, this.elements.modalActiveToggle.checked));
-
     this.elements.modalEditBtn?.addEventListener('click', () => {
       this.closeFishModal();
       if (this.callbacks.onNavigate) {
@@ -206,59 +200,6 @@ export class FishEditor {
     imgObj.src = dataUrl;
   }
 
-  toggleFishActive(id, isActive) {
-    chrome.storage.local.get(['doodleFishList'], (result) => {
-      const fishArray = result.doodleFishList || [];
-      const fishIndex = fishArray.findIndex(f => f.id === id);
-      if (fishIndex !== -1) {
-        fishArray[fishIndex].active = isActive;
-        chrome.storage.local.set({ doodleFishList: fishArray }, () => {
-          this.galleryManager.renderFishList(this.currentFishId);
-        });
-      }
-    });
-  }
-
-  toggleFishFlipByVelocity(id, isEnabled) {
-    chrome.storage.local.get(['doodleFishList'], (result) => {
-      const fishArray = result.doodleFishList || [];
-      const fishIndex = fishArray.findIndex(f => f.id === id);
-      if (fishIndex !== -1) {
-        fishArray[fishIndex].flipByVelocity = isEnabled;
-        chrome.storage.local.set({ doodleFishList: fishArray }, () => {
-          this.galleryManager.renderFishList(this.currentFishId);
-        });
-      }
-    });
-  }
-
-  flipFishImageData(id, horizontal, vertical) {
-    chrome.storage.local.get(['doodleFishList'], (result) => {
-      const fishArray = result.doodleFishList || [];
-      const fishIndex = fishArray.findIndex(f => f.id === id);
-      if (fishIndex === -1) return;
-
-      const img = new Image();
-      img.onload = () => {
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = 400;
-        tempCanvas.height = 300;
-        const tempCtx = tempCanvas.getContext('2d');
-        if (horizontal) { tempCtx.translate(400, 0); tempCtx.scale(-1, 1); }
-        if (vertical) { tempCtx.translate(0, 300); tempCtx.scale(1, -1); }
-        tempCtx.drawImage(img, 0, 0, 400, 300);
-        const newDataUrl = tempCanvas.toDataURL('image/png');
-        fishArray[fishIndex].dataUrl = newDataUrl;
-        chrome.storage.local.set({ doodleFishList: fishArray }, () => {
-          this.elements.modalFishPreview.src = newDataUrl;
-          this.galleryManager.renderFishList(this.currentFishId);
-        });
-      };
-      img.src = fishArray[fishIndex].dataUrl;
-    });
-  }
-
-
   exportFish(fish) {
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = 400;
@@ -307,7 +248,7 @@ export class FishEditor {
       img.src = dataUrl;
     });
   }
-  
+
   deleteFish(id) {
     if (this.galleryManager) {
       this.galleryManager.deleteSingleFish(id);
