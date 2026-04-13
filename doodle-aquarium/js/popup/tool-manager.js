@@ -12,6 +12,7 @@ export class ToolManager {
     // Default opacity/etc already handled by setupListeners/elements
     this.setupListeners();
     // Force initialize color UI
+    this.colorSwatchFill = document.getElementById('color-swatch-fill');
     this.applyColorInput(this.elements.colorPicker.value, true);
   }
 
@@ -117,27 +118,51 @@ export class ToolManager {
       alpha = parseInt(value.slice(7, 9), 16) / 255;
     }
 
-    if (!silent && alpha !== this.currentOpacity) {
-      this.currentOpacity = alpha;
-      this.elements.brushOpacity.value = Math.round(alpha * 100);
-      this.elements.brushOpacityDisplay.textContent = `${this.elements.brushOpacity.value}%`;
-    }
+    // Always update Opacity UI (Slider and % display) to match the input value's alpha
+    // This ensures the slider moves as the dropper samples different transparent pixels
+    const alphaPercent = Math.round(alpha * 100);
+    this.elements.brushOpacity.value = alphaPercent;
+    this.elements.brushOpacityDisplay.textContent = `${alphaPercent}%`;
 
     if (hex6) {
       const r = parseInt(hex6.slice(1, 3), 16);
       const g = parseInt(hex6.slice(3, 5), 16);
       const b = parseInt(hex6.slice(5, 7), 16);
-      const displayAlpha = isHover ? alpha : this.currentOpacity;
-      this.currentDrawColor = `rgba(${r}, ${g}, ${b}, ${displayAlpha})`;
-      this.elements.colorText.value = this.rgbaToHex8(r, g, b, displayAlpha);
-
+      
+      // Update the hex text display (always shows the 'current' color, even if just hover)
+      this.elements.colorText.value = this.rgbaToHex8(r, g, b, alpha);
+      
       if (!isHover) {
+        // Commit state when not a hover
         this.currentOpacity = alpha;
         this.currentDrawColor = `rgba(${r}, ${g}, ${b}, ${this.currentOpacity})`;
+
+        // Update preHoverColor if it exists so eyedropper reverts to this new manual color
+        if (this.preHoverColor !== null) {
+          this.preHoverColor = this.rgbaToHex8(r, g, b, alpha);
+        }
+      } else {
+        // Temporarily update draw color for preview purposes during hover
+        this.currentDrawColor = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      }
+
+      // Update the visual swatch preview to reflect color + opacity
+      if (this.colorSwatchFill) {
+        this.colorSwatchFill.style.backgroundColor = `rgba(${r}, ${g}, ${b}, ${alpha})`;
       }
     } else {
-      this.currentDrawColor = value;
       this.elements.colorText.value = value.toUpperCase();
+      if (!isHover) {
+        this.currentOpacity = alpha; // Keep alpha in sync for custom text inputs
+        this.currentDrawColor = value;
+
+        if (this.preHoverColor !== null) {
+          this.preHoverColor = value;
+        }
+      }
+      if (this.colorSwatchFill) {
+        this.colorSwatchFill.style.backgroundColor = value;
+      }
     }
 
     if (this.callbacks.onColorChange) this.callbacks.onColorChange();
