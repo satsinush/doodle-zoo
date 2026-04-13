@@ -92,6 +92,13 @@ document.addEventListener('DOMContentLoaded', () => {
   let panX = 0;
   let panY = 0;
   let currentEditingFishId = null;
+  let activePointers = new Map();
+  let initialPinchDistance = 0;
+  let initialPinchZoom = 1;
+  let initialPinchPanX = 0;
+  let initialPinchPanY = 0;
+  let initialPinchMidpoint = { x: 0, y: 0 };
+  let lastPointerType = 'mouse';
 
   // Init Managers
   const canvasManager = new CanvasManager(els, {
@@ -303,7 +310,12 @@ document.addEventListener('DOMContentLoaded', () => {
     els.brushPreviewFill.style.display = 'none';
     els.brushPreviewOutline.style.display = 'none';
 
-    // 2. Early Exits (Out of viewport or no mouse tracking yet)
+    // 2. Early Exits (Out of viewport, no mouse tracking, or currently navigating)
+    if (isPanning || activePointers.size > 1) {
+      els.brushPreviewFill.style.display = 'none';
+      els.brushPreviewOutline.style.display = 'none';
+      return;
+    }
     if (!lastMousePos || lastMousePos.clientX === undefined || !isMouseInViewport) return;
 
     // 3. Logic Setup
@@ -379,7 +391,39 @@ document.addEventListener('DOMContentLoaded', () => {
     canvasManager.clearHover();
   });
 
-  els.canvasViewport.addEventListener('mousedown', (e) => {
+  els.canvasViewport.addEventListener('pointerdown', (e) => {
+    lastPointerType = e.pointerType;
+    // Limit to 2 pointers to prevent issues with triple-touch gestures
+    if (activePointers.size >= 2) return;
+    
+    // Enable pointer capture to ensure we get events even if user moves outside the viewport
+    try { els.canvasViewport.setPointerCapture(e.pointerId); } catch (_err) { }
+    
+    activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+
+    // Handle Multi-Touch Gesture Initialization
+    if (activePointers.size === 2) {
+      isDrawing = false;
+      isPanning = false;
+      const pts = Array.from(activePointers.values());
+      const dx = pts[0].clientX - pts[1].clientX;
+      const dy = pts[0].clientY - pts[1].clientY;
+      initialPinchDistance = Math.hypot(dx, dy);
+      initialPinchZoom = canvasManager.zoomLevel;
+      initialPinchPanX = canvasManager.panX;
+      initialPinchPanY = canvasManager.panY;
+      initialPinchMidpoint = { 
+        x: (pts[0].clientX + pts[1].clientX) / 2, 
+        y: (pts[0].clientY + pts[1].clientY) / 2 
+      };
+      
+      // Clear active stroke if any
+      const dpr = window.devicePixelRatio || 1;
+      canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width / dpr, canvasManager.activeCanvas.height / dpr);
+      currentStrokePoints = [];
+      return;
+    }
+
     if (e.button === 1 || e.button === 2) {
       isPanning = true;
       lastMousePos = { clientX: e.clientX, clientY: e.clientY };
@@ -435,7 +479,48 @@ document.addEventListener('DOMContentLoaded', () => {
     updatePreviewDisplay(e);
   });
 
-  els.canvasViewport.addEventListener('mousemove', (e) => {
+  els.canvasViewport.addEventListener('pointermove', (e) => {
+    lastPointerType = e.pointerType;
+    isMouseInViewport = true;
+    // Only track move data for pointers that are currently 'down' (drawing or panning)
+    if (activePointers.has(e.pointerId)) {
+      activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+    }
+
+    // Handle Multi-Touch Gestures (Pinch & Pan)
+    if (activePointers.size === 2) {
+      els.canvasTransformWrapper.classList.add('panning');
+      const pts = Array.from(activePointers.values());
+      const dx = pts[0].clientX - pts[1].clientX;
+      const dy = pts[0].clientY - pts[1].clientY;
+      const currentDistance = Math.hypot(dx, dy);
+      const currentMidpoint = { 
+        x: (pts[0].clientX + pts[1].clientX) / 2, 
+        y: (pts[0].clientY + pts[1].clientY) / 2 
+      };
+
+      if (initialPinchDistance > 0) {
+        // 1. Calculate and apply Zoom level
+        const zoomFactor = currentDistance / initialPinchDistance;
+        const newZoom = Math.max(0.1, Math.min(15, initialPinchZoom * zoomFactor));
+        canvasManager.zoomLevel = newZoom;
+
+        // 2. Calculate and apply Pan shift
+        const shiftX = currentMidpoint.x - initialPinchMidpoint.x;
+        const shiftY = currentMidpoint.y - initialPinchMidpoint.y;
+        
+        canvasManager.panX = initialPinchPanX + shiftX;
+        canvasManager.panY = initialPinchPanY + shiftY;
+        panX = canvasManager.panX;
+        panY = canvasManager.panY;
+
+        canvasManager.updateViewTransform();
+        toolManager.updateBrushPreview();
+        updatePreviewDisplay();
+      }
+      return;
+    }
+
     if (isPanning) {
       panX += (e.clientX - lastMousePos.clientX); panY += (e.clientY - lastMousePos.clientY);
       lastMousePos = { clientX: e.clientX, clientY: e.clientY };
@@ -484,7 +569,28 @@ document.addEventListener('DOMContentLoaded', () => {
     updatePreviewDisplay(e);
   });
 
-  window.addEventListener('mouseup', () => {
+  window.addEventListener('pointerup', (e) => {
+    activePointers.delete(e.pointerId);
+    try { els.canvasViewport.releasePointerCapture(e.pointerId); } catch (_err) { }
+    
+    // Cleanup panning class if no longer multi-touching or mouse-panning
+    if (activePointers.size < 2 && !isPanning) {
+      els.canvasTransformWrapper.classList.remove('panning');
+    }
+
+    // If we transition from 2 to 1 finger, we should reset the dragging state
+    // so we don't 'jump' based on the old mouse position
+    if (activePointers.size === 1) {
+      const remaining = activePointers.values().next().value;
+      lastMousePos = { clientX: remaining.clientX, clientY: remaining.clientY };
+    }
+
+    // Touch devices don't hover, so hide preview on lift. 
+    // Stylus/Mouse do hover, so we preserve their visibility.
+    if (e.pointerType === 'touch') {
+      isMouseInViewport = false;
+      updatePreviewDisplay();
+    }
     if (isPanning) { isPanning = false; els.canvasTransformWrapper.classList.remove('panning'); return; }
     if (isDrawing) {
       if (toolManager.currentTool === 'brush' && currentStrokePoints.length > 0) {
@@ -496,6 +602,18 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       isDrawing = false; isReentering = false;
     }
+  });
+
+  window.addEventListener('pointercancel', (e) => {
+    activePointers.delete(e.pointerId);
+    try { els.canvasViewport.releasePointerCapture(e.pointerId); } catch (_err) { }
+    isPanning = false;
+    isDrawing = false;
+    isReentering = false;
+    currentStrokePoints = [];
+    els.canvasTransformWrapper.classList.remove('panning');
+    const dpr = window.devicePixelRatio || 1;
+    canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width / dpr, canvasManager.activeCanvas.height / dpr);
   });
 
   els.canvasViewport.addEventListener('wheel', (e) => {
