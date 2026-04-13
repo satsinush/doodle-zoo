@@ -649,6 +649,7 @@ button {
     height: 32px;
     border-radius: 50%;
     border: none;
+    box-shadow: 0 0 0 2px var(--outline-variant);
     overflow: hidden;
     background-color: #ffffff;
     /* Clean white-based checkers for the swatch */
