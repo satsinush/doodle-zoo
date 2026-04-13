@@ -224,37 +224,12 @@ export class CanvasManager {
     this.ctx.globalCompositeOperation = 'source-over';
   }
 
-  floodFill(startX, startY, fillColorHex, opacity) {
-    const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
-    const data = imageData.data;
-    const width = this.canvas.width;
-    const height = this.canvas.height;
-
-    const sx = Math.floor(startX);
-    const sy = Math.floor(startY);
-
-    if (sx < 0 || sx >= width || sy < 0 || sy >= height) return;
-
+  computeFloodFillMask(data, width, height, sx, sy, tolerance) {
     const startIndex = (sy * width + sx) * 4;
     const startR = data[startIndex];
     const startG = data[startIndex + 1];
     const startB = data[startIndex + 2];
     const startA = data[startIndex + 3];
-
-    // Simple hex to rgba (since we don't have a shared util for this yet, or we'll just parse it here)
-    const hexToRgbaLocal = (hex) => {
-      let c;
-      if (/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)) {
-        c = hex.substring(1).split('');
-        if (c.length == 3) c = [c[0], c[0], c[1], c[1], c[2], c[2]];
-        c = '0x' + c.join('');
-        return [(c >> 16) & 255, (c >> 8) & 255, c & 255, Math.round(opacity * 255)];
-      }
-      return [0, 0, 0, Math.round(opacity * 255)];
-    };
-
-    const fillRgba = hexToRgbaLocal(fillColorHex);
-    const tolerance = 20;
 
     const matchStartColor = (index) => {
       return Math.abs(data[index] - startR) <= tolerance &&
@@ -306,21 +281,69 @@ export class CanvasManager {
       }
     }
 
-    // Dilate
-    let dilatedMask = new Uint8Array(fillMask);
-    const nextMask = new Uint8Array(dilatedMask);
+    const nextMask = new Uint8Array(fillMask);
+    const pixelsDiffer = (idx1, idx2) => {
+      const diffTolerance = 2; // Strict color-matching to catch identical flat colors
+      return Math.abs(data[idx1 * 4] - data[idx2 * 4]) > diffTolerance ||
+             Math.abs(data[idx1 * 4 + 1] - data[idx2 * 4 + 1]) > diffTolerance ||
+             Math.abs(data[idx1 * 4 + 2] - data[idx2 * 4 + 2]) > diffTolerance ||
+             Math.abs(data[idx1 * 4 + 3] - data[idx2 * 4 + 3]) > diffTolerance;
+    };
+
     for (let dy = 0; dy < height; dy++) {
       for (let dx = 0; dx < width; dx++) {
         let i = dy * width + dx;
-        if (dilatedMask[i]) {
-          if (dx > 0) nextMask[i - 1] = 1;
-          if (dx < width - 1) nextMask[i + 1] = 1;
-          if (dy > 0) nextMask[i - width] = 1;
-          if (dy < height - 1) nextMask[i + width] = 1;
+        if (fillMask[i]) {
+          if (dx > 0) {
+            if (dx <= 1 || pixelsDiffer(i - 1, i - 2)) nextMask[i - 1] = 1;
+          }
+          if (dx < width - 1) {
+            if (dx >= width - 2 || pixelsDiffer(i + 1, i + 2)) nextMask[i + 1] = 1;
+          }
+          if (dy > 0) {
+            if (dy <= 1 || pixelsDiffer(i - width, i - width * 2)) nextMask[i - width] = 1;
+          }
+          if (dy < height - 1) {
+            if (dy >= height - 2 || pixelsDiffer(i + width, i + width * 2)) nextMask[i + width] = 1;
+          }
         }
       }
     }
-    dilatedMask = nextMask;
+
+    return nextMask;
+  }
+
+  floodFill(startX, startY, fillColorHex, opacity) {
+    const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+    const data = imageData.data;
+    const width = this.canvas.width;
+    const height = this.canvas.height;
+
+    const sx = Math.floor(startX);
+    const sy = Math.floor(startY);
+
+    if (sx < 0 || sx >= width || sy < 0 || sy >= height) return;
+
+    const startIndex = (sy * width + sx) * 4;
+    const startR = data[startIndex];
+    const startG = data[startIndex + 1];
+    const startB = data[startIndex + 2];
+    const startA = data[startIndex + 3];
+
+    // Simple hex to rgba (since we don't have a shared util for this yet, or we'll just parse it here)
+    const hexToRgbaLocal = (hex) => {
+      let c;
+      if (/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)) {
+        c = hex.substring(1).split('');
+        if (c.length == 3) c = [c[0], c[0], c[1], c[1], c[2], c[2]];
+        c = '0x' + c.join('');
+        return [(c >> 16) & 255, (c >> 8) & 255, c & 255, Math.round(opacity * 255)];
+      }
+      return [0, 0, 0, Math.round(opacity * 255)];
+    };
+
+    const fillRgba = hexToRgbaLocal(fillColorHex);
+    let dilatedMask = this.computeFloodFillMask(data, width, height, sx, sy, 20);
 
     const srcA = fillRgba[3] / 255;
     for (let i = 0; i < dilatedMask.length; i++) {
@@ -383,51 +406,14 @@ export class CanvasManager {
       };
 
       const fillRgba = hexToRgbaLocal(cssColorToHex(currentDrawColor) || currentDrawColor);
-      const previewA = Math.round(currentOpacity * 128);
-      const tolerance = 20;
+      const previewA = Math.round(currentOpacity * 255);
 
-      const matchStartColor = (index) => {
-        return Math.abs(data[index] - startR) <= tolerance &&
-          Math.abs(data[index + 1] - startG) <= tolerance &&
-          Math.abs(data[index + 2] - startB) <= tolerance &&
-          Math.abs(data[index + 3] - startA) <= tolerance;
-      };
-
-      const fillMask = new Uint8Array(width * height);
-      const pixelStack = [[sx, sy]];
-
-      while (pixelStack.length > 0) {
-        const newPos = pixelStack.pop();
-        const x = newPos[0];
-        let y = newPos[1];
-        let pixelPos = (y * width + x) * 4;
-        while (y-- >= 0 && matchStartColor(pixelPos) && !fillMask[pixelPos / 4]) {
-          pixelPos -= width * 4;
-        }
-        pixelPos += width * 4;
-        ++y;
-        let reachLeft = false;
-        let reachRight = false;
-        while (y++ < height - 1 && matchStartColor(pixelPos) && !fillMask[pixelPos / 4]) {
-          fillMask[pixelPos / 4] = 1;
-          if (x > 0) {
-            if (matchStartColor(pixelPos - 4)) {
-              if (!reachLeft) { pixelStack.push([x - 1, y]); reachLeft = true; }
-            } else if (reachLeft) reachLeft = false;
-          }
-          if (x < width - 1) {
-            if (matchStartColor(pixelPos + 4)) {
-              if (!reachRight) { pixelStack.push([x + 1, y]); reachRight = true; }
-            } else if (reachRight) reachRight = false;
-          }
-          pixelPos += width * 4;
-        }
-      }
+      const nextMask = this.computeFloodFillMask(data, width, height, sx, sy, 20);
 
       const previewData = this.activeCtx.createImageData(width, height);
       const pData = previewData.data;
-      for (let i = 0; i < fillMask.length; i++) {
-        if (fillMask[i]) {
+      for (let i = 0; i < nextMask.length; i++) {
+        if (nextMask[i]) {
           const ptr = i * 4;
           pData[ptr] = fillRgba[0];
           pData[ptr + 1] = fillRgba[1];

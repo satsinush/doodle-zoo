@@ -28,7 +28,7 @@ export class ToolManager {
     this.elements.brushOpacity.addEventListener('input', () => {
       this.currentOpacity = Number(this.elements.brushOpacity.value) / 100;
       this.elements.brushOpacityDisplay.textContent = `${this.elements.brushOpacity.value}%`;
-      this.applyColorInput(this.currentDrawColor, true);
+      this.applyColorInput(this.elements.colorPicker.value, true);
     });
 
     this.elements.colorPicker.addEventListener('input', () => {
