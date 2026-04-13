@@ -11,6 +11,8 @@ export class GalleryManager {
     this.contextFishId = null;
     this._autoScrollSpeed = 0;
     this._autoScrollRequest = null;
+    this._lastDragX = 0;
+    this._lastDragY = 0;
     this.scrollContainer = document.body.classList.contains('standalone') ? 
                           (document.querySelector('.sidebar') || window) : window;
 
@@ -360,6 +362,8 @@ export class GalleryManager {
           e.dataTransfer.effectAllowed = 'move';
           e.dataTransfer.setData('text/plain', fish.id);
 
+          this._lastDragX = e.clientX;
+          this._lastDragY = e.clientY;
           this.elements.fishList.classList.add('is-reordering');
 
           // Add global dragover for auto-scroll
@@ -381,9 +385,20 @@ export class GalleryManager {
             if (draggingItems.length === 0) return;
 
             const rect = item.getBoundingClientRect();
-            // Check if mouse is in the second half of the item (either horizontally or vertically)
-            const isAfter = (e.clientX - rect.left) / (rect.right - rect.left) > 0.5 || 
+            
+            // Reordering snap: if we are moving left/up, we want to be "before" the item
+            // if we are moving right/down, we want to be "after" the item.
+            // This makes reordering feel more "eager" and snaps as soon as you cross the edge.
+            const dx = e.clientX - this._lastDragX;
+            const dy = e.clientY - this._lastDragY;
+            this._lastDragX = e.clientX;
+            this._lastDragY = e.clientY;
+
+            let isAfter = (e.clientX - rect.left) / (rect.right - rect.left) > 0.5 || 
                             (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+            
+            if (dx < -0.1 || dy < -0.1) isAfter = false;
+            else if (dx > 0.1 || dy > 0.1) isAfter = true;
 
             const referenceNode = isAfter ? item.nextSibling : item;
             
