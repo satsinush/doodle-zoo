@@ -49,15 +49,28 @@ function updateAquarium(fishList) {
 
 function spawnFish(fishData) {
   const img = document.createElement('img');
-  img.src = fishData.dataUrl;
-  img.className = 'doodle-aquarium-fish'; // helpful class for debugging
-  img.style.cssText = 'position: fixed; top: 0; left: 0; z-index: 999999; pointer-events: none; max-width: none; transform-origin: center center; visibility: hidden;';
+  img.className = 'doodle-aquarium-fish';
+  img.style.cssText = 'position: fixed; top: 0; left: 0; z-index: 999999; pointer-events: none; max-width: none; transform-origin: center center; visibility: hidden; transition: opacity 0.5s;';
 
   const appendToBody = () => {
     if (document.body) document.body.appendChild(img);
     else document.addEventListener('DOMContentLoaded', () => document.body.appendChild(img));
   };
   appendToBody();
+
+  // 1. Load original dataURL onto a temporary image to perform trimming
+  const rawImg = new Image();
+  rawImg.src = fishData.dataUrl;
+  rawImg.onload = () => {
+    try {
+      // trimImageToDataUrl is provided by image-utils.js
+      const trimmedDataUrl = typeof trimImageToDataUrl === 'function' ? trimImageToDataUrl(rawImg) : fishData.dataUrl;
+      img.src = trimmedDataUrl;
+    } catch (e) {
+      console.warn("Doodle Aquarium: Auto-cropping failed, falling back to original.", e);
+      img.src = fishData.dataUrl;
+    }
+  };
 
   img.onload = () => {
     let natWidth = img.naturalWidth || img.width || 400;

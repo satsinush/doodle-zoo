@@ -245,10 +245,6 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
 
-    // Prevent Chromium's native "Quick Focus" search from shifting focus 
-    // to DOM buttons (which causes the engine to devour the very next mousedown to trigger a blur)
-    e.preventDefault();
-
     const isCtrl = e.ctrlKey || e.metaKey;
     const isShift = e.shiftKey;
     const key = e.key.toLowerCase();
@@ -531,11 +527,11 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (_e) { }
     }
     if (importedDataUrls.length > 0) {
-        chrome.storage.local.get(['doodleFishList'], (result) => {
-          const fishArray = result.doodleFishList || [];
-          importedDataUrls.forEach((dataUrl, i) => fishArray.push({ id: `${Date.now()}-${i}`, dataUrl, mirrored: false, flipByVelocity: true, active: true, ...DEFAULT_SETTINGS }));
-          chrome.storage.local.set({ doodleFishList: fishArray }, () => galleryManager.renderFishList(currentEditingFishId));
-        });
+      chrome.storage.local.get(['doodleFishList'], (result) => {
+        const fishArray = result.doodleFishList || [];
+        importedDataUrls.forEach((dataUrl, i) => fishArray.push({ id: `${Date.now()}-${i}`, dataUrl, mirrored: false, flipByVelocity: true, active: true, ...DEFAULT_SETTINGS }));
+        chrome.storage.local.set({ doodleFishList: fishArray }, () => galleryManager.renderFishList(currentEditingFishId));
+      });
     }
     e.target.value = '';
   };

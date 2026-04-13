@@ -33,8 +33,10 @@ function animate() {
 
     if (mouseX >= 0 && mouseY >= 0 && interactionStrength > 0) {
       if (dist === 0) dist = 0.1;
-      const baseForce = 2000.0 * interactionStrength;
-      const forceMagnitude = baseForce / (dist * dist + 1000);
+      // Inverse square law: F = (k * s) / (r^2 + epsilon)
+      const k = 5000.0; // Interaction strength
+      const epsilon = 1000.0; // Softening factor to prevent infinity at dist=0
+      const forceMagnitude = (k * interactionStrength) / (dist * dist + epsilon);
 
       if (forceMagnitude > 0.01) {
         const sign = interactionType === 'attract' ? -1 : 1;
@@ -43,8 +45,19 @@ function animate() {
       }
     }
 
+    // Apply friction/drag
     fish.vx *= 0.95;
     fish.vy *= 0.95;
+
+    // Velocity clamping (Speed Cap)
+    const MAX_SPEED = 200;
+    const speedSqr = fish.vx * fish.vx + fish.vy * fish.vy;
+    if (speedSqr > MAX_SPEED * MAX_SPEED) {
+      const speed = Math.sqrt(speedSqr);
+      fish.vx = (fish.vx / speed) * MAX_SPEED;
+      fish.vy = (fish.vy / speed) * MAX_SPEED;
+    }
+
     fish.x += fish.vx;
     fish.y += fish.vy;
 

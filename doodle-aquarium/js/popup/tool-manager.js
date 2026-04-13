@@ -217,4 +217,30 @@ export class ToolManager {
       }
     }
   }
+
+  updateBrushPreview(e = null, lastClientPos = null) {
+    const point = e ? this.canvasManager.getCanvasPoint(e) : (lastClientPos ? this.canvasManager.getCanvasPoint(lastClientPos) : null);
+    if (!point || point.x < -500 || point.y < -500) return;
+
+    this.canvasManager.clearHover();
+
+    const showEraser = document.getElementById('global-show-eraser-outline')?.checked ?? true;
+    const showBrush = document.getElementById('global-show-brush-fill')?.checked ?? true;
+    const showDropper = document.getElementById('global-show-eyedropper')?.checked ?? true;
+
+    if (this.currentTool === 'eyedropper') {
+      if (showDropper) {
+        this.elements.brushPreviewFill.style.display = 'block';
+        this.elements.brushPreviewOutline.style.display = 'block';
+        this.drawEyedropperLens(point);
+      } else {
+        this.elements.brushPreviewFill.style.display = 'none';
+        this.elements.brushPreviewOutline.style.display = 'none';
+      }
+    } else {
+      this.elements.brushPreviewFill.style.display = 'none';
+      this.elements.brushPreviewOutline.style.display = 'none';
+      this.drawBrushReticle(point, null, showBrush, showEraser);
+    }
+  }
 }
