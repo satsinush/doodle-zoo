@@ -91,7 +91,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Init Managers
   const canvasManager = new CanvasManager(els, {
-    onRestoreComplete: () => updatePreviewDisplay()
+    onRestoreComplete: () => {
+      canvasManager.lastFillPoint = { x: -999, y: -999, color: null };
+      updatePreviewDisplay();
+    }
   });
   const galleryManager = new GalleryManager(els, (fish) => fishEditor.openFishModal(fish));
   const fishEditor = new FishEditor(els, canvasManager, galleryManager, {
@@ -105,6 +108,7 @@ document.addEventListener('DOMContentLoaded', () => {
       canvasManager.activeCtx.setTransform(1, 0, 0, 1, 0, 0);
       canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width, canvasManager.activeCanvas.height);
       canvasManager.activeCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      canvasManager.lastFillPoint = { x: -999, y: -999, color: null };
       updatePreviewDisplay();
     }
   });
@@ -223,6 +227,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Global Keyboard Shortcuts
   window.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+    
+    // Prevent Chromium's native "Quick Focus" search from shifting focus 
+    // to DOM buttons (which causes the engine to devour the very next mousedown to trigger a blur)
+    e.preventDefault();
 
     const isCtrl = e.ctrlKey || e.metaKey;
     const isShift = e.shiftKey;
@@ -359,8 +367,11 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     if (e.button === 0) {
+      isMouseInViewport = true;
+      updatePreviewDisplay(e); // Force immediately sync to cure the first-click bug
       const point = canvasManager.getCanvasPoint(e);
       canvasManager.saveState();
+      
       if (toolManager.currentTool === 'eyedropper') {
         const dpr = window.devicePixelRatio || 1;
         const imgData = canvasManager.ctx.getImageData(point.x * dpr, point.y * dpr, 1, 1).data;
@@ -377,6 +388,7 @@ document.addEventListener('DOMContentLoaded', () => {
         canvasManager.floodFill(point.x * dpr, point.y * dpr, toolManager.cssColorToHex(toolManager.currentDrawColor) || toolManager.currentDrawColor, toolManager.currentOpacity);
       } else {
         isDrawing = true; lastX = point.x; lastY = point.y;
+        
         if (toolManager.currentTool === 'brush') {
           currentStrokePoints = [{ x: point.x, y: point.y }];
           const dpr = window.devicePixelRatio || 1;

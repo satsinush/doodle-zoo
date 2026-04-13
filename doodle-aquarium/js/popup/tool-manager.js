@@ -48,6 +48,8 @@ export class ToolManager {
   }
 
   setTool(tool) {
+    if (this.currentTool === tool && !this.preHoverColor) return; // Guard against keys being held down
+    
     if (this.currentTool === 'eyedropper' && this.preHoverColor && tool !== 'eyedropper') {
       this.applyColorInput(this.preHoverColor, true);
       this.preHoverColor = null;
@@ -60,8 +62,6 @@ export class ToolManager {
     if (this.callbacks.onToolChange) {
       this.callbacks.onToolChange(tool);
     }
-
-    this.canvasManager.updateViewTransform();
 
     if (this.currentTool === 'eyedropper') {
       const hex = this.cssColorToHex(this.currentDrawColor) || '#000000';
