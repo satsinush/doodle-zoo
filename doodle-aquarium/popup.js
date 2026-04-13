@@ -547,7 +547,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const resizeCanvas = () => {
     const isS = isStandalone && window.innerWidth >= 750;
     const w = window.innerWidth - (isS ? 420 : 0) - (isS ? 40 : 32);
-    const maxW = isStandalone ? Math.min(w, 850) : Math.min(w, 800), maxH = maxW * 0.75;
+    const maxW = Math.round(isStandalone ? Math.min(w, 850) : Math.min(w, 800)), maxH = Math.round(maxW * 0.75);
     if (Math.round(els.canvas.getBoundingClientRect().width) !== maxW) canvasManager.setCanvasSize(maxW, maxH, true);
   };
 

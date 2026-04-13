@@ -133,23 +133,35 @@ export class CanvasManager {
   }
 
   setCanvasSize(cssWidth, cssHeight, preserveDrawing) {
-    const width = Math.max(1, Math.floor(cssWidth));
-    const height = Math.max(1, Math.floor(cssHeight));
     const dpr = window.devicePixelRatio || 1;
+    // Round to avoid float issues in input, but then prioritize physical pixel alignment
+    const width = Math.max(1, Math.round(cssWidth));
+    const height = Math.max(1, Math.round(cssHeight));
+    
+    // Calculate physical pixels and then the EXACT CSS equivalent to match that pixel grid
+    const physicalW = Math.floor(width * dpr);
+    const physicalH = Math.floor(height * dpr);
+    const exactCssW = physicalW / dpr;
+    const exactCssH = physicalH / dpr;
+
     const snapshot = preserveDrawing ? this.canvas.toDataURL('image/png') : null;
 
     [this.canvas, this.activeCanvas, this.guideCanvas, this.hoverFillCanvas, this.hoverOutlineCanvas].forEach(c => {
       if (!c) return;
-      c.style.width = `${width}px`;
-      c.style.height = `${height}px`;
-      c.width = Math.floor(width * dpr);
-      c.height = Math.floor(height * dpr);
+      c.style.width = `${exactCssW}px`;
+      c.style.height = `${exactCssH}px`;
+      c.width = physicalW;
+      c.height = physicalH;
     });
 
     const canvasSurface = document.getElementById('canvas-surface');
     if (canvasSurface) {
-      canvasSurface.style.width = `${width}px`;
-      canvasSurface.style.height = `${height}px`;
+      canvasSurface.style.width = `${exactCssW}px`;
+      canvasSurface.style.height = `${exactCssH}px`;
+      canvasSurface.style.minWidth = `${exactCssW}px`;
+      canvasSurface.style.minHeight = `${exactCssH}px`;
+      canvasSurface.style.maxWidth = `${exactCssW}px`;
+      canvasSurface.style.maxHeight = `${exactCssH}px`;
     }
 
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
