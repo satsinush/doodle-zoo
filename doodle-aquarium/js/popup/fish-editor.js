@@ -57,7 +57,7 @@ export class FishEditor {
           fishArray[index].sizeMultiplier = Number(this.physicsDOM.sizeMultiplier.value);
           fishArray[index].interactionType = this.physicsDOM.interactionType.value;
           fishArray[index].interactionStrength = Number(this.physicsDOM.interactionStrength.value);
-          chrome.storage.local.set({ doodleFishList: fishArray }, () => this.galleryManager.renderFishList());
+          chrome.storage.local.set({ doodleFishList: fishArray }, () => this.galleryManager.renderFishList(this.currentFishId));
         }
       });
     };
@@ -152,7 +152,7 @@ export class FishEditor {
       if (fishIndex !== -1) {
         fishArray[fishIndex].active = isActive;
         chrome.storage.local.set({ doodleFishList: fishArray }, () => {
-          this.galleryManager.renderFishList();
+          this.galleryManager.renderFishList(this.currentFishId);
         });
       }
     });
@@ -165,7 +165,7 @@ export class FishEditor {
       if (fishIndex !== -1) {
         fishArray[fishIndex].flipByVelocity = isEnabled;
         chrome.storage.local.set({ doodleFishList: fishArray }, () => {
-          this.galleryManager.renderFishList();
+          this.galleryManager.renderFishList(this.currentFishId);
         });
       }
     });
@@ -190,7 +190,7 @@ export class FishEditor {
         fishArray[fishIndex].dataUrl = newDataUrl;
         chrome.storage.local.set({ doodleFishList: fishArray }, () => {
           this.elements.modalFishPreview.src = newDataUrl;
-          this.galleryManager.renderFishList();
+          this.galleryManager.renderFishList(this.currentFishId);
         });
       };
       img.src = fishArray[fishIndex].dataUrl;
@@ -202,7 +202,7 @@ export class FishEditor {
       let fishArray = result.doodleFishList || [];
       fishArray = fishArray.filter(f => f.id !== id);
       chrome.storage.local.set({ doodleFishList: fishArray }, () => {
-        this.galleryManager.renderFishList();
+        this.galleryManager.renderFishList(this.currentFishId);
       });
     });
   }

@@ -171,10 +171,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const resetEditingState = () => {
     currentEditingFishId = null;
+    galleryManager.renderFishList(null);
   };
 
   const setEditingState = (id) => {
     currentEditingFishId = id;
+    galleryManager.renderFishList(id);
   };
 
   let statusTimer = null;
@@ -190,11 +192,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const startNewFish = () => {
     canvasManager.clearCanvas();
     resetEditingState();
+    galleryManager.renderFishList(null);
     showNotification('Started new fish.');
   };
 
   const saveFish = (forceNew = false) => {
-    if (canvasManager.isCanvasBlank()) { showNotification("Please draw a fish first!"); return; }
+
 
     const tempCanvas = document.createElement('canvas'); tempCanvas.width = 400; tempCanvas.height = 300;
     const tempCtx = tempCanvas.getContext('2d');
@@ -213,7 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
           fishArray[idx].dataUrl = dataUrl;
           chrome.storage.local.set({ doodleFishList: fishArray }, () => {
             showNotification('Fish updated.');
-            galleryManager.renderFishList();
+            galleryManager.renderFishList(currentEditingFishId);
           });
           return;
         }
@@ -225,7 +228,7 @@ document.addEventListener('DOMContentLoaded', () => {
       chrome.storage.local.set({ doodleFishList: fishArray }, () => {
         setEditingState(newId);
         showNotification('New fish saved.');
-        galleryManager.renderFishList();
+        galleryManager.renderFishList(currentEditingFishId);
       });
     });
   };
@@ -528,11 +531,11 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (_e) { }
     }
     if (importedDataUrls.length > 0) {
-      chrome.storage.local.get(['doodleFishList'], (result) => {
-        const fishArray = result.doodleFishList || [];
-        importedDataUrls.forEach((dataUrl, i) => fishArray.push({ id: `${Date.now()}-${i}`, dataUrl, mirrored: false, flipByVelocity: true, active: true, ...DEFAULT_SETTINGS }));
-        chrome.storage.local.set({ doodleFishList: fishArray }, () => galleryManager.renderFishList());
-      });
+        chrome.storage.local.get(['doodleFishList'], (result) => {
+          const fishArray = result.doodleFishList || [];
+          importedDataUrls.forEach((dataUrl, i) => fishArray.push({ id: `${Date.now()}-${i}`, dataUrl, mirrored: false, flipByVelocity: true, active: true, ...DEFAULT_SETTINGS }));
+          chrome.storage.local.set({ doodleFishList: fishArray }, () => galleryManager.renderFishList(currentEditingFishId));
+        });
     }
     e.target.value = '';
   };
@@ -553,5 +556,5 @@ document.addEventListener('DOMContentLoaded', () => {
   els.bulkExportSelected.addEventListener('click', () => {
     galleryManager.exportSelectedIndividually();
   });
-  galleryManager.renderFishList();
+  galleryManager.renderFishList(currentEditingFishId);
 });

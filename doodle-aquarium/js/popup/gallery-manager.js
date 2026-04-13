@@ -5,6 +5,7 @@ export class GalleryManager {
     this.onOpenFishModal = onOpenFishModal;
     this.selectedFishIds = [];
     this.lastSelectedIndex = -1;
+    this.currentEditingFishId = null;
     this._bulkTouches = {};
 
     this.bulkDOM = {
@@ -111,7 +112,9 @@ export class GalleryManager {
     });
   }
 
-  renderFishList() {
+  renderFishList(editingId = undefined) {
+    if (editingId !== undefined) this.currentEditingFishId = editingId;
+    
     chrome.storage.local.get(['doodleFishList'], (result) => {
       const fishArray = result.doodleFishList || [];
       this.elements.fishList.innerHTML = '';
@@ -133,6 +136,17 @@ export class GalleryManager {
         img.src = fish.dataUrl;
         img.alt = 'Fish';
         item.appendChild(img);
+
+        // Editing indicator
+        if (fish.id === this.currentEditingFishId) {
+          const badge = document.createElement('div');
+          badge.className = 'editing-badge';
+          const badgeSpan = document.createElement('span');
+          badgeSpan.className = 'material-symbols-outlined';
+          badgeSpan.textContent = 'edit';
+          badge.appendChild(badgeSpan);
+          item.appendChild(badge);
+        }
 
         const gearIcon = document.createElement('div');
         gearIcon.className = 'settings-hover-icon';
