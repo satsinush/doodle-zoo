@@ -9,6 +9,10 @@ export class GalleryManager {
     this._bulkTouches = {};
     this.draggedItemId = null;
     this.contextFishId = null;
+    this._autoScrollSpeed = 0;
+    this._autoScrollRequest = null;
+    this.scrollContainer = document.body.classList.contains('standalone') ? 
+                          (document.querySelector('.sidebar') || window) : window;
 
     this.bulkDOM = {
       speedMultiplier: document.getElementById('bulk-speed-multiplier'),
@@ -217,6 +221,52 @@ export class GalleryManager {
     });
   }
 
+  handleAutoScroll() {
+    if (this._autoScrollSpeed !== 0) {
+      this.scrollContainer.scrollBy(0, this._autoScrollSpeed);
+      this._autoScrollRequest = requestAnimationFrame(() => this.handleAutoScroll());
+    } else {
+      this._autoScrollRequest = null;
+    }
+  }
+
+  updateAutoScroll(clientY) {
+    let rect;
+    if (this.scrollContainer === window) {
+      rect = { top: 0, bottom: window.innerHeight };
+    } else {
+      rect = this.scrollContainer.getBoundingClientRect();
+    }
+
+    const thresholdTop = 100; // Standard threshold
+    const thresholdBottom = 60;
+
+    const topDist = clientY - rect.top;
+    const botDist = rect.bottom - clientY;
+
+    if (topDist < thresholdTop) {
+      // Near top of container - scroll up
+      this._autoScrollSpeed = -Math.max(3, (thresholdTop - topDist) / 4);
+    } else if (botDist < thresholdBottom) {
+      // Near bottom of container - scroll down
+      this._autoScrollSpeed = Math.max(3, (thresholdBottom - botDist) / 4);
+    } else {
+      this._autoScrollSpeed = 0;
+    }
+
+    if (this._autoScrollSpeed !== 0 && !this._autoScrollRequest) {
+      this.handleAutoScroll();
+    }
+  }
+
+  stopAutoScroll() {
+    this._autoScrollSpeed = 0;
+    if (this._autoScrollRequest) {
+      cancelAnimationFrame(this._autoScrollRequest);
+      this._autoScrollRequest = null;
+    }
+  }
+
   hideContextMenu() {
     if (this.elements.galleryContextMenu) {
       this.elements.galleryContextMenu.style.display = 'none';
@@ -309,6 +359,12 @@ export class GalleryManager {
           }
           e.dataTransfer.effectAllowed = 'move';
           e.dataTransfer.setData('text/plain', fish.id);
+
+          this.elements.fishList.classList.add('is-reordering');
+
+          // Add global dragover for auto-scroll
+          this._globalDragHandler = (ge) => this.updateAutoScroll(ge.clientY);
+          window.addEventListener('dragover', this._globalDragHandler);
         });
 
         item.addEventListener('dragover', (e) => {
@@ -317,8 +373,31 @@ export class GalleryManager {
           const isSelectedSource = this.selectedFishIds.includes(this.draggedItemId);
           const isTargetSelected = this.selectedFishIds.includes(fish.id);
           
+          this.updateAutoScroll(e.clientY);
+
           if (this.draggedItemId !== fish.id && !(isSelectedSource && isTargetSelected)) {
-            item.classList.add('drag-over');
+            const container = this.elements.fishList;
+            const draggingItems = Array.from(container.querySelectorAll('.gallery-item.dragging'));
+            if (draggingItems.length === 0) return;
+
+            const rect = item.getBoundingClientRect();
+            // Check if mouse is in the second half of the item (either horizontally or vertically)
+            const isAfter = (e.clientX - rect.left) / (rect.right - rect.left) > 0.5 || 
+                            (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+
+            const referenceNode = isAfter ? item.nextSibling : item;
+            
+            // Guard: Don't move if we are already in the target position
+            const firstDrag = draggingItems[0];
+            const lastDrag = draggingItems[draggingItems.length - 1];
+            
+            if (isAfter) {
+                if (item === lastDrag || item.nextSibling === firstDrag) return;
+            } else {
+                if (item === firstDrag || item.previousSibling === lastDrag) return;
+            }
+
+            draggingItems.forEach(el => container.insertBefore(el, referenceNode));
           }
         });
 
@@ -327,6 +406,12 @@ export class GalleryManager {
         });
 
         item.addEventListener('dragend', () => {
+          this.stopAutoScroll();
+          this.elements.fishList.classList.remove('is-reordering');
+          if (this._globalDragHandler) {
+            window.removeEventListener('dragover', this._globalDragHandler);
+            this._globalDragHandler = null;
+          }
           this.elements.fishList.querySelectorAll('.gallery-item').forEach(el => {
             el.classList.remove('dragging');
             el.classList.remove('drag-over');
@@ -336,9 +421,9 @@ export class GalleryManager {
 
         item.addEventListener('drop', (e) => {
           e.preventDefault();
-          item.classList.remove('drag-over');
-          if (this.draggedItemId && this.draggedItemId !== fish.id) {
-            this.handleReorder(this.draggedItemId, fish.id);
+          this.stopAutoScroll();
+          if (this.draggedItemId) {
+            this.updatePersistenceFromDOM();
           }
         });
 
@@ -396,38 +481,26 @@ export class GalleryManager {
     });
   }
 
-  handleReorder(draggedId, targetId) {
+  updatePersistenceFromDOM() {
+    const ids = Array.from(this.elements.fishList.children)
+      .map(el => el.dataset.id)
+      .filter(id => id);
+
     chrome.storage.local.get(['doodleFishList'], (result) => {
-      let fishArray = result.doodleFishList || [];
-      
-      let idsToMove = [draggedId];
-      if (this.selectedFishIds.includes(draggedId)) {
-        // Move all selected fish, maintaining their relative order in the current list
-        idsToMove = fishArray
-          .filter(f => this.selectedFishIds.includes(f.id))
-          .map(f => f.id);
-      }
+      const fishArray = result.doodleFishList || [];
+      const fishMap = new Map(fishArray.map(f => [f.id, f]));
+      const newArray = ids.map(id => fishMap.get(id)).filter(f => f);
 
-      const draggedItems = [];
-      const originalIndices = idsToMove.map(id => fishArray.findIndex(f => f.id === id));
-      
-      // Extract items (sorted by index descending to avoid splice index-shifting issues)
-      const sortedIndices = [...originalIndices].sort((a, b) => b - a);
-      for (const idx of sortedIndices) {
-        if (idx !== -1) {
-          draggedItems.unshift(fishArray.splice(idx, 1)[0]);
-        }
-      }
-
-      let targetIndex = fishArray.findIndex(f => f.id === targetId);
-      if (targetIndex === -1) targetIndex = fishArray.length;
-
-      fishArray.splice(targetIndex, 0, ...draggedItems);
-
-      chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+      chrome.storage.local.set({ doodleFishList: newArray }, () => {
         this.renderFishList();
       });
     });
+  }
+
+  handleReorder(draggedId, targetId) {
+    // This method is now secondary but kept for compatibility if needed.
+    // The main logic is in updatePersistenceFromDOM.
+    this.updatePersistenceFromDOM();
   }
 
   toggleSelection(id, index, isShift, fishArray) {
