@@ -141,8 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
       interactionStrength: Number(els.interactionStrength.value)
     };
     chrome.storage.local.set({ doodleSettings: settings }, () => {
-      els.status.textContent = statusMessage;
-      if (statusMessage) setTimeout(() => els.status.textContent = '', 1600);
+      if (statusMessage) showNotification(statusMessage);
     });
   };
 
@@ -174,15 +173,24 @@ document.addEventListener('DOMContentLoaded', () => {
     currentEditingFishId = id;
   };
 
+  let statusTimer = null;
+  const showNotification = (msg) => {
+    els.status.textContent = msg;
+    els.status.classList.add('show');
+    if (statusTimer) clearTimeout(statusTimer);
+    statusTimer = setTimeout(() => {
+      els.status.classList.remove('show');
+    }, 1600);
+  };
+
   const startNewFish = () => {
     canvasManager.clearCanvas();
     resetEditingState();
-    els.status.textContent = 'Started new fish.';
-    setTimeout(() => els.status.textContent = '', 1600);
+    showNotification('Started new fish.');
   };
 
   const saveFish = (forceNew = false) => {
-    if (canvasManager.isCanvasBlank()) { els.status.textContent = "Please draw a fish first!"; setTimeout(() => els.status.textContent = '', 1600); return; }
+    if (canvasManager.isCanvasBlank()) { showNotification("Please draw a fish first!"); return; }
     
     const tempCanvas = document.createElement('canvas'); tempCanvas.width = 400; tempCanvas.height = 300;
     const tempCtx = tempCanvas.getContext('2d');
@@ -200,9 +208,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (idx !== -1) {
           fishArray[idx].dataUrl = dataUrl;
           chrome.storage.local.set({ doodleFishList: fishArray }, () => {
-            els.status.textContent = 'Fish updated.';
+            showNotification('Fish updated.');
             galleryManager.renderFishList();
-            setTimeout(() => els.status.textContent = '', 1600);
           });
           return;
         }
@@ -213,16 +220,19 @@ document.addEventListener('DOMContentLoaded', () => {
       fishArray.push({ id: newId, dataUrl, mirrored: false, flipByVelocity: true, active: true });
       chrome.storage.local.set({ doodleFishList: fishArray }, () => {
         setEditingState(newId);
-        els.status.textContent = 'New fish saved.';
+        showNotification('New fish saved.');
         galleryManager.renderFishList();
-        setTimeout(() => els.status.textContent = '', 1600);
       });
     });
   };
 
   els.clearBtn.onclick = () => { canvasManager.clearCanvas(); canvasManager.saveState(); };
   els.newFishBtn.onclick = startNewFish;
-  els.saveBtn.onclick = () => saveFish(false);
+  els.saveBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    saveFish(false);
+  });
 
   // Global Keyboard Shortcuts
   window.addEventListener('keydown', (e) => {
