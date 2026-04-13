@@ -1,4 +1,26 @@
+let latestFishList = [];
+
+function enforceLayering() {
+  if (!latestFishList || latestFishList.length === 0) return;
+
+  // Sort activeFish so that lower gallery indices (index 0) are appended LAST.
+  const sortedForLayering = [...activeFish].sort((a, b) => {
+    const idxA = latestFishList.findIndex(f => f.id === a.id);
+    const idxB = latestFishList.findIndex(f => f.id === b.id);
+    return idxB - idxA; // High index to Low index (0 comes last)
+  });
+
+  sortedForLayering.forEach(fish => {
+    const listIndex = latestFishList.findIndex(f => f.id === fish.id);
+    if (listIndex !== -1) {
+      fish.element.style.setProperty('z-index', (1000000 + (latestFishList.length - listIndex)).toString(), 'important');
+    }
+    document.body.appendChild(fish.element);
+  });
+}
+
 function updateAquarium(fishList) {
+  latestFishList = fishList;
   const fishDataById = new Map(fishList.map(fish => [fish.id, fish]));
   const newActiveFishData = fishList.filter(f => f.active);
   const activeIds = newActiveFishData.map(f => f.id);
@@ -39,13 +61,9 @@ function updateAquarium(fishList) {
       fish.flipByVelocity = nextFlipByVelocity;
       updateFishTransform(fish);
     }
-    
-    // Update rendering order based on list index
-    const listIndex = fishList.findIndex(f => f.id === fish.id);
-    if (listIndex !== -1) {
-      fish.element.style.zIndex = 999999 + listIndex;
-    }
   }
+
+  enforceLayering();
 
   if (activeFish.length === 0 && animationFrameId) {
     cancelAnimationFrame(animationFrameId);
@@ -56,7 +74,7 @@ function updateAquarium(fishList) {
 function spawnFish(fishData) {
   const img = document.createElement('img');
   img.className = 'doodle-aquarium-fish';
-  img.style.cssText = 'position: fixed; top: 0; left: 0; z-index: 999999; pointer-events: none; max-width: none; transform-origin: center center; visibility: hidden; transition: opacity 0.5s;';
+  img.style.cssText = 'position: fixed; top: 0; left: 0; pointer-events: none; max-width: none; transform-origin: center center; visibility: hidden; transition: opacity 0.5s;';
 
   const appendToBody = () => {
     if (document.body) document.body.appendChild(img);
@@ -116,6 +134,7 @@ function spawnFish(fishData) {
     });
 
     updateFishTransform(activeFish[activeFish.length - 1]);
+    enforceLayering();
     img.style.visibility = 'visible';
     if (!animationFrameId) animate();
   };
