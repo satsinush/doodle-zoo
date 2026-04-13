@@ -123,9 +123,6 @@ export class GalleryManager {
         chrome.storage.local.set({ doodleFishList: fishArray }, () => {
           this.elements.bulkModal?.classList.remove('active');
           this.renderFishList();
-          if (this.history && historyChanges.length > 0) {
-            this.history.showToast(`Updated ${historyChanges.length} fish`, 'settings');
-          }
         });
       });
     });
@@ -206,38 +203,6 @@ export class GalleryManager {
           });
         }
       }
-    });
-  }
-
-  bulkDelete() {
-    if (this.selectedFishIds.length === 0) return;
-
-    chrome.storage.local.get(['doodleFishList'], (result) => {
-      let fishArray = result.doodleFishList || [];
-      const itemsToDelete = [];
-
-      this.selectedFishIds.forEach(id => {
-        const idx = fishArray.findIndex(f => f && f.id === id);
-        if (idx !== -1) {
-          itemsToDelete.push({ fish: fishArray[idx], index: idx });
-        }
-      });
-
-      if (this.history && itemsToDelete.length > 0) {
-        this.history.push({
-          type: 'delete',
-          data: itemsToDelete.length === 1 ? itemsToDelete[0] : itemsToDelete,
-          description: `Deleted ${itemsToDelete.length} Fish`
-        });
-      }
-
-      fishArray = fishArray.filter(f => f && !this.selectedFishIds.includes(f.id));
-      chrome.storage.local.set({ doodleFishList: fishArray }, () => {
-        const count = this.selectedFishIds.length;
-        this.selectedFishIds = [];
-        this.renderFishList();
-        if (this.history) this.history.showToast(`Deleted ${count} fish`, 'delete');
-      });
     });
   }
 
@@ -324,31 +289,6 @@ export class GalleryManager {
     menu.style.top = `${y}px`;
   }
 
-  deleteSingleFish(id) {
-    chrome.storage.local.get(['doodleFishList'], (result) => {
-      let fishArray = result.doodleFishList || [];
-      const index = fishArray.findIndex(f => f.id === id);
-      if (index === -1) return;
-
-      const deletedFish = fishArray[index];
-
-      if (this.history) {
-        this.history.push({
-          type: 'delete',
-          data: { fish: deletedFish, index: index },
-          description: 'Delete Fish'
-        });
-      }
-
-      fishArray.splice(index, 1);
-      chrome.storage.local.set({ doodleFishList: fishArray }, () => {
-        if (this.selectedFishIds.includes(id)) {
-          this.selectedFishIds = this.selectedFishIds.filter(sid => sid !== id);
-        }
-        this.renderFishList();
-      });
-    });
-  }
 
   exportSingleFish(fish) {
     const a = document.createElement('a');
@@ -545,8 +485,7 @@ export class GalleryManager {
       if (this.history && JSON.stringify(oldIds) !== JSON.stringify(newIds)) {
         this.history.push({
           type: 'reorder',
-          data: { oldIds, newIds },
-          description: 'Fish Reorder'
+          data: { oldIds, newIds }
         });
       }
 
@@ -737,7 +676,6 @@ export class GalleryManager {
           this.currentEditingFishId = null;
         }
         this.renderFishList();
-        if (this.history) this.history.showToast('Deleted fish', 'delete');
       });
     });
   }
@@ -770,7 +708,6 @@ export class GalleryManager {
         this.selectedFishIds = [];
         this.elements.bulkModal?.classList.remove('active');
         this.renderFishList();
-        if (this.history) this.history.showToast(`Deleted ${count} fish`, 'delete');
       });
     });
   }

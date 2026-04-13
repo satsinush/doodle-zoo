@@ -25,6 +25,11 @@ export class HistoryManager {
             this.undoStack.shift();
         }
         this.redoStack = []; // Clear redo on new action
+        
+        if (item.description) {
+            this.showToast(item.description, this.getIconForType(item.type));
+        }
+
         this.updateUI();
     }
 
@@ -35,7 +40,10 @@ export class HistoryManager {
         await this.applyState(item, true, currentAppState);
         this.redoStack.push(item);
         
-        this.showToast(`Undo: ${item.description}`, 'undo');
+        if (item.description) {
+            this.showToast(`Undo: ${item.description}`, this.getIconForType(item.type));
+        }
+
         this.refreshUI(currentAppState);
         this.updateUI();
     }
@@ -47,7 +55,10 @@ export class HistoryManager {
         await this.applyState(item, false, currentAppState);
         this.undoStack.push(item);
 
-        this.showToast(`Redo: ${item.description}`, 'redo');
+        if (item.description) {
+            this.showToast(`Redo: ${item.description}`, this.getIconForType(item.type));
+        }
+
         this.refreshUI(currentAppState);
         this.updateUI();
     }
@@ -235,5 +246,20 @@ export class HistoryManager {
         } else {
             console.log('Toast Fallback:', message);
         }
+    }
+
+    getIconForType(type) {
+        const icons = {
+            'canvas': 'brush',
+            'delete': 'delete',
+            'settings': 'settings',
+            'global_settings': 'settings',
+            'reorder': 'reorder',
+            'create': 'add',
+            'bulk_create': 'add',
+            'save_commit': 'save',
+            'navigate': 'arrow_forward'
+        };
+        return icons[type] || 'info';
     }
 }

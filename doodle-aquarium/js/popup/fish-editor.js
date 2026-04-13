@@ -68,7 +68,6 @@ export class FishEditor {
     this.elements.modalDeleteBtn?.addEventListener('click', () => {
       this.closeFishModal();
       this.deleteFish(this.currentFishId);
-      if (this.history) this.history.showToast('Deleted fish', 'delete');
     });
 
     this.elements.modalExportBtn?.addEventListener('click', () => {
@@ -259,27 +258,6 @@ export class FishEditor {
     });
   }
 
-  deleteFish(id) {
-    chrome.storage.local.get(['doodleFishList'], (result) => {
-      let fishArray = result.doodleFishList || [];
-      const index = fishArray.findIndex(f => f.id === id);
-      if (index !== -1) {
-        const deletedFish = fishArray.splice(index, 1)[0];
-
-        if (this.history) {
-          this.history.push({
-            type: 'delete',
-            data: { fish: deletedFish, index },
-            description: 'Fish Deleted'
-          });
-        }
-
-        chrome.storage.local.set({ doodleFishList: fishArray }, () => {
-          this.galleryManager.renderFishList(this.currentFishId);
-        });
-      }
-    });
-  }
 
   exportFish(fish) {
     const tempCanvas = document.createElement('canvas');

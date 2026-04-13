@@ -82,6 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
     helpBtn: document.getElementById('help-btn'),
     helpModal: document.getElementById('help-modal'),
     closeHelpModal: document.getElementById('close-help-modal'),
+    saveGlobalSettingsBtn: document.getElementById('save-global-settings-btn'),
     bulkDeleteSelected: document.getElementById('bulk-delete-selected'),
     galleryContextMenu: document.getElementById('gallery-context-menu'),
     ctxSettings: document.getElementById('ctx-settings'),
@@ -137,7 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Capture transition to new fish
     const oldId = currentEditingFishId;
     const oldUrl = canvasManager.canvas.toDataURL('image/png');
-    
+
     historyManager.push({
       type: 'navigate',
       data: {
@@ -145,8 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
         newId: targetFish.id,
         oldUrl,
         newUrl: targetFish.dataUrl
-      },
-      description: targetFish.id === null ? 'New Fish' : 'Edit Fish'
+      }
     });
 
     fishEditor.loadFishIntoCanvas(targetFish.id, targetFish.dataUrl);
@@ -169,8 +169,8 @@ document.addEventListener('DOMContentLoaded', () => {
   historyManager.setNotificationManager(notificationManager);
 
   // Expose for history manager access
-  window.appState = { 
-    canvasManager, 
+  window.appState = {
+    canvasManager,
     galleryManager,
     fishEditor,
     currentEditingFishId: () => currentEditingFishId,
@@ -215,7 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
       showBucketHover: els.globalShowBucketHover.checked,
       showEyedropperPreview: els.globalShowEyedropper.checked
     };
-    
+
     // Only push to history if actually changed and not currently being applied from history
     if (JSON.stringify(oldSettings) !== JSON.stringify(newSettings)) {
       historyManager.push({
@@ -241,10 +241,10 @@ document.addEventListener('DOMContentLoaded', () => {
     applyGlobalSettingsToForm(settings);
   });
 
-  els.globalShowEraserOutline.addEventListener('change', () => !applyingSettings && persistGlobalSettings());
-  els.globalShowBrushFill.addEventListener('change', () => !applyingSettings && persistGlobalSettings());
-  els.globalShowBucketHover.addEventListener('change', () => !applyingSettings && persistGlobalSettings());
-  els.globalShowEyedropper.addEventListener('change', () => !applyingSettings && persistGlobalSettings());
+  els.saveGlobalSettingsBtn?.addEventListener('click', () => {
+    persistGlobalSettings();
+    els.globalSettingsModal.classList.remove('active');
+  });
 
   els.globalSettingsBtn.addEventListener('click', () => {
     els.globalSettingsModal.classList.add('active');
@@ -295,8 +295,7 @@ document.addEventListener('DOMContentLoaded', () => {
             historyManager.push({
               type: 'save_commit',
               id: currentEditingFishId,
-              data: { oldUrl: oldDataUrl, newUrl: dataUrl },
-              description: 'Updated Fish'
+              data: { oldUrl: oldDataUrl, newUrl: dataUrl }
             });
           }
           fishArray[idx].dataUrl = dataUrl;
@@ -315,8 +314,7 @@ document.addEventListener('DOMContentLoaded', () => {
       historyManager.push({
         type: 'create',
         id: newId,
-        data: { fishData: newFishData },
-        description: 'New Fish Created'
+        data: { fishData: newFishData }
       });
 
       chrome.storage.local.set({ doodleFishList: fishArray }, () => {
@@ -684,9 +682,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const { x, y } = canvasManager.getCanvasPoint(e);
       if (toolManager.currentTool === 'brush' && currentStrokePoints.length > 1) {
         const dpr = window.devicePixelRatio || 1;
-        canvasManager.ctx.save(); 
+        canvasManager.ctx.save();
         canvasManager.ctx.setTransform(1, 0, 0, 1, 0, 0);
-        canvasManager.ctx.drawImage(canvasManager.activeCanvas, 0, 0); 
+        canvasManager.ctx.drawImage(canvasManager.activeCanvas, 0, 0);
         canvasManager.ctx.restore();
         canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width / dpr, canvasManager.activeCanvas.height / dpr);
         currentStrokePoints = [];
@@ -694,12 +692,12 @@ document.addEventListener('DOMContentLoaded', () => {
       } else if (toolManager.currentTool === 'eraser') {
         canvasManager.saveState(currentEditingFishId, 'Eraser');
       } else {
-         // If brush was too short (single tap), clear active canvas anyway
-         const dpr = window.devicePixelRatio || 1;
-         canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width / dpr, canvasManager.activeCanvas.height / dpr);
-         currentStrokePoints = [];
+        // If brush was too short (single tap), clear active canvas anyway
+        const dpr = window.devicePixelRatio || 1;
+        canvasManager.activeCtx.clearRect(0, 0, canvasManager.activeCanvas.width / dpr, canvasManager.activeCanvas.height / dpr);
+        currentStrokePoints = [];
       }
-      isDrawing = false; 
+      isDrawing = false;
       isReentering = false;
     }
   });
@@ -769,7 +767,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         chrome.storage.local.set({ doodleFishList: fishArray }, () => {
           galleryManager.renderFishList(currentEditingFishId);
-          notificationManager.show(`Imported ${newFishItems.length} fish`, 'library_add');
         });
       });
     }

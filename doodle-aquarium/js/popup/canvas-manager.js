@@ -42,7 +42,7 @@ export class CanvasManager {
     this.lastSnapshot = this.canvas.toDataURL('image/png');
   }
 
-  saveState(fishId, description = 'Brush Stroke') {
+  saveState(fishId) {
     if (!this.history) return;
     
     const newSnapshot = this.canvas.toDataURL('image/png');
@@ -57,8 +57,7 @@ export class CanvasManager {
       this.history.push({
         type: 'canvas',
         id: fishId,
-        data: { oldUrl: this.lastSnapshot, newUrl: newSnapshot },
-        description: description
+        data: { oldUrl: this.lastSnapshot, newUrl: newSnapshot }
       });
       this.lastSnapshot = newSnapshot;
     }
