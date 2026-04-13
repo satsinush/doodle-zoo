@@ -6,7 +6,7 @@ export class FishEditor {
     this.canvasManager = canvasManager;
     this.galleryManager = galleryManager;
     this.callbacks = callbacks;
-    
+
     this.physicsDOM = {
       speedMultiplier: document.getElementById('modal-speed-multiplier'),
       sizeMultiplier: document.getElementById('modal-size-multiplier'),
@@ -32,7 +32,7 @@ export class FishEditor {
     this.physicsDOM.sizeDisplay.value = fish.sizeMultiplier.toFixed(1);
 
     this.physicsDOM.interactionType.value = fish.interactionType;
-    
+
     this.physicsDOM.interactionStrength.value = fish.interactionStrength;
     this.physicsDOM.strengthDisplay.value = fish.interactionStrength.toFixed(1);
 
@@ -56,20 +56,19 @@ export class FishEditor {
     this.elements.modalEditBtn?.addEventListener('click', () => {
       this.closeFishModal();
       if (this.callbacks.onNavigate) {
-          // Pass the fish object to trigger full navigation history
-          chrome.storage.local.get(['doodleFishList'], (res) => {
-              const list = res.doodleFishList || [];
-              const fish = list.find(f => f.id === this.currentFishId);
-              if (fish) this.callbacks.onNavigate(fish);
-          });
+        // Pass the fish object to trigger full navigation history
+        chrome.storage.local.get(['doodleFishList'], (res) => {
+          const list = res.doodleFishList || [];
+          const fish = list.find(f => f.id === this.currentFishId);
+          if (fish) this.callbacks.onNavigate(fish);
+        });
       }
     });
 
     this.elements.modalDeleteBtn?.addEventListener('click', () => {
-      if (confirm('Delete this fish?')) {
-        this.closeFishModal();
-        this.deleteFish(this.currentFishId);
-      }
+      this.closeFishModal();
+      this.deleteFish(this.currentFishId);
+      if (this.history) this.history.showToast('Deleted fish', 'delete');
     });
 
     this.elements.modalExportBtn?.addEventListener('click', () => {
@@ -90,14 +89,14 @@ export class FishEditor {
             active: fish.active,
             flipByVelocity: fish.flipByVelocity
           };
-          
+
           fish.speedMultiplier = Number(this.physicsDOM.speedMultiplier.value);
           fish.sizeMultiplier = Number(this.physicsDOM.sizeMultiplier.value);
           fish.interactionType = this.physicsDOM.interactionType.value;
           fish.interactionStrength = Number(this.physicsDOM.interactionStrength.value);
           fish.active = this.elements.modalActiveToggle.checked;
           fish.flipByVelocity = this.elements.modalLockToggle.checked;
-          
+
           const newSettings = {
             speedMultiplier: fish.speedMultiplier,
             sizeMultiplier: fish.sizeMultiplier,
@@ -117,9 +116,9 @@ export class FishEditor {
           }
 
           chrome.storage.local.set({ doodleFishList: fishArray }, () => {
-             const activeEditId = window.appState ? window.appState.currentEditingFishId() : null;
-             this.galleryManager.renderFishList(activeEditId);
-             this.closeFishModal();
+            const activeEditId = window.appState ? window.appState.currentEditingFishId() : null;
+            this.galleryManager.renderFishList(activeEditId);
+            this.closeFishModal();
           });
         }
       });
@@ -183,9 +182,9 @@ export class FishEditor {
 
   loadFishIntoCanvas(id, dataUrl) {
     if (!dataUrl) {
-        this.canvasManager.restoreState(null);
-        if (this.callbacks.onEdit) this.callbacks.onEdit(id);
-        return;
+      this.canvasManager.restoreState(null);
+      if (this.callbacks.onEdit) this.callbacks.onEdit(id);
+      return;
     }
     const imgObj = new Image();
     imgObj.onload = () => {
@@ -266,7 +265,7 @@ export class FishEditor {
       const index = fishArray.findIndex(f => f.id === id);
       if (index !== -1) {
         const deletedFish = fishArray.splice(index, 1)[0];
-        
+
         if (this.history) {
           this.history.push({
             type: 'delete',
@@ -329,5 +328,11 @@ export class FishEditor {
       img.onerror = () => reject(new Error('Invalid image file'));
       img.src = dataUrl;
     });
+  }
+  
+  deleteFish(id) {
+    if (this.galleryManager) {
+      this.galleryManager.deleteSingleFish(id);
+    }
   }
 }

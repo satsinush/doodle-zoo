@@ -14,8 +14,8 @@ export class GalleryManager {
     this._lastDragX = 0;
     this._lastDragY = 0;
     this.history = null; // Will be set by popup.js
-    this.scrollContainer = document.body.classList.contains('standalone') ? 
-                          (document.querySelector('.sidebar') || window) : window;
+    this.scrollContainer = document.body.classList.contains('standalone') ?
+      (document.querySelector('.sidebar') || window) : window;
 
     this.bulkDOM = {
       speedMultiplier: document.getElementById('bulk-speed-multiplier'),
@@ -42,39 +42,7 @@ export class GalleryManager {
     });
 
     this.elements.bulkDelete?.addEventListener('click', () => {
-      if (confirm(`Are you sure you want to delete ${this.selectedFishIds.length} fish?`)) {
-        chrome.storage.local.get(['doodleFishList'], (result) => {
-          let fishArray = result.doodleFishList || [];
-          const itemsToDelete = [];
-          
-          // Identify indices and objects for history
-          this.selectedFishIds.forEach(id => {
-            const idx = fishArray.findIndex(f => f.id === id);
-            if (idx !== -1) {
-              itemsToDelete.push({ fish: fishArray[idx], index: idx });
-            }
-          });
-
-          // Sort by index descending to deletion doesn't shift remaining targets if we were doing it one by one, 
-          // but we are filtering, so we just need the snapshots.
-          if (this.history && itemsToDelete.length > 0) {
-            this.history.push({
-              type: 'settings', // We use 'settings' or a custom 'bulk-delete'
-              // Actually let's use a specialized data structure for bulk delete
-              type: 'delete',
-              data: itemsToDelete.length === 1 ? itemsToDelete[0] : itemsToDelete,
-              description: `Deleted ${itemsToDelete.length} Fish`
-            });
-          }
-
-          fishArray = fishArray.filter(f => !this.selectedFishIds.includes(f.id));
-          chrome.storage.local.set({ doodleFishList: fishArray }, () => {
-            this.selectedFishIds = [];
-            this.elements.bulkModal?.classList.remove('active');
-            this.renderFishList();
-          });
-        });
-      }
+      this.bulkDelete();
     });
 
     this.bulkDOM.speedMultiplier?.addEventListener('input', (e) => {
@@ -131,7 +99,7 @@ export class GalleryManager {
 
             if (applyActive) fish.active = activeVal;
             if (applyFlip) fish.flipByVelocity = flipVal;
-            
+
             if (this._bulkTouches.speed) fish.speedMultiplier = Number(this.bulkDOM.speedMultiplier.value);
             if (this._bulkTouches.size) fish.sizeMultiplier = Number(this.bulkDOM.sizeMultiplier.value);
             if (this._bulkTouches.strength) fish.interactionStrength = Number(this.bulkDOM.interactionStrength.value);
@@ -148,46 +116,22 @@ export class GalleryManager {
           this.history.push({
             type: 'settings',
             data: historyChanges,
-            description: `Bulk Settings (${historyChanges.length} Fish)`
+            description: `Updated ${historyChanges.length} Fish`
           });
         }
 
         chrome.storage.local.set({ doodleFishList: fishArray }, () => {
           this.elements.bulkModal?.classList.remove('active');
           this.renderFishList();
+          if (this.history && historyChanges.length > 0) {
+            this.history.showToast(`Updated ${historyChanges.length} fish`, 'settings');
+          }
         });
       });
     });
 
     this.elements.bulkDeleteSelected?.addEventListener('click', () => {
-      if (this.selectedFishIds.length === 0) return;
-      if (confirm(`Delete ${this.selectedFishIds.length} fish?`)) {
-        chrome.storage.local.get(['doodleFishList'], (result) => {
-          let fishArray = result.doodleFishList || [];
-          const itemsToDelete = [];
-          
-          this.selectedFishIds.forEach(id => {
-            const idx = fishArray.findIndex(f => f.id === id);
-            if (idx !== -1) {
-              itemsToDelete.push({ fish: fishArray[idx], index: idx });
-            }
-          });
-
-          if (this.history && itemsToDelete.length > 0) {
-            this.history.push({
-              type: 'delete',
-              data: itemsToDelete.length === 1 ? itemsToDelete[0] : itemsToDelete,
-              description: `Bulk Delete (${itemsToDelete.length} Fish)`
-            });
-          }
-
-          fishArray = fishArray.filter(f => !this.selectedFishIds.includes(f.id));
-          chrome.storage.local.set({ doodleFishList: fishArray }, () => {
-            this.selectedFishIds = [];
-            this.renderFishList();
-          });
-        });
-      }
+      this.bulkDelete();
     });
 
     // Global listeners to hide context menu
@@ -239,13 +183,9 @@ export class GalleryManager {
 
       if (fishId) {
         if (selectedIds.includes(fishId) && selectedIds.length > 1) {
-          if (confirm(`Delete all ${selectedIds.length} selected fish?`)) {
-            this.bulkDelete();
-          }
+          this.bulkDelete();
         } else {
-          if (confirm('Delete this fish?')) {
-            this.deleteSingleFish(fishId);
-          }
+          this.deleteSingleFish(fishId);
         }
       }
     });
@@ -275,7 +215,7 @@ export class GalleryManager {
     chrome.storage.local.get(['doodleFishList'], (result) => {
       let fishArray = result.doodleFishList || [];
       const itemsToDelete = [];
-      
+
       this.selectedFishIds.forEach(id => {
         const idx = fishArray.findIndex(f => f && f.id === id);
         if (idx !== -1) {
@@ -287,14 +227,16 @@ export class GalleryManager {
         this.history.push({
           type: 'delete',
           data: itemsToDelete.length === 1 ? itemsToDelete[0] : itemsToDelete,
-          description: `Bulk Delete (${itemsToDelete.length} Fish)`
+          description: `Deleted ${itemsToDelete.length} Fish`
         });
       }
 
       fishArray = fishArray.filter(f => f && !this.selectedFishIds.includes(f.id));
       chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+        const count = this.selectedFishIds.length;
         this.selectedFishIds = [];
         this.renderFishList();
+        if (this.history) this.history.showToast(`Deleted ${count} fish`, 'delete');
       });
     });
   }
@@ -359,7 +301,7 @@ export class GalleryManager {
     if (!menu) return;
 
     menu.style.display = 'block';
-    
+
     // Position menu and keep within viewport
     let x = e.clientX;
     let y = e.clientY;
@@ -419,7 +361,7 @@ export class GalleryManager {
 
   renderFishList(editingId = undefined) {
     if (editingId !== undefined) this.currentEditingFishId = editingId;
-    
+
     chrome.storage.local.get(['doodleFishList'], (result) => {
       const fishArray = (result.doodleFishList || []).filter(f => f);
       this.elements.fishList.innerHTML = '';
@@ -466,7 +408,7 @@ export class GalleryManager {
           e.dataTransfer.dropEffect = 'move';
           const isSelectedSource = this.selectedFishIds.includes(this.draggedItemId);
           const isTargetSelected = this.selectedFishIds.includes(fish.id);
-          
+
           this.updateAutoScroll(e.clientY);
 
           if (this.draggedItemId !== fish.id && !(isSelectedSource && isTargetSelected)) {
@@ -475,7 +417,7 @@ export class GalleryManager {
             if (draggingItems.length === 0) return;
 
             const rect = item.getBoundingClientRect();
-            
+
             // Reordering snap: if we are moving left/up, we want to be "before" the item
             // if we are moving right/down, we want to be "after" the item.
             // This makes reordering feel more "eager" and snaps as soon as you cross the edge.
@@ -484,22 +426,22 @@ export class GalleryManager {
             this._lastDragX = e.clientX;
             this._lastDragY = e.clientY;
 
-            let isAfter = (e.clientX - rect.left) / (rect.right - rect.left) > 0.5 || 
-                            (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
-            
+            let isAfter = (e.clientX - rect.left) / (rect.right - rect.left) > 0.5 ||
+              (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+
             if (dx < -0.1 || dy < -0.1) isAfter = false;
             else if (dx > 0.1 || dy > 0.1) isAfter = true;
 
             const referenceNode = isAfter ? item.nextSibling : item;
-            
+
             // Guard: Don't move if we are already in the target position
             const firstDrag = draggingItems[0];
             const lastDrag = draggingItems[draggingItems.length - 1];
-            
+
             if (isAfter) {
-                if (item === lastDrag || item.nextSibling === firstDrag) return;
+              if (item === lastDrag || item.nextSibling === firstDrag) return;
             } else {
-                if (item === firstDrag || item.previousSibling === lastDrag) return;
+              if (item === firstDrag || item.previousSibling === lastDrag) return;
             }
 
             draggingItems.forEach(el => container.insertBefore(el, referenceNode));
@@ -594,7 +536,7 @@ export class GalleryManager {
     chrome.storage.local.get(['doodleFishList'], (result) => {
       const fishArray = result.doodleFishList || [];
       const oldIds = fishArray.map(f => f.id);
-      
+
       const fishMap = new Map(fishArray.map(f => [f.id, f]));
       const newArray = ids.map(id => fishMap.get(id)).filter(f => f);
       const newIds = newArray.map(f => f.id);
@@ -769,6 +711,66 @@ export class GalleryManager {
             document.body.removeChild(a);
           }, 0);
         }, index * 150);
+      });
+    });
+  }
+
+  deleteSingleFish(id) {
+    chrome.storage.local.get(['doodleFishList'], (result) => {
+      let fishArray = (result.doodleFishList || []).filter(f => f);
+      const idx = fishArray.findIndex(f => f && f.id === id);
+      if (idx === -1) return;
+
+      const deletedItem = { fish: fishArray[idx], index: idx };
+
+      if (this.history) {
+        this.history.push({
+          type: 'delete',
+          data: deletedItem,
+          description: `Deleted Fish`
+        });
+      }
+
+      fishArray.splice(idx, 1);
+      chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+        if (this.currentEditingFishId === id) {
+          this.currentEditingFishId = null;
+        }
+        this.renderFishList();
+        if (this.history) this.history.showToast('Deleted fish', 'delete');
+      });
+    });
+  }
+
+  bulkDelete() {
+    if (this.selectedFishIds.length === 0) return;
+
+    chrome.storage.local.get(['doodleFishList'], (result) => {
+      let fishArray = (result.doodleFishList || []).filter(f => f);
+      const itemsToDelete = [];
+
+      this.selectedFishIds.forEach(id => {
+        const idx = fishArray.findIndex(f => f && f.id === id);
+        if (idx !== -1) {
+          itemsToDelete.push({ fish: fishArray[idx], index: idx });
+        }
+      });
+
+      if (this.history && itemsToDelete.length > 0) {
+        this.history.push({
+          type: 'delete',
+          data: itemsToDelete.length === 1 ? itemsToDelete[0] : itemsToDelete,
+          description: `Deleted ${itemsToDelete.length} Fish`
+        });
+      }
+
+      fishArray = fishArray.filter(f => f && !this.selectedFishIds.includes(f.id));
+      chrome.storage.local.set({ doodleFishList: fishArray }, () => {
+        const count = itemsToDelete.length;
+        this.selectedFishIds = [];
+        this.elements.bulkModal?.classList.remove('active');
+        this.renderFishList();
+        if (this.history) this.history.showToast(`Deleted ${count} fish`, 'delete');
       });
     });
   }
