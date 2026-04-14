@@ -342,19 +342,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const isShift = e.shiftKey;
     const key = e.key.toLowerCase();
 
-    // Tools
+    // Tools & Basic Commands
     if (!isCtrl && !isShift) {
       if (key === 'b') { toolManager.setTool('brush'); updatePreviewDisplay(); }
       if (key === 'e') { toolManager.setTool('eraser'); updatePreviewDisplay(); }
       if (key === 'f') { toolManager.setTool('fill'); updatePreviewDisplay(); }
       if (key === 'd') { toolManager.setTool('eyedropper'); updatePreviewDisplay(); }
+      if (key === 'n') { startNewFish(); }
+      if (key === 'c') { canvasManager.clearCanvas(currentEditingFishId); }
+      if (key === 'delete') { galleryManager.bulkDelete(); }
+      if (key === 'h') { canvasManager.flipCanvas(true, false); canvasManager.saveState(currentEditingFishId, 'Flip Horizontal'); }
+      if (key === 'v') { canvasManager.flipCanvas(false, true); canvasManager.saveState(currentEditingFishId, 'Flip Vertical'); }
     }
 
     // Commands
     if (isCtrl) {
       if (!isShift && key === 'z') { e.preventDefault(); historyManager.undo(window.appState); }
       if (!isShift && key === 'y') { e.preventDefault(); historyManager.redo(window.appState); }
-      if (!isShift && key === 'n') { e.preventDefault(); startNewFish(); }
       if (key === 's') { e.preventDefault(); saveFish(isShift); }
       if (key === 'a') {
         const activeEl = document.activeElement;

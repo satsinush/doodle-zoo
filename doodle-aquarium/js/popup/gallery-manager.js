@@ -131,11 +131,25 @@ export class GalleryManager {
       this.bulkDelete();
     });
 
-    // Global listeners to hide context menu
+    // Global listeners to hide context menu and handle "click-away" deselection
     window.addEventListener('mousedown', (e) => {
-      // Hide if clicking outside the menu
-      if (this.elements.galleryContextMenu && !this.elements.galleryContextMenu.contains(e.target)) {
+      const isGalleryItem = e.target.closest('.gallery-item');
+      const isContextMenu = this.elements.galleryContextMenu?.contains(e.target);
+      const isControl = e.target.closest('.toolbar') || 
+                        e.target.closest('.action-buttons') ||
+                        e.target.closest('#master-select-wrapper') ||
+                        e.target.closest('.modal') ||
+                        isContextMenu;
+
+      // Hide context menu if clicking outside
+      if (this.elements.galleryContextMenu && !isContextMenu) {
         this.hideContextMenu();
+      }
+
+      // Deselect if clicking outside gallery items or controls
+      if (!isGalleryItem && !isControl && this.selectedFishIds.length > 0) {
+        this.selectedFishIds = [];
+        this.renderFishList();
       }
     });
     window.addEventListener('resize', () => this.hideContextMenu());
@@ -464,10 +478,20 @@ export class GalleryManager {
 
         item.addEventListener('dblclick', (e) => {
           e.stopPropagation();
+          // Deselect others if opening settings for a specific fish not in the current group
+          if (!this.selectedFishIds.includes(fish.id)) {
+            this.selectedFishIds = [fish.id];
+            this.renderFishList();
+          }
           this.handlers.onOpenSettings(fish);
         });
 
         item.addEventListener('contextmenu', (e) => {
+          // If right-clicking a non-selected fish, deselect others and select this one
+          if (!this.selectedFishIds.includes(fish.id)) {
+            this.selectedFishIds = [fish.id];
+            this.renderFishList();
+          }
           this.showContextMenu(e, fish.id);
         });
 
