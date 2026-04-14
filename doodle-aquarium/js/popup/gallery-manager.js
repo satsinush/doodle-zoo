@@ -762,7 +762,7 @@ export class GalleryManager {
       const idx = fishArray.findIndex(f => f && f.id === id);
       if (idx === -1) return;
 
-      const deletedItem = { fish: fishArray[idx], index: idx };
+      const deletedItem = { fish: fishArray[idx], index: idx, wasEditing: this.currentEditingFishId === id };
 
       if (this.history) {
         this.history.push({
@@ -792,7 +792,7 @@ export class GalleryManager {
       this.selectedFishIds.forEach(id => {
         const idx = fishArray.findIndex(f => f && f.id === id);
         if (idx !== -1) {
-          itemsToDelete.push({ fish: fishArray[idx], index: idx });
+          itemsToDelete.push({ fish: fishArray[idx], index: idx, wasEditing: this.currentEditingFishId === id });
         }
       });
 

@@ -125,7 +125,13 @@ export class HistoryManager {
                             sortedItems.forEach(item => {
                                 list.splice(item.index, 0, item.fish);
                             });
-                            chrome.storage.local.set({ doodleFishList: list }, resolve);
+                            chrome.storage.local.set({ doodleFishList: list }, () => {
+                                const editingItem = deleteItems.find(item => item.wasEditing);
+                                if (editingItem && app.setEditingState) {
+                                    app.setEditingState(editingItem.fish.id);
+                                }
+                                resolve();
+                            });
                         });
                     });
                 } else {
