@@ -277,10 +277,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const tempCanvas = document.createElement('canvas'); tempCanvas.width = 400; tempCanvas.height = 300;
     const tempCtx = tempCanvas.getContext('2d');
-    const currentW = Number(els.canvas.style.width.replace('px', '')), currentH = Number(els.canvas.style.height.replace('px', ''));
+    const currentW = canvasManager.logicalWidth || 800;
+    const currentH = canvasManager.logicalHeight || 600;
     const scale = Math.min(400 / currentW, 300 / currentH);
     const sw = currentW * scale, sh = currentH * scale, sx = (400 - sw) / 2, sy = (300 - sh) / 2;
-    tempCtx.clearRect(0, 0, 400, 300); tempCtx.drawImage(canvasManager.canvas, sx, sy, sw, sh);
+    tempCtx.clearRect(0, 0, 400, 300);
+    tempCtx.drawImage(canvasManager.canvas, sx, sy, sw, sh);
     const dataUrl = tempCanvas.toDataURL('image/png');
 
     chrome.storage.local.get(['doodleFishList'], (result) => {

@@ -138,6 +138,7 @@ export class GalleryManager {
       const isControl = e.target.closest('.toolbar') || 
                         e.target.closest('.action-buttons') ||
                         e.target.closest('#master-select-wrapper') ||
+                        e.target.closest('.toolbar-icon-btn') ||
                         e.target.closest('.modal') ||
                         isContextMenu;
 
@@ -447,7 +448,7 @@ export class GalleryManager {
           badge.className = 'editing-badge';
           const badgeSpan = document.createElement('span');
           badgeSpan.className = 'material-symbols-outlined';
-          badgeSpan.textContent = 'edit';
+          badgeSpan.textContent = 'brush';
           badge.appendChild(badgeSpan);
           item.appendChild(badge);
         }
