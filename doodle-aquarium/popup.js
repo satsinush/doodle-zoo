@@ -119,6 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   const canvasManager = new CanvasManager(els, {
+    isStandalone, // Pass down the mode for tailored scaling rules if needed
     onRestoreComplete: () => {
       canvasManager.lastFillPoint = { x: -999, y: -999, color: null };
       updatePreviewDisplay();
@@ -784,15 +785,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!isStandalone) els.openWindowBtn.onclick = () => window.open(chrome.runtime.getURL('popup.html?mode=window'), '_blank');
   else els.openWindowBtn.style.display = 'none';
 
-  const resizeCanvas = () => {
-    const isS = isStandalone && window.innerWidth >= 1000;
-    const w = window.innerWidth - (isS ? 420 : 0) - (isS ? 40 : 32);
-    const maxW = Math.round(isStandalone ? Math.min(w, 850) : Math.min(w, 800)), maxH = Math.round(maxW * 0.75);
-    if (Math.round(els.canvas.getBoundingClientRect().width) !== maxW) canvasManager.setCanvasSize(maxW, maxH, true);
-  };
-
-  window.addEventListener('resize', resizeCanvas);
-  resizeCanvas();
+  // Canvas resizing logic is now handled automatically by CanvasManager's ResizeObserver
   toolManager.applyColorInput(els.colorText.value, true);
   els.bulkExportSelected.addEventListener('click', () => {
     galleryManager.exportSelectedIndividually();

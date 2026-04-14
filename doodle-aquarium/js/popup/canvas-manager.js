@@ -1,7 +1,8 @@
 export class CanvasManager {
-  constructor(elements, callbacks = {}) {
+  constructor(elements, options = {}) {
     this.elements = elements;
-    this.callbacks = callbacks;
+    this.callbacks = options; // Use options as callbacks for backward compatibility or explicit ones
+    this.isStandalone = options.isStandalone || false;
     this.canvas = elements.canvas;
     this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
     this.guideCanvas = elements.guideCanvas;
@@ -23,8 +24,66 @@ export class CanvasManager {
 
     this.fillPreviewRequest = null;
     this.lastFillPoint = { x: -1, y: -1 };
-
+    this.resizeTimeout = null;
+    this.logicalWidth = 0;
+    this.logicalHeight = 0;
+    
+    this.setupResizeObserver();
     this.setupListeners();
+  }
+
+  setupResizeObserver() {
+    if (!this.canvasViewport) return;
+
+    this.resizeObserver = new ResizeObserver(entries => {
+      for (let entry of entries) {
+        if (entry.target === this.canvasViewport) {
+          this.handleViewportResize(entry.contentRect);
+        }
+      }
+    });
+
+    this.resizeObserver.observe(this.canvasViewport);
+  }
+
+  handleViewportResize(rect) {
+    let { width, height } = rect;
+    if (width <= 0 || height <= 0) return;
+
+    // Enforce historical max widths for stability
+    const maxWidth = this.isStandalone ? 850 : 800;
+    width = Math.min(width, maxWidth);
+    height = Math.min(height, maxWidth * 0.75);
+
+    // Calculate best 4:3 fit
+    let targetW, targetH;
+    if (width / height > 4 / 3) {
+      targetH = height;
+      targetW = height * (4 / 3);
+    } else {
+      targetW = width;
+      targetH = width * (3 / 4);
+    }
+
+    // Apply CSS scale immediately for responsiveness
+    this.logicalWidth = Math.round(targetW);
+    this.logicalHeight = Math.round(targetH);
+
+    const canvasSurface = document.getElementById('canvas-surface');
+    if (canvasSurface) {
+      canvasSurface.style.width = `${this.logicalWidth}px`;
+      canvasSurface.style.height = `${this.logicalHeight}px`;
+      canvasSurface.style.minWidth = `${this.logicalWidth}px`;
+      canvasSurface.style.minHeight = `${this.logicalHeight}px`;
+      canvasSurface.style.maxWidth = `${this.logicalWidth}px`;
+      canvasSurface.style.maxHeight = `${this.logicalHeight}px`;
+    }
+
+    // Debounce the physical resolution sync to avoid expensive reprocessing during drag
+    if (this.resizeTimeout) clearTimeout(this.resizeTimeout);
+    this.resizeTimeout = setTimeout(() => {
+      this.setCanvasSize(targetW, targetH, true);
+    }, 200);
   }
 
   setupListeners() {
@@ -161,8 +220,7 @@ export class CanvasManager {
 
     [this.canvas, this.activeCanvas, this.guideCanvas, this.hoverFillCanvas, this.hoverOutlineCanvas].forEach(c => {
       if (!c) return;
-      c.style.width = `${exactCssW}px`;
-      c.style.height = `${exactCssH}px`;
+      // Note: We no longer set style.width/height here as it's managed by handleViewportResize
       c.width = physicalW;
       c.height = physicalH;
     });
@@ -202,10 +260,8 @@ export class CanvasManager {
 
   getCanvasPoint(event) {
     const rect = this.canvas.getBoundingClientRect();
-    const logicalW = Math.max(1, Number(this.canvas.style.width.replace('px', '')));
-    const logicalH = Math.max(1, Number(this.canvas.style.height.replace('px', '')));
-    const x = (event.clientX - rect.left) * (logicalW / rect.width);
-    const y = (event.clientY - rect.top) * (logicalH / rect.height);
+    const x = (event.clientX - rect.left) * (this.logicalWidth / rect.width);
+    const y = (event.clientY - rect.top) * (this.logicalHeight / rect.height);
     return { x, y };
   }
 
