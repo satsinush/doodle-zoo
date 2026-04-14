@@ -14,7 +14,11 @@ export class FishEditor {
       interactionStrength: document.getElementById('modal-interaction-strength'),
       speedDisplay: document.getElementById('modal-speed-display'),
       sizeDisplay: document.getElementById('modal-size-display'),
-      strengthDisplay: document.getElementById('modal-strength-display')
+      strengthDisplay: document.getElementById('modal-strength-display'),
+      gravityMultiplier: document.getElementById('modal-gravity-multiplier'),
+      gravityDisplay: document.getElementById('modal-gravity-display'),
+      bouncinessMultiplier: document.getElementById('modal-bounciness-multiplier'),
+      bouncinessDisplay: document.getElementById('modal-bounciness-display')
     };
     this.history = null; // Will be set by popup.js
     this.currentFishId = null;
@@ -35,6 +39,12 @@ export class FishEditor {
 
     this.physicsDOM.interactionStrength.value = fish.interactionStrength;
     this.physicsDOM.strengthDisplay.value = fish.interactionStrength;
+
+    this.physicsDOM.gravityMultiplier.value = fish.gravity || 0;
+    this.physicsDOM.gravityDisplay.value = fish.gravity || 0;
+
+    this.physicsDOM.bouncinessMultiplier.value = fish.bounciness ?? DEFAULT_SETTINGS.bounciness;
+    this.physicsDOM.bouncinessDisplay.value = fish.bounciness ?? DEFAULT_SETTINGS.bounciness;
 
     // Toggles
     if (this.elements.modalLockToggle) this.elements.modalLockToggle.checked = fish.flipByVelocity;
@@ -79,6 +89,8 @@ export class FishEditor {
             sizeMultiplier: fish.sizeMultiplier,
             interactionType: fish.interactionType,
             interactionStrength: fish.interactionStrength,
+            gravity: fish.gravity || 0,
+            bounciness: fish.bounciness ?? DEFAULT_SETTINGS.bounciness,
             active: fish.active,
             flipByVelocity: fish.flipByVelocity
           };
@@ -87,6 +99,8 @@ export class FishEditor {
           fish.sizeMultiplier = Number(this.physicsDOM.sizeDisplay.value);
           fish.interactionType = this.physicsDOM.interactionType.value;
           fish.interactionStrength = Number(this.physicsDOM.strengthDisplay.value);
+          fish.gravity = Number(this.physicsDOM.gravityDisplay.value);
+          fish.bounciness = Number(this.physicsDOM.bouncinessDisplay.value);
           fish.active = this.elements.modalActiveToggle.checked;
           fish.flipByVelocity = this.elements.modalLockToggle.checked;
 
@@ -95,6 +109,8 @@ export class FishEditor {
             sizeMultiplier: fish.sizeMultiplier,
             interactionType: fish.interactionType,
             interactionStrength: fish.interactionStrength,
+            gravity: fish.gravity,
+            bounciness: fish.bounciness,
             active: fish.active,
             flipByVelocity: fish.flipByVelocity
           };
@@ -143,6 +159,22 @@ export class FishEditor {
       this.physicsDOM.interactionStrength.value = val;
       e.target.value = val;
     });
+    this.physicsDOM.gravityMultiplier?.addEventListener('input', (e) => {
+      this.physicsDOM.gravityDisplay.value = e.target.value;
+    });
+    this.physicsDOM.gravityDisplay?.addEventListener('change', (e) => {
+      let val = Number(e.target.value) || 0;
+      this.physicsDOM.gravityMultiplier.value = val;
+      e.target.value = val;
+    });
+    this.physicsDOM.bouncinessMultiplier?.addEventListener('input', (e) => {
+      this.physicsDOM.bouncinessDisplay.value = e.target.value;
+    });
+    this.physicsDOM.bouncinessDisplay?.addEventListener('change', (e) => {
+      let val = Number(e.target.value) || 0;
+      this.physicsDOM.bouncinessMultiplier.value = val;
+      e.target.value = val;
+    });
   }
 
   openFishModal(fish) {
@@ -159,10 +191,14 @@ export class FishEditor {
     this.physicsDOM.sizeMultiplier.value = physics.sizeMultiplier;
     this.physicsDOM.interactionType.value = physics.interactionType;
     this.physicsDOM.interactionStrength.value = physics.interactionStrength;
+    this.physicsDOM.gravityMultiplier.value = physics.gravity || 0;
 
     this.physicsDOM.speedDisplay.value = physics.speedMultiplier;
     this.physicsDOM.sizeDisplay.value = physics.sizeMultiplier;
     this.physicsDOM.strengthDisplay.value = physics.interactionStrength;
+    this.physicsDOM.gravityDisplay.value = physics.gravity || 0;
+    this.physicsDOM.bouncinessMultiplier.value = physics.bounciness ?? DEFAULT_SETTINGS.bounciness;
+    this.physicsDOM.bouncinessDisplay.value = physics.bounciness ?? DEFAULT_SETTINGS.bounciness;
 
     this.elements.fishModal.classList.add('active');
   }

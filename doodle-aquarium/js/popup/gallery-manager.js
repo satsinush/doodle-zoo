@@ -24,7 +24,11 @@ export class GalleryManager {
       interactionStrength: document.getElementById('bulk-interaction-strength'),
       speedDisplay: document.getElementById('bulk-speed-display'),
       sizeDisplay: document.getElementById('bulk-size-display'),
-      strengthDisplay: document.getElementById('bulk-strength-display')
+      strengthDisplay: document.getElementById('bulk-strength-display'),
+      gravityMultiplier: document.getElementById('bulk-gravity-multiplier'),
+      gravityDisplay: document.getElementById('bulk-gravity-display'),
+      bouncinessMultiplier: document.getElementById('bulk-bounciness-multiplier'),
+      bouncinessDisplay: document.getElementById('bulk-bounciness-display')
     };
 
     this.setupListeners();
@@ -75,6 +79,26 @@ export class GalleryManager {
       if (e.target.value) e.target.value = val;
       this._bulkTouches.strength = true;
     });
+    this.bulkDOM.gravityMultiplier?.addEventListener('input', (e) => {
+      this.bulkDOM.gravityDisplay.value = e.target.value;
+      this._bulkTouches.gravity = true;
+    });
+    this.bulkDOM.gravityDisplay?.addEventListener('change', (e) => {
+      let val = Number(e.target.value) || 0;
+      this.bulkDOM.gravityMultiplier.value = val;
+      e.target.value = val;
+      this._bulkTouches.gravity = true;
+    });
+    this.bulkDOM.bouncinessMultiplier?.addEventListener('input', (e) => {
+      this.bulkDOM.bouncinessDisplay.value = e.target.value;
+      this._bulkTouches.bounciness = true;
+    });
+    this.bulkDOM.bouncinessDisplay?.addEventListener('change', (e) => {
+      let val = Number(e.target.value) || 0;
+      this.bulkDOM.bouncinessMultiplier.value = val;
+      e.target.value = val;
+      this._bulkTouches.bounciness = true;
+    });
     this.bulkDOM.interactionType?.addEventListener('change', () => {
       this._bulkTouches.type = true;
     });
@@ -103,6 +127,8 @@ export class GalleryManager {
             if (this._bulkTouches.speed) fish.speedMultiplier = Number(this.bulkDOM.speedDisplay.value);
             if (this._bulkTouches.size) fish.sizeMultiplier = Number(this.bulkDOM.sizeDisplay.value);
             if (this._bulkTouches.strength) fish.interactionStrength = Number(this.bulkDOM.strengthDisplay.value);
+            if (this._bulkTouches.gravity) fish.gravity = Number(this.bulkDOM.gravityDisplay.value);
+            if (this._bulkTouches.bounciness) fish.bounciness = Number(this.bulkDOM.bouncinessDisplay.value);
             if (this._bulkTouches.type && this.bulkDOM.interactionType.value) {
               fish.interactionType = this.bulkDOM.interactionType.value;
             }
@@ -656,6 +682,22 @@ export class GalleryManager {
       } else {
         this.bulkDOM.interactionStrength.value = DEFAULT_SETTINGS.interactionStrength;
         this.bulkDOM.strengthDisplay.value = '';
+      }
+
+      if (selectedFish.every(f => (f.gravity || 0) === (selectedFish[0].gravity || 0))) {
+        this.bulkDOM.gravityMultiplier.value = selectedFish[0].gravity || 0;
+        this.bulkDOM.gravityDisplay.value = selectedFish[0].gravity || 0;
+      } else {
+        this.bulkDOM.gravityMultiplier.value = 0;
+        this.bulkDOM.gravityDisplay.value = '';
+      }
+
+      if (selectedFish.every(f => (f.bounciness ?? DEFAULT_SETTINGS.bounciness) === (selectedFish[0].bounciness ?? DEFAULT_SETTINGS.bounciness))) {
+        this.bulkDOM.bouncinessMultiplier.value = selectedFish[0].bounciness ?? DEFAULT_SETTINGS.bounciness;
+        this.bulkDOM.bouncinessDisplay.value = selectedFish[0].bounciness ?? DEFAULT_SETTINGS.bounciness;
+      } else {
+        this.bulkDOM.bouncinessMultiplier.value = 0.5;
+        this.bulkDOM.bouncinessDisplay.value = '';
       }
 
       if (selectedFish.every(f => f.interactionType === selectedFish[0].interactionType)) {

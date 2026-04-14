@@ -55,6 +55,8 @@ function updateAquarium(fishList) {
     fish.sizeMultiplier = fishData.sizeMultiplier;
     fish.interactionType = fishData.interactionType;
     fish.interactionStrength = fishData.interactionStrength;
+    fish.gravity = fishData.gravity || 0;
+    fish.bounciness = fishData.bounciness ?? DEFAULT_SETTINGS.bounciness;
 
     if (fish.mirrored !== nextMirrored || fish.flipByVelocity !== nextFlipByVelocity) {
       fish.mirrored = nextMirrored;
@@ -130,7 +132,9 @@ function spawnFish(fishData) {
       speedMultiplier: fishData.speedMultiplier ?? DEFAULT_SETTINGS.speedMultiplier,
       sizeMultiplier: fishData.sizeMultiplier ?? DEFAULT_SETTINGS.sizeMultiplier,
       interactionType: fishData.interactionType || DEFAULT_SETTINGS.interactionType,
-      interactionStrength: fishData.interactionStrength ?? DEFAULT_SETTINGS.interactionStrength
+      interactionStrength: fishData.interactionStrength ?? DEFAULT_SETTINGS.interactionStrength,
+      gravity: fishData.gravity || 0,
+      bounciness: fishData.bounciness ?? DEFAULT_SETTINGS.bounciness
     });
 
     updateFishTransform(activeFish[activeFish.length - 1]);

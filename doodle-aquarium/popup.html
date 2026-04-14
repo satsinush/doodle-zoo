@@ -257,6 +257,28 @@
                         <input type="number" class="display-value" id="modal-strength-display" value="1.0" step="any">
                     </div>
                 </div>
+
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Vertical Gravity</span>
+                        <span class="sub-label">Positive to sink, negative to float</span>
+                    </div>
+                    <div class="slider-group">
+                        <input id="modal-gravity-multiplier" type="range" min="-5.0" max="5.0" step="0.1" value="0.0">
+                        <input type="number" class="display-value" id="modal-gravity-display" value="0.0" step="any">
+                    </div>
+                </div>
+
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Bounciness</span>
+                        <span class="sub-label">Velocity retention on wall hit</span>
+                    </div>
+                    <div class="slider-group">
+                        <input id="modal-bounciness-multiplier" type="range" min="0.0" max="1.0" step="0.01" value="0.75">
+                        <input type="number" class="display-value" id="modal-bounciness-display" value="0.75" step="any">
+                    </div>
+                </div>
             </div>
 
             <div class="modal-footer" style="flex-direction: column; gap: 0.75rem;">
@@ -349,6 +371,30 @@
                     <div class="slider-group">
                         <input id="bulk-interaction-strength" type="range" min="0.0" max="5.0" step="0.1" value="1.0">
                         <input type="number" class="display-value" id="bulk-strength-display" placeholder="--"
+                            step="any">
+                    </div>
+                </div>
+
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Vertical Gravity</span>
+                        <span class="sub-label">Positive to sink, negative to float</span>
+                    </div>
+                    <div class="slider-group">
+                        <input id="bulk-gravity-multiplier" type="range" min="-5.0" max="5.0" step="0.1" value="0.0">
+                        <input type="number" class="display-value" id="bulk-gravity-display" placeholder="--"
+                            step="any">
+                    </div>
+                </div>
+
+                <div class="control-row">
+                    <div class="control-info">
+                        <span class="label">Bounciness</span>
+                        <span class="sub-label">Velocity retention on wall hit</span>
+                    </div>
+                    <div class="slider-group">
+                        <input id="bulk-bounciness-multiplier" type="range" min="0.0" max="1.0" step="0.01" value="0.75">
+                        <input type="number" class="display-value" id="bulk-bounciness-display" placeholder="--"
                             step="any">
                     </div>
                 </div>
