@@ -50,9 +50,9 @@ export class GalleryManager {
       this._bulkTouches.speed = true;
     });
     this.bulkDOM.speedDisplay?.addEventListener('change', (e) => {
-      let val = Math.max(0.0, Math.min(3.0, Number(e.target.value) || 0));
+      let val = Number(e.target.value) || 0;
       this.bulkDOM.speedMultiplier.value = val;
-      e.target.value = val.toFixed(1);
+      if (e.target.value) e.target.value = val;
       this._bulkTouches.speed = true;
     });
     this.bulkDOM.sizeMultiplier?.addEventListener('input', (e) => {
@@ -60,9 +60,9 @@ export class GalleryManager {
       this._bulkTouches.size = true;
     });
     this.bulkDOM.sizeDisplay?.addEventListener('change', (e) => {
-      let val = Math.max(0.1, Math.min(3.0, Number(e.target.value) || 0));
+      let val = Number(e.target.value) || 0.01;
       this.bulkDOM.sizeMultiplier.value = val;
-      e.target.value = val.toFixed(1);
+      if (e.target.value) e.target.value = val;
       this._bulkTouches.size = true;
     });
     this.bulkDOM.interactionStrength?.addEventListener('input', (e) => {
@@ -70,9 +70,9 @@ export class GalleryManager {
       this._bulkTouches.strength = true;
     });
     this.bulkDOM.strengthDisplay?.addEventListener('change', (e) => {
-      let val = Math.max(0.0, Math.min(5.0, Number(e.target.value) || 0));
+      let val = Number(e.target.value) || 0;
       this.bulkDOM.interactionStrength.value = val;
-      e.target.value = val.toFixed(1);
+      if (e.target.value) e.target.value = val;
       this._bulkTouches.strength = true;
     });
     this.bulkDOM.interactionType?.addEventListener('change', () => {
@@ -100,9 +100,9 @@ export class GalleryManager {
             if (applyActive) fish.active = activeVal;
             if (applyFlip) fish.flipByVelocity = flipVal;
 
-            if (this._bulkTouches.speed) fish.speedMultiplier = Number(this.bulkDOM.speedMultiplier.value);
-            if (this._bulkTouches.size) fish.sizeMultiplier = Number(this.bulkDOM.sizeMultiplier.value);
-            if (this._bulkTouches.strength) fish.interactionStrength = Number(this.bulkDOM.interactionStrength.value);
+            if (this._bulkTouches.speed) fish.speedMultiplier = Number(this.bulkDOM.speedDisplay.value);
+            if (this._bulkTouches.size) fish.sizeMultiplier = Number(this.bulkDOM.sizeDisplay.value);
+            if (this._bulkTouches.strength) fish.interactionStrength = Number(this.bulkDOM.strengthDisplay.value);
             if (this._bulkTouches.type && this.bulkDOM.interactionType.value) {
               fish.interactionType = this.bulkDOM.interactionType.value;
             }
@@ -636,7 +636,7 @@ export class GalleryManager {
 
       if (selectedFish.every(f => f.speedMultiplier === selectedFish[0].speedMultiplier)) {
         this.bulkDOM.speedMultiplier.value = selectedFish[0].speedMultiplier;
-        this.bulkDOM.speedDisplay.value = Number(selectedFish[0].speedMultiplier).toFixed(1);
+        this.bulkDOM.speedDisplay.value = selectedFish[0].speedMultiplier;
       } else {
         this.bulkDOM.speedMultiplier.value = DEFAULT_SETTINGS.speedMultiplier;
         this.bulkDOM.speedDisplay.value = '';
@@ -644,7 +644,7 @@ export class GalleryManager {
 
       if (selectedFish.every(f => f.sizeMultiplier === selectedFish[0].sizeMultiplier)) {
         this.bulkDOM.sizeMultiplier.value = selectedFish[0].sizeMultiplier;
-        this.bulkDOM.sizeDisplay.value = Number(selectedFish[0].sizeMultiplier).toFixed(1);
+        this.bulkDOM.sizeDisplay.value = selectedFish[0].sizeMultiplier;
       } else {
         this.bulkDOM.sizeMultiplier.value = DEFAULT_SETTINGS.sizeMultiplier;
         this.bulkDOM.sizeDisplay.value = '';
@@ -652,7 +652,7 @@ export class GalleryManager {
 
       if (selectedFish.every(f => f.interactionStrength === selectedFish[0].interactionStrength)) {
         this.bulkDOM.interactionStrength.value = selectedFish[0].interactionStrength;
-        this.bulkDOM.strengthDisplay.value = Number(selectedFish[0].interactionStrength).toFixed(1);
+        this.bulkDOM.strengthDisplay.value = selectedFish[0].interactionStrength;
       } else {
         this.bulkDOM.interactionStrength.value = DEFAULT_SETTINGS.interactionStrength;
         this.bulkDOM.strengthDisplay.value = '';

@@ -26,15 +26,15 @@ export class FishEditor {
 
     // Physic values
     this.physicsDOM.speedMultiplier.value = fish.speedMultiplier;
-    this.physicsDOM.speedDisplay.value = fish.speedMultiplier.toFixed(1);
+    this.physicsDOM.speedDisplay.value = fish.speedMultiplier;
 
     this.physicsDOM.sizeMultiplier.value = fish.sizeMultiplier;
-    this.physicsDOM.sizeDisplay.value = fish.sizeMultiplier.toFixed(1);
+    this.physicsDOM.sizeDisplay.value = fish.sizeMultiplier;
 
     this.physicsDOM.interactionType.value = fish.interactionType;
 
     this.physicsDOM.interactionStrength.value = fish.interactionStrength;
-    this.physicsDOM.strengthDisplay.value = fish.interactionStrength.toFixed(1);
+    this.physicsDOM.strengthDisplay.value = fish.interactionStrength;
 
     // Toggles
     if (this.elements.modalLockToggle) this.elements.modalLockToggle.checked = fish.flipByVelocity;
@@ -83,10 +83,10 @@ export class FishEditor {
             flipByVelocity: fish.flipByVelocity
           };
 
-          fish.speedMultiplier = Number(this.physicsDOM.speedMultiplier.value);
-          fish.sizeMultiplier = Number(this.physicsDOM.sizeMultiplier.value);
+          fish.speedMultiplier = Number(this.physicsDOM.speedDisplay.value);
+          fish.sizeMultiplier = Number(this.physicsDOM.sizeDisplay.value);
           fish.interactionType = this.physicsDOM.interactionType.value;
-          fish.interactionStrength = Number(this.physicsDOM.interactionStrength.value);
+          fish.interactionStrength = Number(this.physicsDOM.strengthDisplay.value);
           fish.active = this.elements.modalActiveToggle.checked;
           fish.flipByVelocity = this.elements.modalLockToggle.checked;
 
@@ -123,25 +123,25 @@ export class FishEditor {
       this.physicsDOM.speedDisplay.value = Number(e.target.value).toFixed(1);
     });
     this.physicsDOM.speedDisplay?.addEventListener('change', (e) => {
-      let val = Math.max(0.0, Math.min(3.0, Number(e.target.value) || 0));
+      let val = Number(e.target.value) || 0;
       this.physicsDOM.speedMultiplier.value = val;
-      e.target.value = val.toFixed(1);
+      e.target.value = val;
     });
     this.physicsDOM.sizeMultiplier?.addEventListener('input', (e) => {
       this.physicsDOM.sizeDisplay.value = Number(e.target.value).toFixed(1);
     });
     this.physicsDOM.sizeDisplay?.addEventListener('change', (e) => {
-      let val = Math.max(0.1, Math.min(3.0, Number(e.target.value) || 0));
+      let val = Number(e.target.value) || 0.01;
       this.physicsDOM.sizeMultiplier.value = val;
-      e.target.value = val.toFixed(1);
+      e.target.value = val;
     });
     this.physicsDOM.interactionStrength?.addEventListener('input', (e) => {
       this.physicsDOM.strengthDisplay.value = Number(e.target.value).toFixed(1);
     });
     this.physicsDOM.strengthDisplay?.addEventListener('change', (e) => {
-      let val = Math.max(0.0, Math.min(5.0, Number(e.target.value) || 0));
+      let val = Number(e.target.value) || 0;
       this.physicsDOM.interactionStrength.value = val;
-      e.target.value = val.toFixed(1);
+      e.target.value = val;
     });
   }
 
@@ -160,9 +160,9 @@ export class FishEditor {
     this.physicsDOM.interactionType.value = physics.interactionType;
     this.physicsDOM.interactionStrength.value = physics.interactionStrength;
 
-    this.physicsDOM.speedDisplay.value = Number(physics.speedMultiplier).toFixed(1);
-    this.physicsDOM.sizeDisplay.value = Number(physics.sizeMultiplier).toFixed(1);
-    this.physicsDOM.strengthDisplay.value = Number(physics.interactionStrength).toFixed(1);
+    this.physicsDOM.speedDisplay.value = physics.speedMultiplier;
+    this.physicsDOM.sizeDisplay.value = physics.sizeMultiplier;
+    this.physicsDOM.strengthDisplay.value = physics.interactionStrength;
 
     this.elements.fishModal.classList.add('active');
   }
