@@ -1091,6 +1091,41 @@ select:focus {
     justify-content: center;
     margin-bottom: 1.5rem;
     border: 1px solid var(--outline-variant);
+    position: relative;
+    overflow: hidden;
+}
+
+#modal-edit-btn.overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.9);
+    z-index: 10;
+    background: var(--primary);
+    color: var(--on-primary);
+    border: none;
+    padding: 0.75rem 1.5rem;
+    font-size: 14px;
+    font-weight: 700;
+    border-radius: var(--radius-xl);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    white-space: nowrap;
+}
+
+#modal-preview-container:hover #modal-edit-btn.overlay {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+    pointer-events: auto;
+}
+
+#modal-edit-btn.overlay:hover {
+    background: var(--primary);
+    filter: brightness(1.1);
+    transform: translate(-50%, -50%) scale(1.05);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
 }
 
 #modal-fish-preview {
@@ -1149,6 +1184,16 @@ select:focus {
     background: var(--surface-container-lowest);
     color: var(--on-surface);
     appearance: textfield;
+}
+
+.modal-button-row {
+    display: flex;
+    gap: 0.75rem;
+    width: 100%;
+}
+
+.modal-button-row>button {
+    flex: 1;
 }
 
 .slider-group .display-value::-webkit-outer-spin-button,

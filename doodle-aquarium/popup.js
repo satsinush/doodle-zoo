@@ -82,6 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
     closeHelpModal: document.getElementById('close-help-modal'),
     saveGlobalSettingsBtn: document.getElementById('save-global-settings-btn'),
     bulkDeleteSelected: document.getElementById('bulk-delete-selected'),
+    bulkExport: document.getElementById('bulk-export'),
     galleryContextMenu: document.getElementById('gallery-context-menu'),
     ctxSettings: document.getElementById('ctx-settings'),
     ctxEditFish: document.getElementById('ctx-edit-fish'),

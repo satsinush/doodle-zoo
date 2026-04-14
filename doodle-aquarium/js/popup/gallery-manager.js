@@ -131,6 +131,10 @@ export class GalleryManager {
       this.bulkDelete();
     });
 
+    this.elements.bulkExport?.addEventListener('click', () => {
+      this.exportSelectedIndividually();
+    });
+
     // Global listeners to hide context menu and handle "click-away" deselection
     window.addEventListener('mousedown', (e) => {
       const isGalleryItem = e.target.closest('.gallery-item');
@@ -484,6 +488,7 @@ export class GalleryManager {
             this.selectedFishIds = [fish.id];
             this.renderFishList();
           }
+          this.lastSelectedIndex = index;
           this.handlers.onOpenSettings(fish);
         });
 
@@ -493,6 +498,7 @@ export class GalleryManager {
             this.selectedFishIds = [fish.id];
             this.renderFishList();
           }
+          this.lastSelectedIndex = index;
           this.showContextMenu(e, fish.id);
         });
 

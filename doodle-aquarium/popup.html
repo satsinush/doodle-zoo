@@ -186,6 +186,9 @@
 
             <div id="modal-preview-container">
                 <img id="modal-fish-preview" src="" alt="Fish Preview">
+                <button id="modal-edit-btn" class="secondary-btn overlay">
+                    <span class="material-symbols-outlined">brush</span> Edit on Canvas
+                </button>
             </div>
 
             <div class="modal-controls">
@@ -263,17 +266,14 @@
                 <button id="modal-save-btn" class="btn-primary" style="width: 100%;">
                     <span class="material-symbols-outlined">save</span> Save Changes
                 </button>
-                <div style="display: flex; gap: 0.75rem; width: 100%;">
-                    <button id="modal-edit-btn" class="secondary-btn" style="flex: 1;">
-                        <span class="material-symbols-outlined">brush</span> Edit on Canvas
-                    </button>
-                    <button id="modal-export-btn" class="secondary-btn" style="flex: 1;">
+                <div class="modal-button-row">
+                    <button id="modal-export-btn" class="secondary-btn">
                         <span class="material-symbols-outlined">download</span> Export
                     </button>
+                    <button id="modal-delete-btn" class="secondary-btn delete">
+                        <span class="material-symbols-outlined">delete</span> Delete Fish
+                    </button>
                 </div>
-                <button id="modal-delete-btn" class="secondary-btn delete" style="width: 100%;">
-                    <span class="material-symbols-outlined">delete</span> Delete Fish
-                </button>
             </div>
         </div>
     </div>
@@ -360,9 +360,14 @@
             </div>
             <div class="modal-footer" style="flex-direction: column; gap: 0.75rem; padding-top: 1.5rem;">
                 <button id="save-bulk-btn" class="btn-primary" style="width: 100%;">Apply to All</button>
-                <button id="bulk-delete" class="secondary-btn delete" style="width: 100%;">
-                    <span class="material-symbols-outlined">delete</span> Delete Selected
-                </button>
+                <div class="modal-button-row">
+                    <button id="bulk-export" class="secondary-btn">
+                        <span class="material-symbols-outlined">download</span> Export Selected
+                    </button>
+                    <button id="bulk-delete" class="secondary-btn delete">
+                        <span class="material-symbols-outlined">delete</span> Delete Selected
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -474,14 +479,14 @@
     </div>
 
     <div id="gallery-context-menu" class="context-menu">
-        <div class="context-menu-item" id="ctx-edit-fish">
-            <span class="material-symbols-outlined">brush</span> Edit on Canvas
-        </div>
         <div class="context-menu-item" id="ctx-settings">
             <span class="material-symbols-outlined">settings</span> Open Settings
         </div>
         <div class="context-menu-item" id="ctx-export">
             <span class="material-symbols-outlined">download</span> Export PNG
+        </div>
+        <div class="context-menu-item" id="ctx-edit-fish">
+            <span class="material-symbols-outlined">brush</span> Edit on Canvas
         </div>
         <div class="context-menu-divider"></div>
         <div class="context-menu-item danger" id="ctx-delete">
