@@ -1,5 +1,5 @@
 import { DEFAULT_SETTINGS, GLOBAL_UI_SETTINGS } from './js/common/constants.js';
-import { normalizeFishSettings, normalizeGlobalSettings } from './js/common/settings.js';
+import { normalizeFishSettings, normalizeGlobalSettings, validateFishJSON } from './js/common/settings.js';
 import { CanvasManager } from './js/popup/canvas-manager.js';
 import { ToolManager } from './js/popup/tool-manager.js';
 import { GalleryManager } from './js/popup/gallery-manager.js';
@@ -51,7 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
     bulkBounciness: document.getElementById('bulk-bounciness-multiplier'),
     bulkBouncinessDisplay: document.getElementById('bulk-bounciness-display'),
     saveBulkBtn: document.getElementById('save-bulk-btn'),
-    bulkExportSelected: document.getElementById('bulk-export-selected'),
+    bulkExport: document.getElementById('bulk-export'),
     closeBulkModal: document.getElementById('close-bulk-modal'),
     flipHBtn: document.getElementById('flip-h-btn'),
     flipVBtn: document.getElementById('flip-v-btn'),
@@ -74,6 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
     modalEditBtn: document.getElementById('modal-edit-btn'),
     modalDeleteBtn: document.getElementById('modal-delete-btn'),
     modalExportBtn: document.getElementById('modal-export-btn'),
+    modalExportPngBtn: document.getElementById('modal-export-png-btn'),
     modalSaveBtn: document.getElementById('modal-save-btn'),
     modalSpeedMultiplier: document.getElementById('modal-speed-multiplier'),
     modalSizeMultiplier: document.getElementById('modal-size-multiplier'),
@@ -110,6 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ctxEditFish: document.getElementById('ctx-edit-fish'),
     ctxDelete: document.getElementById('ctx-delete'),
     ctxExport: document.getElementById('ctx-export'),
+    ctxExportPng: document.getElementById('ctx-export-png'),
   };
 
   // State
@@ -783,39 +785,68 @@ document.addEventListener('DOMContentLoaded', () => {
   // saveBtn logic is handled by the event listener and the saveFish function above.
 
   els.importFile.onchange = async (e) => {
-    const files = Array.from(e.target.files || []); if (files.length === 0) return;
-    const importedDataUrls = [];
-    for (const file of files) {
-      try {
-        const sourceDataUrl = await FishEditor.fileToDataUrl(file);
-        const normalizedDataUrl = await FishEditor.normalizeFishImage(sourceDataUrl);
-        importedDataUrls.push(normalizedDataUrl);
-      } catch (_e) { }
-    }
-    if (importedDataUrls.length > 0) {
-      chrome.storage.local.get(['doodleFishList'], (result) => {
-        const fishArray = result.doodleFishList || [];
-        const newFishItems = [];
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-        importedDataUrls.forEach((dataUrl) => {
-          const newId = generateUID();
-          const fishData = { id: newId, dataUrl, mirrored: false, flipByVelocity: true, active: true, ...DEFAULT_SETTINGS };
-          fishArray.push(fishData);
-          newFishItems.push(fishData);
-        });
+    chrome.storage.local.get(['doodleFishList'], async (result) => {
+      const fishArray = result.doodleFishList || [];
+      let addedCount = 0;
+      let errorCount = 0;
+      const newFishItems = [];
 
+      for (const file of files) {
+        try {
+          if (file.name.toLowerCase().endsWith('.json')) {
+            const text = await file.text();
+            const importedFish = validateFishJSON(text);
+            if (importedFish.length > 0) {
+              fishArray.push(...importedFish);
+              newFishItems.push(...importedFish);
+              addedCount += importedFish.length;
+            } else {
+              errorCount++;
+            }
+          } else {
+            // Assume Image
+            const sourceDataUrl = await FishEditor.fileToDataUrl(file);
+            const normalizedDataUrl = await FishEditor.normalizeFishImage(sourceDataUrl);
+            const newFishData = { 
+              id: generateUID(), 
+              dataUrl: normalizedDataUrl, 
+              mirrored: false, 
+              flipByVelocity: true, 
+              active: true, 
+              ...DEFAULT_SETTINGS 
+            };
+            fishArray.push(newFishData);
+            newFishItems.push(newFishData);
+            addedCount++;
+          }
+        } catch (err) {
+          console.error('Import error:', err);
+          errorCount++;
+        }
+      }
+
+      if (addedCount > 0) {
         historyManager.push({
           type: 'bulk_create',
           data: { fishArray: newFishItems },
-          description: `Imported ${newFishItems.length} Fish`
+          description: `Imported ${addedCount} Fish`
         });
 
         chrome.storage.local.set({ doodleFishList: fishArray }, () => {
           galleryManager.renderFishList(currentEditingFishId);
+          notificationManager.show(`${addedCount} fish added to gallery.`);
         });
-      });
-    }
-    e.target.value = '';
+      }
+
+      if (errorCount > 0) {
+        notificationManager.show(`Failed to import ${errorCount} file(s).`, 'error');
+      }
+      
+      els.importFile.value = '';
+    });
   };
 
   if (!isStandalone) els.openWindowBtn.onclick = () => window.open(chrome.runtime.getURL('popup.html?mode=window'), '_blank');
@@ -823,8 +854,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Canvas resizing logic is now handled automatically by CanvasManager's ResizeObserver
   toolManager.applyColorInput(els.colorText.value, true);
-  els.bulkExportSelected.addEventListener('click', () => {
-    galleryManager.exportSelectedIndividually();
+  els.bulkExport.addEventListener('click', () => {
+    galleryManager.exportSelectedAsJSON();
   });
   galleryManager.renderFishList(currentEditingFishId);
 });

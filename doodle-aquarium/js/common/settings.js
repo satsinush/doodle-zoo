@@ -19,6 +19,32 @@ export function normalizeFishSettings(raw) {
   };
 }
 
+export function validateFishJSON(jsonString) {
+  try {
+    let data = JSON.parse(jsonString);
+    if (!Array.isArray(data)) data = [data];
+
+    const validated = data.map(raw => {
+      if (!raw.dataUrl) return null;
+      
+      const normalized = normalizeFishSettings(raw);
+      return {
+        id: Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 9),
+        dataUrl: raw.dataUrl,
+        active: raw.active !== undefined ? !!raw.active : true,
+        flipByVelocity: raw.flipByVelocity !== undefined ? !!raw.flipByVelocity : true,
+        mirrored: !!raw.mirrored,
+        ...normalized
+      };
+    }).filter(f => f !== null);
+
+    return validated;
+  } catch (e) {
+    console.error('Invalid JSON import:', e);
+    return [];
+  }
+}
+
 export function normalizeGlobalSettings(raw) {
   if (!raw || typeof raw !== 'object') {
     return { ...GLOBAL_UI_SETTINGS };

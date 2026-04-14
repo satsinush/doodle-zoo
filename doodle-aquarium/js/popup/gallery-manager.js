@@ -41,6 +41,7 @@ export class GalleryManager {
       chrome.storage.local.get(['doodleFishList'], (result) => {
         const fishArray = result.doodleFishList || [];
         this.selectedFishIds = shouldSelectAll ? fishArray.map(f => f.id) : [];
+        this.lastSelectedIndex = -1;
         this.renderFishList();
       });
     });
@@ -180,6 +181,7 @@ export class GalleryManager {
       // Deselect if clicking outside gallery items or controls
       if (!isGalleryItem && !isControl && this.selectedFishIds.length > 0) {
         this.selectedFishIds = [];
+        this.lastSelectedIndex = -1;
         this.renderFishList();
       }
     });
@@ -239,14 +241,29 @@ export class GalleryManager {
       this.hideContextMenu();
 
       if (fishId) {
-        if (selectedIds.includes(fishId) && selectedIds.length > 1) {
-          this.exportSelectedIndividually();
-        } else {
-          chrome.storage.local.get(['doodleFishList'], (res) => {
-            const fish = (res.doodleFishList || []).find(f => f.id === fishId);
-            if (fish) this.exportSingleFish(fish);
-          });
-        }
+        chrome.storage.local.get(['doodleFishList'], (res) => {
+          const fishArray = res.doodleFishList || [];
+          if (selectedIds.includes(fishId) && selectedIds.length > 1) {
+            const selectedFish = fishArray.filter(f => selectedIds.includes(f.id));
+            this.exportJSON(selectedFish);
+          } else {
+            const fish = fishArray.find(f => f.id === fishId);
+            if (fish) this.exportJSON([fish]);
+          }
+        });
+      }
+    });
+
+    this.elements.ctxExportPng?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const fishId = this.contextFishId;
+      this.hideContextMenu();
+
+      if (fishId) {
+        chrome.storage.local.get(['doodleFishList'], (res) => {
+          const fish = (res.doodleFishList || []).find(f => f.id === fishId);
+          if (fish) this.exportPNG(fish);
+        });
       }
     });
   }
@@ -343,13 +360,30 @@ export class GalleryManager {
   }
 
 
-  exportSingleFish(fish) {
+  exportPNG(fish) {
     const a = document.createElement('a');
     a.href = fish.dataUrl;
     a.download = `fish_${fish.id || Date.now()}.png`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+  }
+
+  exportJSON(fishArray) {
+    if (!fishArray || fishArray.length === 0) return;
+    
+    // Always export as a list, even if it's just 1
+    const data = Array.isArray(fishArray) ? fishArray : [fishArray];
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `doodle_aquarium_${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   renderFishList(editingId = undefined) {
@@ -587,7 +621,7 @@ export class GalleryManager {
 
   updateBulkToolbar(fishArray) {
     const masterCheckbox = this.elements.masterSelectCheckbox;
-    const exportBtn = this.elements.bulkExportSelected;
+    const exportBtn = this.elements.bulkExport;
     const gearBtn = this.elements.bulkEditSettings;
     const deleteBtn = this.elements.bulkDeleteSelected;
 
@@ -710,28 +744,15 @@ export class GalleryManager {
     });
   }
 
-  exportSelectedIndividually() {
+  exportSelectedAsJSON() {
     if (this.selectedFishIds.length === 0) return;
 
     chrome.storage.local.get(['doodleFishList'], (result) => {
       const fishArray = result.doodleFishList || [];
       const selectedFish = fishArray.filter(f => this.selectedFishIds.includes(f.id));
-
-      if (selectedFish.length === 0) return;
-
-      selectedFish.forEach((fish, index) => {
-        // Use a slight timeout to stagger downloads and avoid browser blocking
-        setTimeout(() => {
-          const a = document.createElement('a');
-          a.href = fish.dataUrl;
-          a.download = `fish_${fish.id || index}.png`;
-          document.body.appendChild(a);
-          a.click();
-          setTimeout(() => {
-            document.body.removeChild(a);
-          }, 0);
-        }, index * 150);
-      });
+      if (selectedFish.length > 0) {
+        this.exportJSON(selectedFish);
+      }
     });
   }
 
@@ -787,9 +808,19 @@ export class GalleryManager {
       chrome.storage.local.set({ doodleFishList: fishArray }, () => {
         const count = itemsToDelete.length;
         this.selectedFishIds = [];
+        this.lastSelectedIndex = -1;
         this.elements.bulkModal?.classList.remove('active');
         this.renderFishList();
       });
+    });
+  }
+
+  selectAll() {
+    chrome.storage.local.get(['doodleFishList'], (result) => {
+      const fishArray = result.doodleFishList || [];
+      this.selectedFishIds = fishArray.map(f => f.id);
+      this.lastSelectedIndex = -1;
+      this.renderFishList();
     });
   }
 }

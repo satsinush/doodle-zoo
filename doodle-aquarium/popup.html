@@ -139,7 +139,7 @@
                     <label class="secondary-btn">
                         <span class="material-symbols-outlined">upload_file</span>
                         Import
-                        <input type="file" id="import-file" accept="image/*" multiple style="display: none;">
+                        <input type="file" id="import-file" accept="image/*,.json" multiple style="display: none;">
                     </label>
                 </div>
 
@@ -163,8 +163,8 @@
                             </div>
                             <button id="bulk-edit-settings" class="toolbar-icon-btn material-symbols-outlined"
                                 title="Bulk Settings" disabled>settings</button>
-                            <button id="bulk-export-selected" class="toolbar-icon-btn material-symbols-outlined"
-                                title="Export Selected" disabled>download</button>
+                            <button id="bulk-export" class="toolbar-icon-btn material-symbols-outlined"
+                                title="Export Selected Data" disabled>database</button>
                             <button id="bulk-delete-selected" class="toolbar-icon-btn material-symbols-outlined danger"
                                 title="Delete Selected" disabled>delete</button>
                         </div>
@@ -275,22 +275,31 @@
                         <span class="sub-label">Velocity retention on wall hit</span>
                     </div>
                     <div class="slider-group">
-                        <input id="modal-bounciness-multiplier" type="range" min="0.0" max="1.0" step="0.01" value="0.75">
-                        <input type="number" class="display-value" id="modal-bounciness-display" value="0.75" step="any">
+                        <input id="modal-bounciness-multiplier" type="range" min="0.0" max="1.0" step="0.01"
+                            value="0.75">
+                        <input type="number" class="display-value" id="modal-bounciness-display" value="0.75"
+                            step="any">
                     </div>
                 </div>
             </div>
 
             <div class="modal-footer" style="flex-direction: column; gap: 0.75rem;">
-                <button id="modal-save-btn" class="btn-primary" style="width: 100%;">
-                    <span class="material-symbols-outlined">save</span> Save Changes
-                </button>
                 <div class="modal-button-row">
-                    <button id="modal-export-btn" class="secondary-btn">
-                        <span class="material-symbols-outlined">download</span> Export
+                    <button id="modal-save-btn" class="btn-primary" style="flex: 2;">
+                        <span class="material-symbols-outlined">save</span> Save
                     </button>
-                    <button id="modal-delete-btn" class="secondary-btn delete">
-                        <span class="material-symbols-outlined">delete</span> Delete Fish
+                </div>
+                <div class="modal-button-row">
+                    <button id="modal-export-btn" class="secondary-btn" title="Export as JSON Data">
+                        <span class="material-symbols-outlined">database</span> Export Data
+                    </button>
+                    <button id="modal-export-png-btn" class="secondary-btn" title="Download as Image">
+                        <span class="material-symbols-outlined">image</span> Download Image
+                    </button>
+                </div>
+                <div class="modal-button-row">
+                    <button id="modal-delete-btn" class="secondary-btn delete" style="flex: 1;">
+                        <span class="material-symbols-outlined">delete</span> Delete
                     </button>
                 </div>
             </div>
@@ -393,7 +402,8 @@
                         <span class="sub-label">Velocity retention on wall hit</span>
                     </div>
                     <div class="slider-group">
-                        <input id="bulk-bounciness-multiplier" type="range" min="0.0" max="1.0" step="0.01" value="0.75">
+                        <input id="bulk-bounciness-multiplier" type="range" min="0.0" max="1.0" step="0.01"
+                            value="0.75">
                         <input type="number" class="display-value" id="bulk-bounciness-display" placeholder="--"
                             step="any">
                     </div>
@@ -403,8 +413,10 @@
                 <button id="save-bulk-btn" class="btn-primary" style="width: 100%;">Apply to All</button>
                 <div class="modal-button-row">
                     <button id="bulk-export" class="secondary-btn">
-                        <span class="material-symbols-outlined">download</span> Export Selected
+                        <span class="material-symbols-outlined">database</span> Export Data
                     </button>
+                </div>
+                <div class="modal-button-row">
                     <button id="bulk-delete" class="secondary-btn delete">
                         <span class="material-symbols-outlined">delete</span> Delete Selected
                     </button>
@@ -524,7 +536,10 @@
             <span class="material-symbols-outlined">settings</span> Open Settings
         </div>
         <div class="context-menu-item" id="ctx-export">
-            <span class="material-symbols-outlined">download</span> Export PNG
+            <span class="material-symbols-outlined">database</span> Export Data
+        </div>
+        <div class="context-menu-item" id="ctx-export-png">
+            <span class="material-symbols-outlined">image</span> Download Image
         </div>
         <div class="context-menu-item" id="ctx-edit-fish">
             <span class="material-symbols-outlined">brush</span> Edit on Canvas

@@ -78,6 +78,10 @@ export class FishEditor {
       this.exportFish({ dataUrl: this.elements.modalFishPreview.src });
     });
 
+    this.elements.modalExportPngBtn?.addEventListener('click', () => {
+      this.exportFish({ dataUrl: this.elements.modalFishPreview.src });
+    });
+
     const persistPhysics = () => {
       chrome.storage.local.get(['doodleFishList'], (result) => {
         const fishArray = result.doodleFishList || [];
@@ -134,6 +138,22 @@ export class FishEditor {
     };
 
     this.elements.modalSaveBtn?.addEventListener('click', () => persistPhysics());
+    
+    this.elements.modalExportBtn?.addEventListener('click', () => {
+      chrome.storage.local.get(['doodleFishList'], (result) => {
+        const fishArray = result.doodleFishList || [];
+        const fish = fishArray.find(f => f.id === this.currentFishId);
+        if (fish) this.galleryManager.exportJSON([fish]);
+      });
+    });
+
+    this.elements.modalExportPngBtn?.addEventListener('click', () => {
+      chrome.storage.local.get(['doodleFishList'], (result) => {
+        const fishArray = result.doodleFishList || [];
+        const fish = fishArray.find(f => f.id === this.currentFishId);
+        if (fish) this.galleryManager.exportPNG(fish);
+      });
+    });
 
     this.physicsDOM.speedMultiplier?.addEventListener('input', (e) => {
       this.physicsDOM.speedDisplay.value = Number(e.target.value).toFixed(1);
@@ -236,24 +256,6 @@ export class FishEditor {
     imgObj.src = dataUrl;
   }
 
-  exportFish(fish) {
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = 400;
-    tempCanvas.height = 300;
-    const tempCtx = tempCanvas.getContext('2d');
-    const img = new Image();
-    img.onload = () => {
-      tempCtx.drawImage(img, 0, 0, 400, 300);
-      const dataUrl = tempCanvas.toDataURL('image/png');
-      const link = document.createElement('a');
-      link.href = dataUrl;
-      link.download = `doodle-fish-${Date.now()}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    };
-    img.src = fish.dataUrl;
-  }
 
   static async fileToDataUrl(file) {
     return new Promise((resolve, reject) => {
