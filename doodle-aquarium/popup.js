@@ -153,18 +153,21 @@ document.addEventListener('DOMContentLoaded', () => {
   canvasManager.history = historyManager;
 
   const handleEditFish = (targetFish) => {
-    // Prevent redundant navigation (e.g., clicking 'New' on a blank canvas or 'Edit' on the current fish)
-    if (currentEditingFishId === targetFish.id) {
+    // If we're already editing this fish, reload it from current storage state onto canvas
+    const isReload = currentEditingFishId !== null && currentEditingFishId === targetFish.id;
+
+    // Prevent redundant navigation if no meaningful change would occur
+    if (!isReload && currentEditingFishId === targetFish.id) {
       if (targetFish.id === null && canvasManager.isCanvasBlank()) return;
-      if (targetFish.id !== null) return;
     }
 
-    // Capture transition to new fish
+    // Capture transition for history
     const oldId = currentEditingFishId;
     const oldUrl = canvasManager.canvas.toDataURL('image/png');
 
     historyManager.push({
       type: 'navigate',
+      id: targetFish.id,
       data: {
         oldId,
         newId: targetFish.id,
@@ -810,13 +813,13 @@ document.addEventListener('DOMContentLoaded', () => {
             // Assume Image
             const sourceDataUrl = await FishEditor.fileToDataUrl(file);
             const normalizedDataUrl = await FishEditor.normalizeFishImage(sourceDataUrl);
-            const newFishData = { 
-              id: generateUID(), 
-              dataUrl: normalizedDataUrl, 
-              mirrored: false, 
-              flipByVelocity: true, 
-              active: true, 
-              ...DEFAULT_SETTINGS 
+            const newFishData = {
+              id: generateUID(),
+              dataUrl: normalizedDataUrl,
+              mirrored: false,
+              flipByVelocity: true,
+              active: true,
+              ...DEFAULT_SETTINGS
             };
             fishArray.push(newFishData);
             newFishItems.push(newFishData);
@@ -844,7 +847,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (errorCount > 0) {
         notificationManager.show(`Failed to import ${errorCount} file(s).`, 'error');
       }
-      
+
       els.importFile.value = '';
     });
   };
