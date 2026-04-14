@@ -57,7 +57,7 @@
 
             <!-- Sidebar / Controls -->
             <div class="sidebar">
-                <div class="toolbar">
+                <div class="toolbar" style="justify-content: space-between;">
                     <div class="btn-group">
                         <button id="undo-btn" class="icon-btn" title="Undo" disabled>
                             <span class="material-symbols-outlined">undo</span>
@@ -65,7 +65,8 @@
                         <button id="redo-btn" class="icon-btn" title="Redo" disabled>
                             <span class="material-symbols-outlined">redo</span>
                         </button>
-                        <div class="divider"></div>
+                    </div>
+                    <div class="btn-group">
                         <button id="flip-h-btn" class="icon-btn" title="Flip Horizontal">
                             <span class="material-symbols-outlined">flip</span>
                         </button>
@@ -146,27 +147,28 @@
                 <!-- Simulation Settings Deprecated from UI layout -->
 
                 <div class="settings-card tank-card">
-                    <div
-                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; min-height: 24px;">
-                        <h3 id="gallery-title" style="margin:0; font-size: 14px;">Tank Gallery</h3>
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                            <div style="display: flex; align-items: center; gap: 6px; cursor: pointer;"
-                                id="master-select-wrapper">
-                                <span
-                                    style="font-size: 10px; font-weight: 800; color: var(--on-surface-variant); text-transform: uppercase; user-select: none;">Select
-                                    All</span>
-                                <label class="checkbox-container small"
-                                    style="margin: 0; padding-left: 18px; pointer-events: none;">
-                                    <input type="checkbox" id="master-select-checkbox">
-                                    <span class="checkmark"></span>
-                                </label>
-                            </div>
-                            <button id="bulk-edit-settings" class="toolbar-icon-btn material-symbols-outlined"
-                                title="Bulk Settings" disabled>settings</button>
-                            <button id="bulk-export" class="toolbar-icon-btn material-symbols-outlined"
-                                title="Export Selected Data" disabled>database</button>
-                            <button id="bulk-delete-selected" class="toolbar-icon-btn material-symbols-outlined danger"
-                                title="Delete Selected" disabled>delete</button>
+                    <h3 id="gallery-title" style="margin:0; font-size: 14px; margin-bottom: 0.75rem;">Tank Gallery</h3>
+                    <div class="toolbar" style="justify-content: space-between; margin-bottom: 0.75rem;">
+                        <div style="display: flex; align-items: center; cursor: pointer;" id="master-select-wrapper">
+                            <span
+                                style="font-size: 10px; font-weight: 800; color: var(--on-surface-variant); text-transform: uppercase; user-select: none;">Select
+                                All</span>
+                            <label class="checkbox-container small"
+                                style="margin: 0; padding-left: 5px; pointer-events: none;">
+                                <input type="checkbox" id="master-select-checkbox">
+                                <span class="checkmark"></span>
+                            </label>
+                        </div>
+                        <div class="bulk-toolbar-group" style="background: transparent; border: none; padding: 0;">
+                            <button id="bulk-edit-settings" class="icon-btn" title="Bulk Settings" disabled>
+                                <span class="material-symbols-outlined">settings</span>
+                            </button>
+                            <button id="bulk-export" class="icon-btn" title="Export Selected Data" disabled>
+                                <span class="material-symbols-outlined">database</span>
+                            </button>
+                            <button id="bulk-delete-selected" class="icon-btn delete" title="Delete Selected" disabled>
+                                <span class="material-symbols-outlined">delete</span>
+                            </button>
                         </div>
                     </div>
                     <div id="fish-list" class="gallery-grid"></div>
@@ -254,8 +256,10 @@
                             <span class="sub-label">Force multiplier</span>
                         </div>
                         <div class="slider-group">
-                            <input id="modal-interaction-strength" type="range" min="0.0" max="5.0" step="0.1" value="1.0">
-                            <input type="number" class="display-value" id="modal-strength-display" value="1.0" step="any">
+                            <input id="modal-interaction-strength" type="range" min="0.0" max="5.0" step="0.1"
+                                value="1.0">
+                            <input type="number" class="display-value" id="modal-strength-display" value="1.0"
+                                step="any">
                         </div>
                     </div>
 
@@ -265,8 +269,10 @@
                             <span class="sub-label">Positive to sink, negative to float</span>
                         </div>
                         <div class="slider-group">
-                            <input id="modal-gravity-multiplier" type="range" min="-5.0" max="5.0" step="0.1" value="0.0">
-                            <input type="number" class="display-value" id="modal-gravity-display" value="0.0" step="any">
+                            <input id="modal-gravity-multiplier" type="range" min="-5.0" max="5.0" step="0.1"
+                                value="0.0">
+                            <input type="number" class="display-value" id="modal-gravity-display" value="0.0"
+                                step="any">
                         </div>
                     </div>
 
@@ -348,7 +354,8 @@
                         </div>
                         <div class="slider-group">
                             <input id="bulk-speed-multiplier" type="range" min="0.0" max="3.0" step="0.1" value="0.5">
-                            <input type="number" class="display-value" id="bulk-speed-display" placeholder="--" step="any">
+                            <input type="number" class="display-value" id="bulk-speed-display" placeholder="--"
+                                step="any">
                         </div>
                     </div>
 
@@ -359,7 +366,8 @@
                         </div>
                         <div class="slider-group">
                             <input id="bulk-size-multiplier" type="range" min="0.1" max="3.0" step="0.1" value="0.5">
-                            <input type="number" class="display-value" id="bulk-size-display" placeholder="--" step="any">
+                            <input type="number" class="display-value" id="bulk-size-display" placeholder="--"
+                                step="any">
                         </div>
                     </div>
 
@@ -381,7 +389,8 @@
                             <span class="sub-label">Force multiplier</span>
                         </div>
                         <div class="slider-group">
-                            <input id="bulk-interaction-strength" type="range" min="0.0" max="5.0" step="0.1" value="1.0">
+                            <input id="bulk-interaction-strength" type="range" min="0.0" max="5.0" step="0.1"
+                                value="1.0">
                             <input type="number" class="display-value" id="bulk-strength-display" placeholder="--"
                                 step="any">
                         </div>
@@ -393,7 +402,8 @@
                             <span class="sub-label">Positive to sink, negative to float</span>
                         </div>
                         <div class="slider-group">
-                            <input id="bulk-gravity-multiplier" type="range" min="-5.0" max="5.0" step="0.1" value="0.0">
+                            <input id="bulk-gravity-multiplier" type="range" min="-5.0" max="5.0" step="0.1"
+                                value="0.0">
                             <input type="number" class="display-value" id="bulk-gravity-display" placeholder="--"
                                 step="any">
                         </div>
@@ -499,11 +509,13 @@
                     <h3>1. Drawing & Visuals</h3>
                     <div class="help-subsection">
                         <h4>Tools</h4>
-                        <p class="sub-label">Use <kbd>B</kbd> for Brush, <kbd>E</kbd> for Eraser, and <kbd>F</kbd> for Fill. Use <kbd>D</kbd> to sample colors with the Eyedropper.</p>
+                        <p class="sub-label">Use <kbd>B</kbd> for Brush, <kbd>E</kbd> for Eraser, and <kbd>F</kbd> for
+                            Fill. Use <kbd>D</kbd> to sample colors with the Eyedropper.</p>
                     </div>
                     <div class="help-subsection">
                         <h4>Canvas Operations</h4>
-                        <p class="sub-label"><kbd>Ctrl</kbd> + <kbd>Z</kbd> (Undo) and <kbd>Ctrl</kbd> + <kbd>Y</kbd> (Redo) work for both drawing and gallery changes. <kbd>C</kbd> resets the canvas.</p>
+                        <p class="sub-label"><kbd>Ctrl</kbd> + <kbd>Z</kbd> (Undo) and <kbd>Ctrl</kbd> + <kbd>Y</kbd>
+                            (Redo) work for both drawing and gallery changes. <kbd>C</kbd> resets the canvas.</p>
                     </div>
                 </div>
 
@@ -511,11 +523,14 @@
                     <h3>2. Navigation & View</h3>
                     <div class="help-subsection">
                         <h4>View Control</h4>
-                        <p class="sub-label"><b>Pan:</b> Right-click / Middle-click drag. <b>Zoom:</b> Scroll. <b>Center:</b> Press the focus button to reset view.</p>
+                        <p class="sub-label"><b>Pan:</b> Right-click / Middle-click drag. <b>Zoom:</b> Scroll.
+                            <b>Center:</b> Press the focus button to reset view.
+                        </p>
                     </div>
                     <div class="help-subsection">
                         <h4>Transform</h4>
-                        <p class="sub-label">Instantly mirror your fish using <kbd>H</kbd> (Horizontal) or <kbd>V</kbd> (Vertical).</p>
+                        <p class="sub-label">Instantly mirror your fish using <kbd>H</kbd> (Horizontal) or <kbd>V</kbd>
+                            (Vertical).</p>
                     </div>
                 </div>
 
@@ -523,11 +538,13 @@
                     <h3>3. Gallery & Management</h3>
                     <div class="help-subsection">
                         <h4>Selection</h4>
-                        <p class="sub-label">Click cards to toggle. Use <kbd>Shift</kbd> + <kbd>Click</kbd> for ranges or <kbd>Ctrl</kbd> + <kbd>A</kbd> to select all fish.</p>
+                        <p class="sub-label">Click cards to toggle. Use <kbd>Shift</kbd> + <kbd>Click</kbd> for ranges
+                            or <kbd>Ctrl</kbd> + <kbd>A</kbd> to select all fish.</p>
                     </div>
                     <div class="help-subsection">
                         <h4>Management</h4>
-                        <p class="sub-label"><b>Edit:</b> Click a card to load it. <b>Settings:</b> Right-click or Double-click for physics. <b>Reorder:</b> Drag cards to rearrange.</p>
+                        <p class="sub-label"><b>Edit:</b> Click a card to load it. <b>Settings:</b> Right-click or
+                            Double-click for physics. <b>Reorder:</b> Drag cards to rearrange.</p>
                     </div>
                 </div>
 
@@ -535,17 +552,19 @@
                     <h3>4. Data & Logic</h3>
                     <div class="help-subsection">
                         <h4>Portability</h4>
-                        <p class="sub-label">Drag & drop files or use <b>Import</b>. <b>Export Data</b> saves project settings. <b>Download Image</b> saves a single PNG.</p>
+                        <p class="sub-label">Drag & drop files or use <b>Import</b>. <b>Export Data</b> saves project
+                            settings. <b>Download Image</b> saves a single PNG.</p>
                     </div>
                     <div class="help-subsection">
                         <h4>Auto-Save</h4>
-                        <p class="sub-label">Your progress is automatically synced—no manual saving of the tank state is required.</p>
+                        <p class="sub-label">Your progress is automatically synced—no manual saving of the tank state is
+                            required.</p>
                     </div>
                 </div>
 
                 <div class="help-section">
                     <h3>Keyboard Shortcuts</h3>
-                    
+
                     <div class="help-subsection" style="margin-top: 1rem;">
                         <h4>Drawing Tools</h4>
                         <div class="shortcut-grid">

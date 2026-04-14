@@ -469,16 +469,18 @@ main {
 .toolbar {
     display: flex;
     align-items: center;
-    justify-content: flex-start;
-    gap: 4px;
+    justify-content: space-between;
+    gap: 8px;
     background: var(--surface-container-low);
-    padding: 0.3rem 0.5rem;
-    border-radius: var(--radius-xl);
+    padding: 0.4rem 0.6rem;
+    border-radius: var(--radius-2xl);
     border: 1px solid var(--outline-variant);
     flex-shrink: 0;
     min-width: 0;
+}
+
+.sidebar .toolbar {
     justify-content: center;
-    /* Center utility buttons now */
 }
 
 .toolbar::-webkit-scrollbar {
@@ -530,6 +532,14 @@ button {
     opacity: 0.3;
     pointer-events: none;
     filter: grayscale(1);
+}
+
+.icon-btn.delete {
+    color: var(--danger);
+}
+
+.icon-btn.delete:hover {
+    background: rgba(210, 70, 70, 0.1);
 }
 
 .divider {
@@ -886,39 +896,11 @@ select:focus {
     animation: fadeIn 0.2s ease;
 }
 
-.toolbar-icon-btn {
-    width: 28px;
-    height: 28px;
-    padding: 4px;
-    border-radius: var(--radius-lg);
-    background: var(--surface-container-highest);
-    color: var(--primary);
-    border: 1px solid var(--outline-variant);
-    font-size: 18px !important;
-    cursor: pointer;
-    transition: all 0.2s;
+.bulk-toolbar-group {
     display: flex;
+    flex-direction: row;
+    gap: 4px;
     align-items: center;
-    justify-content: center;
-}
-
-.toolbar-icon-btn:hover:not(:disabled) {
-    background: var(--primary-container);
-}
-
-.toolbar-icon-btn:disabled {
-    opacity: 0.38;
-    cursor: not-allowed;
-    filter: grayscale(1);
-}
-
-.toolbar-icon-btn.danger {
-    color: var(--danger);
-}
-
-.toolbar-icon-btn.danger:hover:not(:disabled) {
-    background: rgba(209, 70, 70, 0.1);
-    border-color: var(--danger);
 }
 
 /* Context Menu */
@@ -1323,6 +1305,12 @@ kbd {
     padding: 4px 6px;
     white-space: nowrap;
     vertical-align: middle;
+}
+
+/* Bulk Actions UI Enhancements */
+#bulk-modal .secondary-btn {
+    padding: 0.8rem 1.25rem;
+    font-size: 14px;
 }
 
 /* Toast Notifications */
