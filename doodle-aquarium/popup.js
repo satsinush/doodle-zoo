@@ -725,12 +725,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   els.canvasViewport.addEventListener('wheel', (e) => {
     e.preventDefault();
-    if (e.ctrlKey || e.metaKey) {
-      panY -= e.deltaY * 0.33;
-      canvasManager.panY = panY;
-    } else if (e.shiftKey) {
-      panX -= e.deltaY * 0.33;
-      canvasManager.panX = panX;
+    if (e.ctrlKey || e.metaKey || e.shiftKey) {
+      // Support multi-directional panning (Trackpads)
+      if (Math.abs(e.deltaX) > 0 || Math.abs(e.deltaY) > 0) {
+        if (e.shiftKey && Math.abs(e.deltaX) < 1) {
+          // Legacy support for single-axis mice: Shift+Scroll = Horizontal
+          panX -= e.deltaY * 0.5;
+        } else {
+          panX -= e.deltaX * 0.5;
+          panY -= e.deltaY * 0.5;
+        }
+        canvasManager.panX = panX;
+        canvasManager.panY = panY;
+      }
     } else {
       const factor = Math.pow(1.1, -e.deltaY / 100);
       const newZoom = Math.max(0.2, Math.min(10, canvasManager.zoomLevel * factor));
