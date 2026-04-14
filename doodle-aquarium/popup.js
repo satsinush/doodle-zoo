@@ -688,7 +688,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (isPanning) { isPanning = false; els.canvasTransformWrapper.classList.remove('panning'); return; }
     if (isDrawing) {
       const { x, y } = canvasManager.getCanvasPoint(e);
-      if (toolManager.currentTool === 'brush' && currentStrokePoints.length > 1) {
+      if (toolManager.currentTool === 'brush' && currentStrokePoints.length >= 1) {
         const dpr = window.devicePixelRatio || 1;
         canvasManager.ctx.save();
         canvasManager.ctx.setTransform(1, 0, 0, 1, 0, 0);
