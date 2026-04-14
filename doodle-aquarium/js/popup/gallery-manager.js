@@ -351,6 +351,9 @@ export class GalleryManager {
     if (this.elements.ctxEditFish) {
       this.elements.ctxEditFish.style.display = isPartOfGroup ? 'none' : 'flex';
     }
+    if (this.elements.ctxExportPng) {
+      this.elements.ctxExportPng.style.display = isPartOfGroup ? 'none' : 'flex';
+    }
 
     if (x + menuWidth > winWidth) x -= menuWidth;
     if (y + menuHeight > winHeight) y -= menuHeight;

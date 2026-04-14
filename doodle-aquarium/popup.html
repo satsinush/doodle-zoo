@@ -491,18 +491,27 @@
             <div class="modal-body">
                 <section class="help-section">
                     <h3 class="label">Instructions</h3>
-                    <p class="sub-label">Draw your fish on the canvas using the brush, eraser, and bucket tools. Click
-                        <b>Save</b> to add them to your aquarium. Use the <b>Gallery</b> to edit options for each fish.
-                        Select multiple fish to apply changes to all of them at once.
-                    </p>
+                    <div class="sub-label" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        <p><b>1. Create:</b> Draw your fish on the canvas using the brush, eraser, and bucket. Click
+                            <b>Save</b> to add it to your tank.
+                        </p>
+                        <p><b>2. Edit:</b> Select any fish in the gallery to load it back onto the canvas. Double-click
+                            or Right-click to adjust its specific settings.</p>
+                        <p><b>3. Import/Export:</b> Drag & drop images/JSON into the app or use <b>Import</b>. Use
+                            <b>Export Data</b> for full projects or <b>Download Image</b> for PNGs.
+                        </p>
+                        <p><b>4. Select:</b> Click to select. Use <b>Shift + Click</b> or <b>Ctrl + A</b> for
+                            multi-select. Multi-selected fish can be edited or exported in bulk.</p>
+                    </div>
                 </section>
 
                 <section class="help-section">
-                    <h3 class="label">Navigation</h3>
+                    <h3 class="label">Gallery & Navigation</h3>
                     <ul class="shortcut-list">
                         <li><span>Pan View</span> <kbd>Right Click</kbd> or <kbd>Middle Click</kbd></li>
                         <li><span>Zoom View</span> <kbd>Scroll Wheel</kbd></li>
-                        <li><span>Quick Pan X/Y</span> <kbd>Shift/Ctrl</kbd> + <kbd>Scroll</kbd></li>
+                        <li><span>Reorder Fish</span> <kbd>Drag & Drop</kbd></li>
+                        <li><span>Context Menu</span> <kbd>Right Click</kbd></li>
                     </ul>
                 </section>
 
@@ -513,15 +522,13 @@
                         <div class="shortcut-item"><span>Eraser</span> <kbd>E</kbd></div>
                         <div class="shortcut-item"><span>Fill Bucket</span> <kbd>F</kbd></div>
                         <div class="shortcut-item"><span>Eyedropper</span> <kbd>D</kbd></div>
-
-                        <div class="shortcut-item"><span>Undo</span> <kbd>Ctrl</kbd>+<kbd>Z</kbd></div>
-                        <div class="shortcut-item"><span>Redo</span> <kbd>Ctrl</kbd>+<kbd>Y</kbd></div>
-                        <div class="shortcut-item"><span>Save</span> <kbd>Ctrl</kbd>+<kbd>S</kbd></div>
-                        <div class="shortcut-item"><span>Save as New</span>
-                            <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>
-                        </div>
+                        <div class="shortcut-item"><span>Undo</span> <kbd>Ctrl+Z</kbd></div>
+                        <div class="shortcut-item"><span>Redo</span> <kbd>Ctrl+Y</kbd></div>
+                        <div class="shortcut-item"><span>Save</span> <kbd>Ctrl+S</kbd></div>
+                        <div class="shortcut-item"><span>Save New</span> <kbd>Ctrl+Shift+S</kbd></div>
                         <div class="shortcut-item"><span>New Fish</span> <kbd>N</kbd></div>
                         <div class="shortcut-item"><span>Clear Canvas</span> <kbd>C</kbd></div>
+                        <div class="shortcut-item"><span>Select All</span> <kbd>Ctrl+A</kbd></div>
                         <div class="shortcut-item"><span>Delete Selected</span> <kbd>Del</kbd></div>
                         <div class="shortcut-item"><span>Flip Horizontal</span> <kbd>H</kbd></div>
                         <div class="shortcut-item"><span>Flip Vertical</span> <kbd>V</kbd></div>

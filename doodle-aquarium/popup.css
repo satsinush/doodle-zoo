@@ -1269,10 +1269,15 @@ select:focus {
     align-items: center;
     justify-content: space-between;
     font-size: 13px;
-    color: var(--on-surface);
-    padding: 0.5rem 0.75rem;
-    background: var(--surface-variant);
+    color: var(--on-surface-variant);
+    padding: 0.6rem 0.75rem;
+    background: var(--surface-container-high);
     border-radius: 8px;
+    border: 1px solid var(--outline-variant);
+}
+
+.shortcut-item span {
+    font-weight: 500;
 }
 
 kbd {
